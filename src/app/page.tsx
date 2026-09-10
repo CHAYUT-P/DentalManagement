@@ -1,16 +1,28 @@
 import { HomePage } from "@/components/HomePage";
 import { toUIDentists } from "@/lib/convert";
-import { listDentists } from "@/server/queries";
+import { weekday, todayISO } from "@/lib/dates";
+import { getClinicInfo, listClinicDays, listDentists } from "@/server/queries";
 
-/** the roster is DB data — never prerender it */
+/** every fact on this page is DB data — never prerender it */
 export const dynamic = "force-dynamic";
 
 /**
- * The home screen. The dentist strip is DB-fed; everything else is static
- * design. Dynamic rendering keeps "who is on the strip" current with the
- * staff app's edits.
+ * The home screen. The dentist strip, today's hours, phone and address all
+ * come from Postgres, so the staff console edits what patients see here.
  */
 export default async function Home() {
-  const dentists = toUIDentists(await listDentists());
-  return <HomePage dentists={dentists} />;
+  const [dentistRows, days, info] = await Promise.all([
+    listDentists(),
+    listClinicDays(),
+    getClinicInfo(),
+  ]);
+
+  return (
+    <HomePage
+      dentists={toUIDentists(dentistRows)}
+      hours={days.map((d) => ({ day: d.day, isOpen: d.isOpen, start: d.start, end: d.end }))}
+      info={info}
+      todayKey={weekday(todayISO())}
+    />
+  );
 }

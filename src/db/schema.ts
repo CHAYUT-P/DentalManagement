@@ -274,6 +274,31 @@ export const clinicDay = pgTable(
   (t) => [uniqueIndex("clinic_day_idx").on(t.day)],
 );
 
+/**
+ * The clinic's own contact details — one row (id = 1). The patient site's
+ * /clinic page and the home info card read this; the staff settings page
+ * edits it. Kept to facts the front desk actually owns (phone, LINE, map,
+ * address); descriptive copy stays in the i18n dictionary.
+ */
+export const clinicInfo = pgTable("clinic_info", {
+  id: serial("id").primaryKey(),
+  /** dialled as-is by the tel: link, so no spaces */
+  phone: text("phone").notNull(),
+  /** how the number is shown on the page, e.g. "02-123-4567" */
+  phoneDisplay: text("phone_display").notNull(),
+  lineId: text("line_id").notNull().default(""),
+  lineUrl: text("line_url").notNull().default(""),
+  /** the Google Maps pin the map card opens */
+  mapUrl: text("map_url").notNull().default(""),
+  directionsUrl: text("directions_url").notNull().default(""),
+  addressTh: text("address_th").notNull().default(""),
+  addressEn: text("address_en").notNull().default(""),
+  /** the neighbourhood line under the address, per language */
+  landmarkTh: text("landmark_th").notNull().default(""),
+  landmarkEn: text("landmark_en").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** special closed dates, as an inclusive range */
 export const holiday = pgTable("holiday", {
   id: serial("id").primaryKey(),

@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { services } from "@/data/services";
 import type { Dentist } from "@/data/dentists";
+import type { ClinicInfoDTO } from "@/server/queries";
 import { useT } from "@/i18n/lang";
 import { ArrowRight, Building, Calendar, Doc, Sparks } from "@/components/icons";
 import { Mascot } from "@/components/Mascot";
@@ -25,10 +26,20 @@ import {
  * open the booking history and the clinic page, a service tile starts a booking
  * with that treatment already chosen, and the info card opens the clinic details.
  *
- * The dentist strip is the DB roster (only active dentists), passed in by the
- * page so the server decides who is on it.
+ * The dentist strip and the info card are DB-fed (active dentists, clinic_day
+ * hours, clinic_info contact) — the server decides what they show.
  */
-export function HomePage({ dentists }: { dentists: Dentist[] }) {
+export function HomePage({
+  dentists,
+  hours,
+  info,
+  todayKey,
+}: {
+  dentists: Dentist[];
+  hours?: { day: string; isOpen: boolean; start: string; end: string }[];
+  info?: ClinicInfoDTO | null;
+  todayKey?: string;
+}) {
   const t = useT();
   return (
     <div className="shell">
@@ -79,7 +90,7 @@ export function HomePage({ dentists }: { dentists: Dentist[] }) {
           <SectionHead title={t.nav.dentists} href="/dentists" />
           <DentistStrip list={dentists} />
 
-          <InfoRow />
+          <InfoRow hours={hours} info={info} todayKey={todayKey} />
           <Ribbon msg={t.ribbon} />
         </div>
       </main>

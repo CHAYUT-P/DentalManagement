@@ -1,17 +1,6 @@
 "use client";
 
-import {
-  directionsUrl,
-  facilities,
-  hours,
-  landmark,
-  lineId,
-  lineUrl,
-  mapUrl,
-  tel,
-  telDisplay,
-  type FacilityKey,
-} from "@/data/clinic";
+import type { ClinicDayDTO, ClinicInfoDTO } from "@/server/queries";
 import { useLang } from "@/i18n/lang";
 import { weekday } from "@/lib/dates";
 import { Ball, Car, Card, Family, LineBubble, MapPlan, Phone, Pin, Shield, Wifi } from "./icons";
@@ -19,12 +8,12 @@ import { Eyebrow, Ledger, Panel, Screen } from "./screen";
 
 /**
  * The clinic itself: what it is, when it opens, how to reach it, and where it is.
- * Every tappable contact detail is the real thing — `tel:`, the LINE deep link,
- * and the Google Maps pin — so the page already works on a phone even though the
- * copy is still mock text the owner will replace.
+ * Hours come from the clinic_day table and contact details from clinic_info —
+ * the same rows the staff settings page edits. Only the descriptive copy
+ * (about, payment) stays in the dictionary.
  */
 
-const FACILITY_ICON: Record<FacilityKey, React.ReactNode> = {
+const FACILITY_ICON: Record<string, React.ReactNode> = {
   parking: <Car />,
   wifi: <Wifi />,
   cards: <Card />,
@@ -33,9 +22,32 @@ const FACILITY_ICON: Record<FacilityKey, React.ReactNode> = {
   family: <Family />,
 };
 
-export function ClinicPage({ today }: { today: string }) {
+const FACILITIES = ["parking", "play", "wifi", "family", "sterile", "cards"] as const;
+
+export function ClinicPage({
+  today,
+  days,
+  info,
+}: {
+  today: string;
+  days: ClinicDayDTO[];
+  info: ClinicInfoDTO | null;
+}) {
   const { t, lang } = useLang();
   const dow = weekday(today);
+  /** display order: Monday first, Sunday last (the week as the front desk sees it) */
+  const ordered = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) =>
+    days.find((row) => row.day === d),
+  );
+  const address = (lang === "th" ? info?.addressTh : info?.addressEn) || t.clinic.address;
+  const landmark = (lang === "th" ? info?.landmarkTh : info?.landmarkEn) || "";
+  const phone = info?.phoneDisplay || t.clinic.phone;
+  const phoneLink = info?.phone || info?.phoneDisplay || "tel:";
+  const lineId = info?.lineId ?? "";
+  const lineUrl = info?.lineUrl || "#";
+  const mapUrl = info?.mapUrl || "#";
+  const directionsUrl = info?.directionsUrl || mapUrl;
+
   return (
     <Screen title={t.nav.clinic} back="/">
       <Eyebrow>{t.clinicPage.aboutEyebrow}</Eyebrow>
@@ -45,26 +57,30 @@ export function ClinicPage({ today }: { today: string }) {
 
       <Eyebrow>{t.clinicPage.hoursEyebrow}</Eyebrow>
       <Ledger>
-        {hours.map((h) => (
-          <div key={h.day} className={`row${h.day === dow ? " now" : ""}`}>
-            <span className="rk">
-              {t.weekdayLong[h.day]}
-              {h.day === dow ? <span className="todayTag">{t.common.today}</span> : null}
-            </span>
-            <span className={h.hours ? "rv" : "rv off"}>{h.hours ?? t.common.closed}</span>
-          </div>
-        ))}
+        {ordered.map((h) =>
+          h ? (
+            <div key={h.day} className={`row${h.day === dow ? " now" : ""}`}>
+              <span className="rk">
+                {t.weekdayLong[h.day as keyof typeof t.weekdayLong]}
+                {h.day === dow ? <span className="todayTag">{t.common.today}</span> : null}
+              </span>
+              <span className={h.isOpen ? "rv" : "rv off"}>
+                {h.isOpen ? `${h.start} - ${h.end}` : t.common.closed}
+              </span>
+            </div>
+          ) : null,
+        )}
       </Ledger>
 
       <Eyebrow>{t.clinicPage.contactEyebrow}</Eyebrow>
       <div className="contact">
-        <a href={`tel:${tel}`} className="contactRow">
+        <a href={`tel:${phoneLink}`} className="contactRow">
           <span className="cIcon rose">
             <Phone size={18} />
           </span>
           <span className="cText">
             <span className="cn">{t.clinicPage.call}</span>
-            <span className="cm">{telDisplay}</span>
+            <span className="cm">{phone}</span>
           </span>
         </a>
         <a href={lineUrl} target="_blank" rel="noreferrer" className="contactRow">
@@ -91,8 +107,8 @@ export function ClinicPage({ today }: { today: string }) {
             <Pin size={14} />
           </span>
           <div>
-            <p className="mAddr">{t.clinic.address}</p>
-            <p className="mLand">{landmark[lang]}</p>
+            <p className="mAddr">{address}</p>
+            {landmark ? <p className="mLand">{landmark}</p> : null}
           </div>
         </div>
         <div className="mapBtns">
@@ -107,7 +123,7 @@ export function ClinicPage({ today }: { today: string }) {
 
       <Eyebrow>{t.clinicPage.facilitiesEyebrow}</Eyebrow>
       <div className="facs">
-        {facilities.map((f) => (
+        {FACILITIES.map((f) => (
           <span key={f} className="fac">
             <span className="fIcon">{FACILITY_ICON[f]}</span>
             {t.facility[f]}
@@ -119,7 +135,6 @@ export function ClinicPage({ today }: { today: string }) {
       <Panel>
         <p className="prose">{t.clinicPage.pay}</p>
       </Panel>
-      <p className="hint">{t.common.mockData}</p>
     </Screen>
   );
 }

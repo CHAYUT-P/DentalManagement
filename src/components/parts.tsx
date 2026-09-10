@@ -5,6 +5,7 @@ import Link from "next/link";
 import { dentists as fallbackDentists } from "@/data/dentists";
 import type { Dentist } from "@/data/dentists";
 import type { Service } from "@/data/services";
+import type { ClinicInfoDTO } from "@/server/queries";
 import { LANG_LABEL, type Lang } from "@/i18n/dict";
 import { useLang, useT } from "@/i18n/lang";
 import { Bell, Chevron, Clock, LogoMark, Phone, Pin, Star } from "./icons";
@@ -86,8 +87,32 @@ export function ServiceGrid({ items, cols = 5 }: { items: Service[]; cols?: 3 | 
   );
 }
 
-export function InfoRow() {
-  const t = useT();
+/**
+ * The three-fact strip on the home page: today's hours, the phone number and
+ * the address — all from the database (clinic_day + clinic_info), so the staff
+ * app edits what this shows. Tapping opens the clinic page.
+ */
+export function InfoRow({
+  hours,
+  info,
+  todayKey,
+}: {
+  hours?: { day: string; isOpen: boolean; start: string; end: string }[];
+  info?: ClinicInfoDTO | null;
+  /** which weekday "today" is — computed on the server, never in the browser */
+  todayKey?: string;
+}) {
+  const { t, lang } = useLang();
+
+  const todayRow = hours?.find((h) => h.day === todayKey);
+  const hoursLine = todayRow
+    ? todayRow.isOpen
+      ? `${todayRow.start} - ${todayRow.end}`
+      : t.common.closed
+    : t.clinic.hoursTime;
+  const phone = info?.phoneDisplay || t.clinic.phone;
+  const address = (lang === "th" ? info?.addressTh : info?.addressEn) || t.clinic.address;
+
   return (
     <Link href="/clinic" className="info">
       <div className="col">
@@ -95,25 +120,21 @@ export function InfoRow() {
           <Clock />
           <span className="k">{t.clinic.hoursLabel}</span>
         </div>
-        <div className="v">
-          {t.clinic.hoursDays}
-          <br />
-          {t.clinic.hoursTime}
-        </div>
+        <div className="v">{hoursLine}</div>
       </div>
       <div className="col">
         <div className="top">
           <Phone />
           <span className="k">{t.clinic.phoneLabel}</span>
         </div>
-        <div className="v">{t.clinic.phone}</div>
+        <div className="v">{phone}</div>
       </div>
       <div className="col">
         <div className="top">
           <Pin />
           <span className="k">{t.clinic.addressLabel}</span>
         </div>
-        <div className="v">{t.clinic.address}</div>
+        <div className="v">{address}</div>
       </div>
     </Link>
   );

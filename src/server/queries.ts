@@ -19,6 +19,7 @@ import {
   appointment,
   child,
   clinicDay,
+  clinicInfo,
   dentist,
   dentistShift,
   dentistText,
@@ -234,6 +235,47 @@ export async function listClinicDays(): Promise<ClinicDayDTO[]> {
 export async function listHolidays(): Promise<HolidayDTO[]> {
   const rows = await db.select().from(holiday).orderBy(asc(holiday.start));
   return rows.map((h) => ({ id: h.id, start: h.start, end: h.end, name: h.name }));
+}
+
+/* ─────────────────────────── clinic contact info ───────────────────────── */
+
+export interface ClinicInfoDTO {
+  phone: string;
+  phoneDisplay: string;
+  lineId: string;
+  lineUrl: string;
+  mapUrl: string;
+  directionsUrl: string;
+  addressTh: string;
+  addressEn: string;
+  landmarkTh: string;
+  landmarkEn: string;
+}
+
+/** the single clinic_info row, or null when never seeded */
+export async function getClinicInfo(): Promise<ClinicInfoDTO | null> {
+  const rows = await db.select().from(clinicInfo).where(eq(clinicInfo.id, 1));
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    phone: r.phone,
+    phoneDisplay: r.phoneDisplay,
+    lineId: r.lineId,
+    lineUrl: r.lineUrl,
+    mapUrl: r.mapUrl,
+    directionsUrl: r.directionsUrl,
+    addressTh: r.addressTh,
+    addressEn: r.addressEn,
+    landmarkTh: r.landmarkTh,
+    landmarkEn: r.landmarkEn,
+  };
+}
+
+export async function updateClinicInfo(patch: Partial<ClinicInfoDTO>): Promise<void> {
+  await db
+    .update(clinicInfo)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(eq(clinicInfo.id, 1));
 }
 
 /* ═══════════════════════════════ availability ═══════════════════════════ */

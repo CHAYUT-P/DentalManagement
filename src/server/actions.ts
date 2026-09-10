@@ -23,6 +23,7 @@ import {
   slotsForDate,
   updateAppointment,
   updateClinicDay,
+  updateClinicInfo,
   updateDentist,
   updatePatient,
   updateTreatmentPrice,
@@ -284,6 +285,23 @@ export async function staffUpdatePrice(key: IconKey, price: number | null) {
 
 export async function staffUpdateDay(day: string, patch: { isOpen?: boolean; start?: string; end?: string }) {
   await updateClinicDay(day, patch);
+  revalidateAll();
+}
+
+/** the /clinic page + home info card content */
+export async function staffUpdateClinicInfo(patch: {
+  phone?: string;
+  phoneDisplay?: string;
+  lineId?: string;
+  lineUrl?: string;
+  mapUrl?: string;
+  directionsUrl?: string;
+  addressTh?: string;
+  addressEn?: string;
+  landmarkTh?: string;
+  landmarkEn?: string;
+}) {
+  await updateClinicInfo(patch);
   revalidateAll();
 }
 

@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 import React, { useState } from "react";
 import { useStaff } from "@/lib/staffStore";
+import { staffUpdateClinicInfo } from "@/server/actions";
 import {
   telDisplay,
   lineId,
@@ -275,7 +276,16 @@ export default function StaffSettingsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    showToast("บันทึกการตั้งค่าคลินิกเรียบร้อยแล้ว");
+    // clinic contact details now persist to Postgres (clinic_info) — the
+    // patient /clinic page and the home info card read this same row
+    staffUpdateClinicInfo({
+      phone: tel.replace(/\D/g, "") || undefined,
+      phoneDisplay: tel || undefined,
+      lineId: line || undefined,
+      addressTh: addressTh || undefined,
+      addressEn: addressEn || undefined,
+    });
+    showToast("บันทึกการตั้งค่าคลินิกเรียบร้อยแล้ว — เว็บผู้ปกครองอัปเดตทันที");
   };
 
   const handleResetData = () => {

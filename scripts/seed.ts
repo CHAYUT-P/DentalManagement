@@ -22,6 +22,7 @@ import {
   appointment,
   child,
   clinicDay,
+  clinicInfo,
   dentist,
   dentistShift,
   dentistText,
@@ -236,12 +237,39 @@ async function seedPatients(): Promise<{ childIdByName: Map<string, number>; gua
   return { childIdByName, guardianIdByName };
 }
 
+async function seedClinicInfo() {
+  /**
+   * The clinic's real contact row. The address/phone here are the old demo
+   * placeholders — the owner will paste the verified Chon Buri details from
+   * the Google Maps listing (see PROJECT.md § Backend). onConflictDoNothing
+   * means staff edits are never overwritten by a re-seed.
+   */
+  await db
+    .insert(clinicInfo)
+    .values({
+      id: 1,
+      phone: "021234567",
+      phoneDisplay: "02-123-4567",
+      lineId: "@dentakids",
+      lineUrl: "https://line.me/R/ti/p/~@dentakids",
+      mapUrl: "https://maps.app.goo.gl/KJvwAruQJT99UZuEA",
+      directionsUrl:
+        "https://www.google.com/maps/dir/?api=1&destination=Denta+Kids+Dental+Center+Samet+Chon+Buri",
+      addressTh: "ตำบลเสม็ด อำเภอเมืองชลบุรี ชลบุรี 20000 (ที่อยู่เต็มรอยืนยันจากเจ้าของ)",
+      addressEn: "Samet, Mueang Chon Buri District, Chon Buri 20000 (full address pending owner confirmation)",
+      landmarkTh: "ใกล้สี่แยกเสม็ด ชลบุรี",
+      landmarkEn: "Near Samet intersection, Chon Buri",
+    })
+    .onConflictDoNothing();
+}
+
 async function main() {
   console.log("Seeding Denta Kids database…");
 
   await seedDentists();
   await seedTreatments();
   await seedClinicDays();
+  await seedClinicInfo();
   await seedHolidays();
   const { childIdByName, guardianIdByName } = await seedPatients();
 
