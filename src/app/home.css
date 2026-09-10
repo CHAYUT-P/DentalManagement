@@ -10,3 +10,8 @@
 .home .hero .cal { position: absolute; right: 40px; top: 54px; }
 .home .hero .pet { position: absolute; left: 1px; bottom: 0; }
 .home .hero .heroArrow { position: absolute; right: 20px; bottom: 15px; }
+
+/* the Thai title (จองนัดหมาย) sets the size; the English "Book a visit" is
+   longer, so it takes one step down to stay on a single line. The language
+   switcher sets <html lang>, which :lang() reads. */
+.home .hero .title:lang(en) { font-size: 24px; }
