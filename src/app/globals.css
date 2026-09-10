@@ -410,6 +410,10 @@ a {
   gap: 4px;
   align-items: center;
   text-align: center;
+  /* grid items default to min-width:auto, so a long unbreakable line
+     (e.g. the English address) forced the whole card wider than the phone.
+     Allow the track to shrink; .v below then ellipsizes inside the card. */
+  min-width: 0;
 }
 .info .col + .col { border-left: 1px solid rgba(214, 155, 190, 0.22); }
 
@@ -418,6 +422,9 @@ a {
   align-items: center;
   gap: 4px;
   color: var(--ink-2);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .info .k {
@@ -425,6 +432,9 @@ a {
   font-weight: 500;
   line-height: 1.3;
   color: var(--ink-2);
+  /* labels may wrap (e.g. "Opening hours" in English) but must never
+     force the column wider than the card */
+  min-width: 0;
 }
 
 .info .v {
