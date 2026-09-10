@@ -1,0 +1,291 @@
+"use client";
+
+import React, { useState } from "react";
+import { useStaff, type BookingSource } from "@/lib/staffStore";
+import type { IconKey } from "@/data/icons";
+import { useT } from "@/i18n/lang";
+import { IconX, IconPlus, IconPhone, IconWalkIn, IconSmartphone } from "./staffIcons";
+
+interface BookingModalProps {
+  initialDate?: string;
+  initialTime?: string;
+  initialDentistSlug?: string;
+  /** prefill the patient fields — used when booking straight from a patient card */
+  initialChildName?: string;
+  initialChildAge?: number;
+  initialGuardianName?: string;
+  initialPhone?: string;
+  initialForSelf?: boolean;
+  onClose: () => void;
+  onCreated?: () => void;
+}
+
+export function BookingModal({
+  initialDate,
+  initialTime,
+  initialDentistSlug,
+  initialChildName,
+  initialChildAge,
+  initialGuardianName,
+  initialPhone,
+  initialForSelf,
+  onClose,
+  onCreated,
+}: BookingModalProps) {
+  const { today, dentists, servicePrices, createAppointment } = useStaff();
+  const dict = useT();
+
+  const [date, setDate] = useState(initialDate || today);
+  const [time, setTime] = useState(initialTime || "10:00");
+  const [dentistSlug, setDentistSlug] = useState(initialDentistSlug || dentists[0]?.slug || "naree");
+  const [treatmentKey, setTreatmentKey] = useState<IconKey>("checkup");
+  const [childName, setChildName] = useState(initialChildName || "");
+  const [childAge, setChildAge] = useState<string>(
+    initialChildAge !== undefined ? String(initialChildAge) : "5",
+  );
+  const [guardianName, setGuardianName] = useState(initialGuardianName || "");
+  const [phone, setPhone] = useState(initialPhone || "");
+  /** adult booking for themselves — no child, guardian fields become the patient */
+  const [forSelf, setForSelf] = useState(initialForSelf || false);
+  const [source, setSource] = useState<BookingSource>("phone");
+  const [notes, setNotes] = useState("");
+
+  const activeDentists = dentists.filter((d) => d.isActive);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forSelf && !childName.trim()) {
+      alert("กรุณากรอกชื่อคนไข้ (น้อง)");
+      return;
+    }
+    if (!phone.trim()) {
+      alert(forSelf ? "กรุณากรอกเบอร์ติดต่อคนไข้" : "กรุณากรอกเบอร์ติดต่อผู้ปกครอง");
+      return;
+    }
+
+    createAppointment({
+      date,
+      time,
+      durationMin: 30,
+      childName: forSelf ? guardianName.trim() || "ผู้จอง" : childName.trim(),
+      childAge: forSelf ? undefined : childAge ? parseInt(childAge, 10) : undefined,
+      guardianName: guardianName.trim() || (forSelf ? "ตนเอง" : "ผู้ปกครอง"),
+      phone: phone.trim(),
+      dentistSlug,
+      treatmentKey,
+      source,
+      status: "confirmed",
+      notes: notes.trim(),
+      price: servicePrices[treatmentKey] ?? 0,
+      forSelf,
+    });
+
+    if (onCreated) onCreated();
+    onClose();
+  };
+
+  const times = [
+    "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+    "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+    "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00"
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>รับนัดหมายใหม่ (New Booking)</h3>
+          <button type="button" className="btn-action-icon" onClick={onClose}>
+            <IconX size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {/* Source */}
+            <div className="form-group">
+              <label>ช่องทางการจอง (Source)</label>
+              <div className="staff-pill-group" style={{ width: "fit-content" }}>
+                <button
+                  type="button"
+                  className={`staff-pill-btn ${source === "phone" ? "active" : ""}`}
+                  onClick={() => setSource("phone")}
+                >
+                  <IconPhone size={13} />
+                  <span>โทรศัพท์ (Phone)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`staff-pill-btn ${source === "walkin" ? "active" : ""}`}
+                  onClick={() => setSource("walkin")}
+                >
+                  <IconWalkIn size={13} />
+                  <span>หน้าร้าน (Walk-in)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`staff-pill-btn ${source === "online" ? "active" : ""}`}
+                  onClick={() => setSource("online")}
+                >
+                  <IconSmartphone size={13} />
+                  <span>LINE LIFF (Online)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Who is visiting */}
+            <div className="form-group">
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={forSelf}
+                  onChange={(e) => setForSelf(e.target.checked)}
+                />
+                <span>จองให้ตัวเอง (คนไข้ผู้ใหญ่ ไม่มีเด็ก)</span>
+              </label>
+            </div>
+
+            {/* Child Info */}
+            {!forSelf ? (
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label>ชื่อคนไข้ (เด็ก) *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="เช่น น้องเจได"
+                    value={childName}
+                    onChange={(e) => setChildName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>อายุ (ปี)</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    placeholder="เช่น 5"
+                    value={childAge}
+                    onChange={(e) => setChildAge(e.target.value)}
+                    min={1}
+                    max={18}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {/* Guardian Info */}
+            <div className="form-row-2">
+              <div className="form-group">
+                <label>{forSelf ? "ชื่อคนไข้ (ผู้ใหญ่) *" : "ชื่อผู้ปกครอง"}</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder={forSelf ? "เช่น คุณมณฑิรา" : "เช่น คุณแม่มณฑิรา"}
+                  value={guardianName}
+                  onChange={(e) => setGuardianName(e.target.value)}
+                  required={forSelf}
+                />
+              </div>
+              <div className="form-group">
+                <label>เบอร์โทรศัพท์ติดต่อ *</label>
+                <input
+                  type="tel"
+                  className="form-control"
+                  placeholder="08X-XXX-XXXX"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Treatment & Dentist */}
+            <div className="form-row-2">
+              <div className="form-group">
+                <label>ทันตแพทย์ผู้ตรวจ</label>
+                <select
+                  className="form-control"
+                  value={dentistSlug}
+                  onChange={(e) => setDentistSlug(e.target.value)}
+                >
+                  {activeDentists.map((d) => (
+                    <option key={d.slug} value={d.slug}>
+                      {d.text.th.name} ({d.text.th.title})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>หัตถการ / การรักษา</label>
+                <select
+                  className="form-control"
+                  value={treatmentKey}
+                  onChange={(e) => setTreatmentKey(e.target.value as IconKey)}
+                >
+                  {Object.entries(dict.service).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label} {servicePrices[k as IconKey] ? `(฿${servicePrices[k as IconKey]})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Date & Time */}
+            <div className="form-row-2">
+              <div className="form-group">
+                <label>วันที่นัดหมาย</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>เวลานัดหมาย</label>
+                <select
+                  className="form-control"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                >
+                  {times.map((t) => (
+                    <option key={t} value={t}>
+                      {t} น.
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="form-group">
+              <label>หมายเหตุ / อาการเบื้องต้น</label>
+              <textarea
+                className="form-control"
+                rows={2}
+                placeholder="เช่น ตรวจสุขภาพฟันประจำปี, กังวลเรื่องฟันผุ"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary-staff" onClick={onClose}>
+              ยกเลิก
+            </button>
+            <button type="submit" className="btn-primary-staff">
+              <IconPlus size={15} />
+              <span>บันทึกการจอง</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

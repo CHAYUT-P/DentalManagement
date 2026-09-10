@@ -1,0 +1,174 @@
+"use client";
+
+import Link from "next/link";
+
+import { dentists as fallbackDentists } from "@/data/dentists";
+import type { Dentist } from "@/data/dentists";
+import type { Service } from "@/data/services";
+import { LANG_LABEL, type Lang } from "@/i18n/dict";
+import { useLang, useT } from "@/i18n/lang";
+import { Bell, Chevron, Clock, LogoMark, Phone, Pin, Star } from "./icons";
+import { ServiceIcon } from "./serviceIcons";
+import { Mascot } from "./Mascot";
+import { DentistAvatar } from "./portrait";
+
+/** Thai / English, in the header row just left of the bell. Thai is the default. */
+export function LangSwitch() {
+  const { lang, setLang, t } = useLang();
+  const options: Lang[] = ["th", "en"];
+  return (
+    <div className="langSwitch" role="group" aria-label={t.langSwitch}>
+      {options.map((l) => (
+        <button key={l} type="button" lang={l} aria-pressed={lang === l} onClick={() => setLang(l)}>
+          {LANG_LABEL[l]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Header() {
+  const t = useT();
+  return (
+    <header className="header">
+      <div className="mark">
+        <LogoMark />
+      </div>
+      <div className="who">
+        {/* the brand stays Latin in both languages */}
+        <div className="name" lang="en">
+          {t.clinic.name}
+        </div>
+        <div className="tag">{t.clinic.tagline}</div>
+      </div>
+      <LangSwitch />
+      <Link href="/notifications" className="bell" aria-label={t.notifications}>
+        <Bell />
+      </Link>
+    </header>
+  );
+}
+
+/** `href` omitted means the heading stands alone, with no "see all" link. */
+export function SectionHead({ title, href }: { title: string; href?: string }) {
+  const t = useT();
+  return (
+    <div className="sectionHead">
+      <h2>{title}</h2>
+      {href ? (
+        <Link href={href} className="seeAll">
+          <span>{t.seeAll}</span>
+          <Chevron />
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+export function ServiceGrid({ items, cols = 5 }: { items: Service[]; cols?: 3 | 5 }) {
+  const t = useT();
+  return (
+    <div className={cols === 3 ? "grid cols3" : "grid"}>
+      {items.map((s) => (
+        <Link
+          key={s.key}
+          /* the last tile is the way out to the full list, not a treatment */
+          href={s.key === "more" ? "/services" : `/book?t=${s.key}`}
+          className="tile"
+        >
+          <span className={`disc t-${s.tint}`}>
+            <ServiceIcon k={s.key} size={cols === 3 ? 30 : 28} />
+          </span>
+          <span className="label">{t.service[s.key]}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export function InfoRow() {
+  const t = useT();
+  return (
+    <Link href="/clinic" className="info">
+      <div className="col">
+        <div className="top">
+          <Clock />
+          <span className="k">{t.clinic.hoursLabel}</span>
+        </div>
+        <div className="v">
+          {t.clinic.hoursDays}
+          <br />
+          {t.clinic.hoursTime}
+        </div>
+      </div>
+      <div className="col">
+        <div className="top">
+          <Phone />
+          <span className="k">{t.clinic.phoneLabel}</span>
+        </div>
+        <div className="v">{t.clinic.phone}</div>
+      </div>
+      <div className="col">
+        <div className="top">
+          <Pin />
+          <span className="k">{t.clinic.addressLabel}</span>
+        </div>
+        <div className="v">{t.clinic.address}</div>
+      </div>
+    </Link>
+  );
+}
+
+export function Ribbon({ msg, face = true }: { msg: string; face?: boolean }) {
+  return (
+    <footer className="ribbon">
+      {face ? <Mascot h={22} id="rib" /> : null}
+      <span className="msg">{msg}</span>
+      <Link
+        href="/staff"
+        title="เปิดระบบจัดการเจ้าหน้าที่ (Staff Console)"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginLeft: "6px",
+          fontSize: "10px",
+          fontWeight: "500",
+          background: "rgba(255, 255, 255, 0.28)",
+          padding: "2px 8px",
+          borderRadius: "999px",
+          color: "#fff",
+        }}
+      >
+        Staff ↗
+      </Link>
+    </footer>
+  );
+}
+
+/**
+ * The dentists on the home page: a swipeable row of faces, because parents pick
+ * the dentist their child already knows. Tapping one opens the full profile.
+ * The roster arrives as a prop (the DB decides who is active) with a static
+ * fallback for any caller that does not pass one.
+ */
+export function DentistStrip({ list }: { list?: Dentist[] }) {
+  const { t, lang } = useLang();
+  return (
+    <div className="docStrip">
+      {(list ?? fallbackDentists).map((d) => {
+        const x = d.text[lang];
+        return (
+          <Link key={d.slug} href={`/dentists/${d.slug}`} className="docMini">
+            <DentistAvatar d={d} alt={x.name} size={58} />
+            <span className="dmName">{x.name}</span>
+            <span className="dmTitle">{x.title}</span>
+            <span className="dmYrs">
+              <Star size={9} />
+              {d.years} {t.common.years}
+            </span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}

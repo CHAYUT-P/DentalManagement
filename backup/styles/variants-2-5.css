@@ -1,0 +1,70 @@
+/* Overrides for the parked home-page styles 2-5. Restore alongside
+   backup/styles/<n>/page.tsx and rename `.v1` -> `.home` if reused. */
+
+/* -------------------------------- style 2 --------------------------------- */
+
+.v2 .split { display: grid; grid-template-columns: 1.04fr 1fr; gap: 10px; }
+.v2 .split .hero { min-height: 214px; padding: 18px 16px; }
+.v2 .split .hero .sub { margin-top: 4px; }
+.v2 .calBig { position: absolute; left: 50%; top: 100px; transform: translateX(-50%); }
+.v2 .heroArrow { position: absolute; right: 15px; bottom: 15px; }
+.v2 .rightCol { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; }
+.v2 .rightCol .act { flex-direction: column; align-items: flex-start; justify-content: center; gap: 7px; padding: 13px 14px; }
+.v2 .care { min-height: 98px; }
+.v2 .cpet { position: absolute; right: 4px; bottom: 0; }
+
+/* -------------------------------- style 3 --------------------------------- */
+
+.v3 .welcome { position: relative; display: flex; align-items: center; gap: 6px; padding: 12px 2px 2px; }
+.v3 .wpet { flex: none; margin-left: -6px; }
+.v3 .wtxt { flex: 1; min-width: 0; }
+.v3 .wt {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 19px;
+  line-height: 1.35;
+  color: var(--brand);
+}
+.v3 .ws {
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--muted);
+  white-space: pre-line;
+}
+
+/* -------------------------------- style 4 --------------------------------- */
+
+.v4 .hero {
+  min-height: 134px;
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.v4 .calMid { margin-top: 9px; }
+.v4 .act { min-height: 58px; }
+
+/* -------------------------------- style 5 --------------------------------- */
+
+.v5 .care { min-height: 106px; padding: 15px 17px; }
+.v5 .cpet { position: absolute; right: 2px; bottom: -2px; }
+.v5 .cbody { max-width: 62%; }
+
+/* ---------------------- the wide rose bar (styles 3 & 5) ------------------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 14px;
+  min-height: 58px;
+  width: 100%;
+}
+.bar .bcal { flex: none; display: grid; place-items: center; }
+.bar .blines { min-width: 0; }
+.bar .title { display: block; font-size: 15.5px; line-height: 1.35; }
+.bar .sub { display: block; font-size: 10px; margin-top: 1px; }
+.bar .arrowBtn { margin-left: auto; width: 34px; height: 34px; }

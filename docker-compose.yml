@@ -1,0 +1,26 @@
+# Local PostgreSQL for development.
+# When you move to the cloud (Neon, Supabase, RDS...), you do NOT need this
+# file anymore — you only change DATABASE_URL in .env and run the same
+# migrations there. The database engine is the same everywhere.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dentalweb-db
+    environment:
+      POSTGRES_USER: dental
+      POSTGRES_PASSWORD: dental
+      POSTGRES_DB: dentalweb
+    ports:
+      - "5432:5432"
+    volumes:
+      # the data survives `docker compose down` (not `down -v`)
+      - dentalweb-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dental -d dentalweb"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  dentalweb-pgdata:

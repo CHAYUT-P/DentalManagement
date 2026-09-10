@@ -1,0 +1,1393 @@
+/* ==========================================================================
+   Denta Kids — everything that is not the home screen.
+
+   Same flat baseline as globals.css: solid colour blocks, hairline borders, no
+   gradients (the tooth mascot keeps its own shading and is the only exception).
+
+   Two surfaces do most of the work. `.panel` is a flat card for a block of
+   prose; `.ledger` is a stack of hairline-separated rows sitting straight on the
+   app surface under an `.eyebrow`. The one raised surface in the whole app is
+   `.slip`, the appointment record — it is paper, so it is the only thing with a
+   shadow and a perforation.
+   ========================================================================== */
+
+/* ---------- back bar ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--app-head);
+  border-bottom: 1px solid var(--line);
+}
+
+.backBtn {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  color: var(--brand);
+  transition: background 0.15s;
+}
+
+.backBtn:active { background: #fdeef5; }
+
+.topbar h1 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--brand);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- section label: a rose dash, then the label ---------- */
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: -6px;
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  color: var(--brand);
+}
+
+.eyebrow::before {
+  content: "";
+  flex: none;
+  width: 13px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--rose-2);
+}
+
+/* ---------- flat card, prose, small print ---------- */
+
+.panel {
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-card);
+  padding: 13px 14px;
+}
+
+.prose {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+  font-weight: 300;
+  color: var(--ink-2);
+  /* the copy carries its own paragraph breaks */
+  white-space: pre-line;
+}
+
+.lead {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.hint {
+  margin: -4px 10px 5px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ---------- contact form: name + tel only (LINE LIFF booking) ---------- */
+.fld {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.fld:last-of-type { border-bottom: 0; }
+.fk {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.fi {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.fi::placeholder { color: var(--muted); opacity: 0.7; }
+.fi:focus {
+  outline: 2px solid var(--rose-2);
+  outline-offset: -1px;
+  border-color: var(--rose-2);
+}
+.err {
+  margin: 0;
+  padding: 10px 12px 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #c92a2a;
+}
+.ghostBtn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rose-deep);
+  background: transparent;
+  border: 0;
+  padding: 10px 6px;
+  cursor: pointer;
+  flex: none;
+}
+
+/* ---------- ledger: hairline rows on the app surface ---------- */
+
+.ledger {
+  display: flex;
+  flex-direction: column;
+}
+
+.ledger .row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ledger .row:last-child { border-bottom: 0; }
+
+.ledger .rk {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--muted);
+}
+
+.ledger .rv {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.ledger .row.now .rk { color: var(--brand); font-weight: 400; }
+.ledger .row.now .rv { color: var(--ink); font-weight: 500; }
+.ledger .rv.off { color: var(--muted); }
+
+.todayTag {
+  font-size: 8.5px;
+  font-weight: 400;
+  color: #fff;
+  background: var(--rose-2);
+  border-radius: 999px;
+  padding: 1.5px 6px;
+}
+
+/* ---------- buttons ---------- */
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: var(--rose-3);
+  color: #fff;
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  text-align: center;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.cta:active { transform: scale(0.985); background: var(--rose-deep); }
+.cta:disabled { background: #f4d3e1; color: #fff; transform: none; }
+
+.ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 400;
+  text-align: center;
+}
+
+.softBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  transition: transform 0.15s;
+}
+
+.softBtn:active { transform: scale(0.97); }
+.softBtn.danger { color: #b4527a; border-color: rgba(200, 120, 160, 0.4); }
+.softBtn.wide { width: 100%; }
+
+.twoBtn {
+  display: flex;
+  gap: 10px;
+  margin-top: -4px;
+}
+
+/* ==========================================================================
+   The appointment slip — the one raised surface in the app.
+   White paper, a torn edge with a notch punched out of each side, and the
+   booking reference in the inked rose stamp.
+   ========================================================================== */
+
+.slip {
+  position: relative;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.3);
+  border-radius: var(--r-card);
+  padding: 14px 15px 15px;
+  box-shadow: 0 6px 20px rgba(206, 150, 182, 0.16);
+}
+
+.slip.cancelled { opacity: 0.78; }
+
+.slipHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.slipHead .eyebrow { margin-bottom: 0; }
+
+.tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 3px 9px 3px 7px;
+  font-size: 9.5px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.tag.ok { background: #e9f6ee; color: #2f7d55; }
+.tag.done { background: var(--t-blue-bg); color: var(--t-steel); }
+.tag.off { background: #f9e6ee; color: #b4527a; }
+
+.slipDate {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.slipDate .dd {
+  font-family: var(--font-display-stack);
+  font-weight: 600;
+  font-size: 42px;
+  line-height: 0.86;
+  letter-spacing: -0.5px;
+  color: var(--rose-deep);
+}
+
+.slipDate .dm {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 2px;
+}
+
+.slipDate .mo {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.2;
+  color: var(--rose-deep);
+}
+
+.slipDate .wd {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* the tear: a dashed rule out to both edges with a notch bitten out of each */
+.perf-line {
+  position: relative;
+  height: 1px;
+  margin: 13px -15px;
+  border-top: 1px dashed rgba(203, 160, 196, 0.55);
+}
+
+.perf-notch {
+  position: absolute;
+  top: -7.5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--app);
+  border: 1px solid rgba(214, 155, 190, 0.3);
+}
+
+.perf-notch.l { left: -8px; clip-path: inset(0 0 0 50%); }
+.perf-notch.r { right: -8px; clip-path: inset(0 50% 0 0); }
+
+/* the child's own name is the one place the rounded Mali face is used */
+.child {
+  font-family: var(--font-child-stack);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.slipFoot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 13px;
+}
+
+.stamp {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 11px;
+  border: 1.5px dashed var(--rose-2);
+  border-radius: 9px;
+  color: var(--rose-deep);
+  transform: rotate(-2.5deg);
+}
+
+.stampK {
+  font-size: 7.5px;
+  letter-spacing: 0.4px;
+  opacity: 0.85;
+}
+
+.stampV {
+  font-family: var(--font-display-stack);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.15;
+  letter-spacing: 0.4px;
+}
+
+.slipNote {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* the same paper with nothing booked on it yet */
+.slip.blank { text-align: center; }
+.slip.blank .slipHead { justify-content: center; }
+.slip.blank .slipFoot { margin-top: 14px; }
+.slip.blank .cta { width: 100%; }
+
+.slipEmpty { padding: 16px 0 4px; }
+
+.se1 {
+  margin: 0;
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.se2 {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   Booking flow: stepper, pick lists, the month calendar, time slots, confirmation
+   ========================================================================== */
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li { flex: 1; }
+
+.steps li button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.steps .sn {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f3ecf8;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.steps .sl {
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.steps li.now button {
+  background: var(--rose-2);
+  border-color: var(--rose-2);
+  color: #fff;
+}
+
+.steps li.now .sn { background: rgba(255, 255, 255, 0.9); color: var(--rose-deep); }
+
+.steps li.done button { border-color: rgba(214, 155, 190, 0.4); color: var(--ink-2); }
+.steps li.done .sn { background: var(--rose-1); color: #fff; }
+
+/* the running summary of what has been chosen so far */
+.pickedBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-tile);
+}
+
+.pickedBar .disc { width: 34px; height: 34px; }
+
+.changeBtn {
+  flex: none;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #fbeef5;
+  color: var(--rose-deep);
+  font-size: 10.5px;
+}
+
+/* a stack of tappable rows: treatment lists, dentist lists */
+.pick {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  transition: background 0.15s;
+}
+
+.pickRow:last-child { border-bottom: 0; }
+.pickRow:active { background: #fdf3f8; }
+
+.pt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pn {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickGroup { display: flex; flex-direction: column; gap: 8px; }
+
+.pickGroup h3 {
+  margin: 0 2px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* four across for the popular grid in the booking flow */
+.grid.cols4 { grid-template-columns: repeat(4, 1fr); }
+.grid.cols4 .disc { width: 42px; height: 42px; }
+.grid.cols4 .label { font-size: 9.5px; }
+
+/* ---------- the booking calendar ---------- */
+
+.cal {
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-card);
+  padding: 8px 10px 10px;
+}
+
+.calHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 6px;
+}
+
+.calTitle {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.calNav {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink-2);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.calNav:active { background: #fdf3f8; transform: scale(0.92); }
+.calNav:disabled { color: #ddcbe6; }
+
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.calDow {
+  text-align: center;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+
+.calDay {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: transform 0.15s;
+}
+
+.calDay .cdn {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 14.5px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.calDay .cdt {
+  font-size: 7.5px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.calDay:active:not(:disabled) { transform: scale(0.93); }
+
+/* today wears a ring so it is findable even when another day is picked */
+.calDay.today { border-color: var(--rose-2); }
+
+/* the chosen day is the action colour */
+.calDay.on {
+  background: var(--rose-2);
+  border-color: var(--rose-2);
+}
+
+.calDay.on .cdn,
+.calDay.on .cdt { color: #fff; }
+
+/* Sundays stay drawn — dashed and quiet — so the grid never reflows */
+.calDay.off {
+  background: #f7f2f8;
+  border: 1px dashed var(--line);
+}
+
+.calDay.off .cdn { color: #c3b4cf; }
+
+/* a day with nothing left to book reads back as full, like a taken slot */
+.calDay.full {
+  background: #f7f2f8;
+  border: 1px dashed var(--line);
+}
+
+.calDay.full .cdn {
+  color: #bcabc9;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* outside the booking window: before today, or further out than the clinic
+   takes bookings — still drawn so the month reads as a month */
+.calDay.out { border-color: transparent; }
+.calDay.out .cdn { color: #dccfe4; }
+
+/* ---------- time slots ---------- */
+
+.slotWrap { display: flex; flex-direction: column; gap: 8px; }
+
+.slotWrap h3 {
+  margin: 2px 2px 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  font-size: 12px;
+  color: var(--ink-2);
+  transition: transform 0.15s;
+}
+
+.slot:active { transform: scale(0.97); }
+.slot.on { background: var(--rose-2); border-color: var(--rose-2); color: #fff; }
+
+/* taken, or — on today's strip — an hour that has already gone by */
+.slot.full,
+.slot.past {
+  background: #f7f2f8;
+  border-style: dashed;
+  color: #bcabc9;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.slot .fullTag {
+  position: absolute;
+  right: 4px;
+  top: 3px;
+  font-size: 7px;
+  color: #c3a9d1;
+  text-decoration: none;
+}
+
+/* ---------- the confirm bar, pinned to the bottom of the frame ---------- */
+
+.stickyBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px calc(var(--pad) * -1) -18px;
+  padding: 10px var(--pad) 12px;
+  background: var(--app-head);
+  border-top: 1px solid var(--line);
+}
+
+.sbText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sbK { font-size: 9.5px; color: var(--muted); }
+
+.sbV {
+  font-size: 12px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stickyBar .cta { flex: none; min-width: 132px; }
+
+/* ---------- the confirmation ---------- */
+
+/* not `.done` — that word is also an appointment status, and a finished visit
+   in the history below must not inherit this centred column */
+.doneWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  text-align: center;
+}
+
+.doneArt {
+  position: relative;
+  align-self: center;
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+}
+
+.doneTick {
+  position: absolute;
+  right: -4px;
+  bottom: 2px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #57b483;
+  color: #fff;
+  border: 2.5px solid var(--app);
+}
+
+.doneTitle {
+  margin: 0;
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 19px;
+  line-height: 1.4;
+  color: var(--brand);
+}
+
+.doneSub {
+  margin: -6px 0 2px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.doneLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   Dentists: the home strip, the roster, the profile
+   ========================================================================== */
+
+/* the round thumbnail and the big portrait both sit on their own tint */
+.dFace {
+  flex: none;
+  display: block;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(214, 155, 190, 0.34);
+}
+
+.dFace img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.dBig {
+  position: relative;
+  width: 108px;
+  height: 132px;
+  flex: none;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(214, 155, 190, 0.3);
+}
+
+.dBig svg { width: 100%; height: 100%; display: block; }
+.dBig img { object-fit: cover; }
+
+/* ---------- the swipeable row on the home page ---------- */
+
+.docStrip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px var(--pad) 4px;
+  margin: -6px calc(var(--pad) * -1) 0;
+  scrollbar-width: none;
+}
+
+.docStrip::-webkit-scrollbar { display: none; }
+
+.docMini {
+  flex: none;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 11px 7px 10px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-tile);
+  text-align: center;
+  transition: transform 0.15s;
+}
+
+.docMini:active { transform: translateY(1px); }
+
+.dmName {
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--ink);
+  /* two lines at most, then it clips */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dmTitle {
+  font-size: 8px;
+  line-height: 1.35;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dmYrs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  color: var(--rose-deep);
+}
+
+/* ---------- the roster ---------- */
+
+.docList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-card);
+  transition: transform 0.15s;
+}
+
+.docCard:active { transform: translateY(1px); }
+
+.docText { flex: 1; min-width: 0; }
+
+.docName {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.docName.big { font-size: 16px; }
+
+.docTitle {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--t-violet);
+}
+
+.docBlurb {
+  margin-top: 3px;
+  font-size: 10.5px;
+  line-height: 1.55;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.docMeta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.yrs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fbeef5;
+  color: var(--rose-deep);
+  font-size: 9px;
+}
+
+.yrs.solid {
+  align-self: flex-start;
+  margin-top: 7px;
+  background: var(--rose-2);
+  color: #fff;
+  padding: 3px 9px;
+  font-size: 9.5px;
+}
+
+.days { font-size: 9px; color: var(--muted); }
+
+.docGo { flex: none; color: var(--link); }
+
+/* ---------- the profile ---------- */
+
+.docHero {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px;
+  border-radius: var(--r-card);
+  /* the tint class supplies the block colour behind the portrait */
+  border: 1px solid rgba(214, 155, 190, 0.28);
+}
+
+.docHeroText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.docHero .docTitle { color: var(--ink-2); }
+
+.creds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.creds li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  font-weight: 300;
+  color: var(--ink-2);
+}
+
+.cTick {
+  flex: none;
+  margin-top: 1px;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef7f2;
+  color: #57a37c;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px 6px 9px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.chip:active { background: #fdf3f8; }
+
+/* ==========================================================================
+   My bookings: the history under the slip
+   ========================================================================== */
+
+.hist {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.histRow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  background: var(--card);
+  /* the hairline between rows, same device as the ledger */
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.histRow:last-child { box-shadow: none; }
+
+/* a cancelled visit reads back as struck-through history, not as an offer */
+.histRow.cancelled .hn { color: var(--muted); }
+.histRow.cancelled .disc { opacity: 0.6; }
+
+.hText { flex: 1; min-width: 0; }
+
+.hn {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.hm {
+  display: block;
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.hSide {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.againBtn {
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--rose-deep);
+  border-bottom: 1px solid rgba(232, 89, 143, 0.4);
+}
+
+/* ==========================================================================
+   The clinic page: contact rows, the map card, facilities
+   ========================================================================== */
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.contactRow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-card);
+  transition: transform 0.15s;
+}
+
+.contactRow:active { transform: translateY(1px); }
+
+.cIcon {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.cIcon.rose { background: #fcdeef; color: var(--t-rose); }
+.cIcon.green { background: #ddf3e4; color: #3fa96a; }
+
+.cText { flex: 1; min-width: 0; }
+
+.cn {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.cm {
+  display: block;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---------- the map ---------- */
+
+.mapCard {
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.mapFrame {
+  display: block;
+  position: relative;
+  background: #eef1f8;
+  line-height: 0;
+}
+
+/* the plan is a stand-in for the real embed, so it fills the frame and crops
+   rather than letterboxing at whatever the phone width happens to be */
+.mapArt {
+  width: 100%;
+  height: 132px;
+  display: block;
+}
+
+.mapNote {
+  position: absolute;
+  left: 9px;
+  bottom: 9px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+
+.mapText {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 13px;
+}
+
+.mIcon {
+  flex: none;
+  margin-top: 1px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fcdeef;
+  color: var(--t-rose);
+}
+
+.mAddr {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.mLand {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.mapBtns {
+  display: flex;
+  gap: 9px;
+  padding: 0 13px 13px;
+}
+
+.mapBtns .cta,
+.mapBtns .ghost { flex: 1; }
+
+/* ---------- facilities ---------- */
+
+.facs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.fac {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-tile);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.fIcon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f3ecfb;
+  color: var(--lav-2);
+}
+
+/* ==========================================================================
+   Notifications
+   ========================================================================== */
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 13px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+/* an unread notice gets the rose edge; read ones stay quiet */
+.note.new { border-color: rgba(251, 112, 164, 0.42); }
+
+.nIcon {
+  flex: none;
+  margin-top: 1px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f3ecfb;
+  color: var(--lav-2);
+}
+
+.note.reminder .nIcon { background: #fcdeef; color: var(--t-rose); }
+.note.promo .nIcon { background: #fcebc9; color: var(--t-gold); }
+
+.nText { flex: 1; min-width: 0; }
+
+.nTop {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nTop h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.nNew {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--rose-3);
+  color: #fff;
+  font-size: 8px;
+  line-height: 1.6;
+}
+
+.nBody {
+  margin: 3px 0 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nWhen {
+  margin-top: 5px;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--muted);
+}

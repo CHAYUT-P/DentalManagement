@@ -1,0 +1,59 @@
+import { copy } from "@/data/clinic";
+import { services } from "@/data/services";
+import { ArrowRight, Building, Calendar, Doc, Sparks } from "@/components/icons";
+import { Mascot } from "@/components/Mascot";
+import { MockButton } from "@/components/mock";
+import { Header, InfoRow, Ribbon, SectionHead, ServiceGrid } from "@/components/parts";
+
+export default function Style1() {
+  return (
+    <main className="app v1">
+      <Header />
+      <div className="body">
+        <section className="hero">
+          <Sparks />
+          <div className="txt">
+            <div className="title">{copy.book}</div>
+            <div className="sub">{copy.bookSubLong}</div>
+          </div>
+          <div className="cal">
+            <Calendar size={54} />
+          </div>
+          <div className="pet">
+            <Mascot h={86} id="p1" />
+          </div>
+          <MockButton label={copy.book} className="arrowBtn heroArrow">
+            <ArrowRight />
+          </MockButton>
+        </section>
+
+        <div className="duo">
+          <MockButton label={copy.history} className="act lav">
+            <span className="glyph" style={{ color: "var(--lav-2)" }}>
+              <Doc />
+            </span>
+            <span className="lines">
+              <span className="t">{copy.history}</span>
+              <span className="s">{copy.historySub}</span>
+            </span>
+          </MockButton>
+          <MockButton label={copy.about} className="act gold">
+            <span className="glyph" style={{ color: "#e0a63c" }}>
+              <Building />
+            </span>
+            <span className="lines">
+              <span className="t">{copy.about}</span>
+              <span className="s">{copy.aboutSubLong}</span>
+            </span>
+          </MockButton>
+        </div>
+
+        <SectionHead title={copy.services} />
+        <ServiceGrid items={services} />
+
+        <InfoRow />
+        <Ribbon msg="สุขภาพฟันดี ชีวิตดี ยิ้มสวยมั่นใจ" />
+      </div>
+    </main>
+  );
+}

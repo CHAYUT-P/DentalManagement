@@ -1,0 +1,53 @@
+/* ==========================================================================
+   The gradient skin, parked 2026-09-01.
+
+   The flat (no-gradient) look won the side-by-side, so globals.css now carries
+   the solid-colour rules directly and there is no `.flat` class any more. To
+   bring the gradient look back, re-add these declarations to the matching
+   selectors in src/app/globals.css (and the four shadow tokens to :root).
+
+     --sh-rose: 0 8px 20px rgba(249, 110, 163, 0.3);
+     --sh-lav:  0 8px 18px rgba(163, 116, 206, 0.26);
+     --sh-blue: 0 8px 18px rgba(122, 146, 232, 0.26);
+     --sh-gold: 0 8px 18px rgba(232, 186, 92, 0.28);
+     --sh-card: 0 4px 14px rgba(196, 146, 180, 0.14);
+
+   The tooth mascot keeps its gradient shading in both skins — that part was
+   never parked (src/components/Mascot.tsx).
+   ========================================================================== */
+
+.shell {
+  background: radial-gradient(120% 60% at 50% 0%, #f7f2fd 0%, var(--page) 55%, var(--page-2) 100%);
+}
+
+@media (min-width: 460px) {
+  .app { box-shadow: 0 18px 50px rgba(140, 100, 180, 0.16); }   /* instead of the hairline border */
+}
+
+.hero {
+  background: linear-gradient(148deg, var(--rose-1) 0%, var(--rose-2) 48%, var(--rose-3) 100%);
+  box-shadow: var(--sh-rose);
+}
+.hero .title { text-shadow: 0 1px 2px rgba(190, 70, 120, 0.18); }
+
+.arrowBtn {
+  background: rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 8px rgba(200, 70, 125, 0.18);
+}
+.arrowBtn:active { background: rgba(255, 255, 255, 0.36); }
+
+.act .glyph {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 5px rgba(120, 80, 150, 0.14);
+}
+.act.lav  { background: linear-gradient(150deg, #ddc4f1 0%, var(--lav) 55%, var(--lav-2) 100%); box-shadow: var(--sh-lav); }
+.act.blue { background: linear-gradient(150deg, #c3d0fb 0%, var(--blue) 55%, var(--blue-2) 100%); box-shadow: var(--sh-blue); }
+.act.gold { background: linear-gradient(150deg, #fdecbe 0%, var(--gold) 55%, var(--gold-2) 100%); box-shadow: var(--sh-gold); }
+
+.tile { box-shadow: var(--sh-tile); border-color: rgba(214, 155, 190, 0.16); }
+.tile:active { box-shadow: 0 1px 2px rgba(206, 150, 182, 0.14); }
+
+.info { box-shadow: var(--sh-card); border: 0; }
+
+.ribbon { background: linear-gradient(100deg, var(--bar-1) 0%, var(--bar-2) 100%); }

@@ -1,49 +1,575 @@
+/* ==========================================================================
+   Denta Kids — patient LIFF app
+   Palette sampled pixel-by-pixel from the reference design sheet.
+   ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* surfaces */
+  --page: #f5f0fc;
+  --page-2: #f8f5fd;
+  --app: #fdf4f6;
+  --app-head: #fef7f9;
+  --card: #ffffff;
+  --tile: #fffbfd;
+
+  /* brand */
+  --rose-1: #fea6c9;
+  --rose-2: #fc85b2;
+  --rose-3: #fb70a4;
+  --rose-deep: #e8598f;
+  --lav: #d6b8e9;
+  --lav-2: #c9a4e2;
+  --lav-soft: #e6d1f3;
+  --bar-1: #dabff6;
+  --bar-2: #cfb1f0;
+  --blue: #b6c6fa;
+  --blue-2: #a3b6f7;
+  --gold: #fee6a6;
+  --gold-2: #fbd98a;
+
+  /* ink */
+  --ink: #332c5e;
+  --ink-2: #4a3f6b;
+  --ink-3: #5c5178;
+  --muted: #9575b5;
+  --link: #a98fcb;
+  --brand: #5b3a90;
+  --promo-ink: #4b2e86;
+
+  /* icon tints: stroke + disc */
+  --t-rose: #f472a8;   --t-rose-bg: #fcdeef;
+  --t-peri: #4a55bc;   --t-peri-bg: #dee0fa;
+  --t-violet: #4a3a8c; --t-violet-bg: #fad7ee;
+  --t-blue: #5b79e4;   --t-blue-bg: #dde3fb;
+  --t-steel: #4467bd;  --t-steel-bg: #dbe6f4;
+  --t-gold: #efa93f;   --t-gold-bg: #fcebc9;
+  --t-lav: #b99ce1;    --t-lav-bg: #e3c9f7;
+
+  /* lines + shadows */
+  --line: rgba(203, 160, 196, 0.2);
+  --line-2: rgba(160, 120, 190, 0.16);
+  --sh-tile: 0 1px 4px rgba(206, 150, 182, 0.12);
+
+  /* geometry */
+  --r-hero: 22px;
+  --r-card: 18px;
+  --r-tile: 16px;
+  --r-bar: 16px;
+  --pad: 16px;
+
+  --font-display-stack: var(--font-display), "Mitr", system-ui, sans-serif;
+  --font-body-stack: var(--font-body), "Prompt", system-ui, sans-serif;
+  --font-child-stack: var(--font-child), "Mali", var(--font-body), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; }
 
-html {
-  height: 100%;
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
+html, body {
   margin: 0;
+  padding: 0;
 }
 
+body {
+  font-family: var(--font-body-stack);
+  color: var(--ink);
+  background: var(--page);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+button:disabled { cursor: default; }
+
+/* every card, tile and row in the app is a link, so links carry no colour or
+   underline of their own — the surface they sit on says what they are */
 a {
   color: inherit;
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+/* ---------- app shell (the LIFF viewport) ---------- */
+
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  background: var(--page);
+}
+
+.app {
+  width: 100%;
+  max-width: 420px;
+  min-height: 100dvh;
+  background: var(--app);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 460px) {
+  .app {
+    margin: 22px 0;
+    min-height: auto;
+    border-radius: 26px;
+    border: 1px solid var(--line);
   }
 }
+
+.body {
+  /* breathing room between the header and the hero card, elastic like the rest */
+  padding: clamp(14px, 2.6vh, 26px) var(--pad) 18px;
+  display: flex;
+  flex-direction: column;
+  /* the rhythm breathes with the viewport so tall phones don't leave a hole
+     above the bottom bar, and short ones still fit without clipping */
+  gap: clamp(12px, 3vh, 30px);
+  flex: 1;
+}
+
+/* ---------- language switch (sits in the header, left of the bell) ---------- */
+
+.langSwitch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+}
+
+.langSwitch button {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.langSwitch button[aria-pressed="true"] {
+  background: var(--rose-2);
+  color: #fff;
+}
+
+/* ---------- header ---------- */
+
+.header {
+  background: var(--app-head);
+  padding: 13px var(--pad) 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.header .mark { flex: none; }
+
+.header .who { flex: 1; min-width: 0; }
+
+.header .name {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--brand);
+  letter-spacing: 0.1px;
+}
+
+.header .tag {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--muted);
+  font-weight: 300;
+}
+
+.bell {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--brand);
+  transition: background 0.15s;
+}
+.bell:active { background: rgba(160, 120, 190, 0.1); }
+
+/* ---------- section heading ---------- */
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0 -4px;
+}
+
+.sectionHead h2 {
+  margin: 0;
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: 0.1px;
+}
+
+.seeAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--link);
+  white-space: nowrap;
+}
+
+/* ---------- the rose call-to-action (hero) ---------- */
+
+.hero {
+  display: block;
+  position: relative;
+  border-radius: var(--r-hero);
+  background: var(--rose-2);
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hero .title {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 31px;
+  line-height: 1.3;
+  letter-spacing: 0.2px;
+}
+
+.hero .sub {
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.94);
+  white-space: pre-line;
+}
+
+.arrowBtn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  transition: transform 0.15s, background 0.15s;
+}
+.arrowBtn:active { transform: scale(0.94); background: rgba(255, 255, 255, 0.36); }
+
+/* decorative sparkles inside a coloured panel */
+.sparks { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+
+/* ---------- pastel action cards ---------- */
+
+.duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.act {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  min-height: 62px;
+  border-radius: var(--r-card);
+  color: #fff;
+  overflow: hidden;
+  transition: transform 0.15s;
+}
+.act:active { transform: scale(0.985); }
+
+.act .glyph {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.act .lines {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.act .t,
+.act .s { display: block; }
+
+.act .t {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.4;
+  letter-spacing: 0.1px;
+}
+
+.act .s {
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.act.lav  { background: var(--lav); }
+.act.blue { background: var(--blue); }
+.act.gold { background: var(--gold); }
+.act.gold .t, .act.gold .s { color: #8a6a2a; }
+.act.gold .s { color: rgba(138, 106, 42, 0.82); }
+
+/* ---------- service grid ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: clamp(8px, 1.4vh, 14px);
+}
+
+.tile {
+  background: var(--tile);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-tile);
+  padding: clamp(8px, 1.7vh, 16px) 3px clamp(7px, 1.5vh, 15px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.tile:active { transform: translateY(1px) scale(0.98); }
+
+.disc {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.tile .label {
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 400;
+  color: var(--ink-2);
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.t-rose   { background: var(--t-rose-bg);   --halo: var(--t-rose-bg);   color: var(--t-rose); }
+.t-peri   { background: var(--t-peri-bg);   --halo: var(--t-peri-bg);   color: var(--t-peri); }
+.t-violet { background: var(--t-violet-bg); --halo: var(--t-violet-bg); color: var(--t-violet); }
+.t-blue   { background: var(--t-blue-bg);   --halo: var(--t-blue-bg);   color: var(--t-blue); }
+.t-steel  { background: var(--t-steel-bg);  --halo: var(--t-steel-bg);  color: var(--t-steel); }
+.t-gold   { background: var(--t-gold-bg);   --halo: var(--t-gold-bg);   color: var(--t-gold); }
+.t-lav    { background: var(--t-lav-bg);    --halo: var(--t-lav-bg);    color: var(--t-lav); }
+
+/* ---------- clinic info card ---------- */
+
+.info {
+  background: var(--card);
+  border: 1px solid rgba(214, 155, 190, 0.34);
+  border-radius: var(--r-card);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.15fr;
+  padding: 12px 4px;
+}
+
+.info .col {
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+.info .col + .col { border-left: 1px solid rgba(214, 155, 190, 0.22); }
+
+.info .top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+}
+
+.info .k {
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink-2);
+}
+
+.info .v {
+  font-size: 9.5px;
+  line-height: 1.5;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+/* ---------- footer ribbon ---------- */
+
+.ribbon {
+  margin: auto calc(-1 * var(--pad)) -18px;
+  min-height: 46px;
+  background: var(--bar-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  color: #fff;
+}
+
+.ribbon .msg {
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.1px;
+}
+
+/* ---------- lavender care banner (styles 2 & 5) ---------- */
+
+.care {
+  position: relative;
+  border-radius: var(--r-card);
+  background: linear-gradient(120deg, #ecdcf7 0%, var(--lav-soft) 45%, #dcc3f0 100%);
+  box-shadow: 0 6px 16px rgba(163, 116, 206, 0.18);
+  padding: 16px 18px;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+}
+
+.care .ct {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--promo-ink);
+  letter-spacing: 0.1px;
+}
+
+.care .cs {
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: rgba(75, 46, 134, 0.8);
+}
+
+.pillBtn {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  color: var(--promo-ink);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 10.5px;
+  font-weight: 500;
+  box-shadow: 0 2px 6px rgba(120, 80, 160, 0.18);
+  transition: transform 0.15s;
+}
+.pillBtn:active { transform: scale(0.96); }
+
+/* ---------- quick pill row (style 5) ---------- */
+
+.pills {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 6px;
+  border-radius: 13px;
+  background: var(--tile);
+  border: 1px solid rgba(214, 155, 190, 0.18);
+  box-shadow: var(--sh-tile);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-2);
+  transition: transform 0.15s;
+}
+.pill:active { transform: scale(0.97); }
+
+.pill .pi {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+}
+
+/* ---------- mock-up affordances (temporary) ---------- */
+
+.toastWrap {
+  position: fixed;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  z-index: 60;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.toast {
+  background: rgba(51, 44, 94, 0.92);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 300;
+  padding: 8px 15px;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(51, 44, 94, 0.3);
+  animation: rise 0.22s ease-out;
+  white-space: nowrap;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+
+
+/* three wider tiles instead of five small ones (kept for the parked styles) */
+.grid.cols3 { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tile.big, .grid.cols3 .tile { padding: 13px 8px 11px; gap: 7px; }
+.grid.cols3 .disc { width: 52px; height: 52px; }
+.grid.cols3 .label { font-size: 12.5px; }

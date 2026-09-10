@@ -1,0 +1,26 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
+import { DentistDetail } from "@/components/DentistDetail";
+import { toUIDentist } from "@/lib/convert";
+import { listDentists } from "@/server/queries";
+
+/** profiles render on request from the DB, so an edit in staff shows at once */
+export async function generateMetadata({ params }: PageProps<"/dentists/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const rows = await listDentists();
+  const d = rows.find((r) => r.slug === slug);
+  if (!d) return { title: "Denta Kids" };
+  return {
+    title: `Denta Kids · ${d.text.th.name}`,
+    description: d.text.th.blurb,
+  };
+}
+
+export default async function Page({ params }: PageProps<"/dentists/[slug]">) {
+  const { slug } = await params;
+  const rows = await listDentists();
+  const row = rows.find((r) => r.slug === slug);
+  if (!row) notFound();
+  return <DentistDetail d={toUIDentist(row)} />;
+}

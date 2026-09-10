@@ -1,0 +1,179 @@
+/* Internal reference page for the treatment icon set. Same palette and flat
+   surfaces as the patient app, just laid out for a desktop window instead of a
+   phone frame. */
+
+.icPage {
+  min-height: 100svh;
+  background: var(--page);
+  padding: 28px 20px 64px;
+  color: var(--ink);
+}
+
+.icTop,
+.icSection {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.icTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 18px 20px;
+  margin-bottom: 26px;
+}
+
+.icTopText { flex: 1; min-width: 0; }
+
+.icTop h1 {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--brand);
+}
+
+.icLead {
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+.icNote {
+  margin-top: 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.icSection { margin-bottom: 30px; }
+
+.icHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 2px 12px;
+}
+
+.icHead h2 {
+  font-family: var(--font-display-stack);
+  font-weight: 500;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--brand);
+}
+
+.icCount {
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.icGroup { margin-bottom: 18px; }
+
+.icGroup h3 {
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink-3);
+  margin: 0 2px 8px;
+}
+
+.icGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 10px;
+}
+
+.icCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 13px 8px 11px;
+  background: var(--tile);
+  border: 1px solid var(--line);
+  border-radius: var(--r-tile);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.12s;
+}
+
+.icCard:hover {
+  background: var(--card);
+  border-color: rgba(203, 160, 196, 0.42);
+}
+
+.icCard:active { transform: translateY(1px); }
+
+.icDisc {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.icName {
+  font-size: 10.5px;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.icKey {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.icTints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.icTint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.icToastWrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 22px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.icToast {
+  background: var(--ink);
+  color: #fff;
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 7px 14px;
+  border-radius: 999px;
+}
+
+.icToast code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  opacity: 0.95;
+}
