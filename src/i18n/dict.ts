@@ -300,7 +300,7 @@ const en: Dict = {
     address: "Samet, Mueang Chon Buri, Chon Buri 20000",
   },
   book: "Book a visit",
-  bookSub: "Pick your dentist & a time that suits you",
+  bookSub: "Pick a dentist & a time",
   history: "My bookings",
   historySub: "Past appointments",
   about: "About the clinic",
