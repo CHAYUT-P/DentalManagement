@@ -432,6 +432,12 @@ a {
   line-height: 1.5;
   font-weight: 300;
   color: var(--ink-3);
+  /* one line per fact, however long the copy is — overflow clips with an
+     ellipsis instead of reflowing the card (English is wider than Thai) */
+  align-self: stretch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- footer ribbon ---------- */

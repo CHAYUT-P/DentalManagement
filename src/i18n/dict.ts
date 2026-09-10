@@ -297,7 +297,7 @@ const en: Dict = {
     phoneLabel: "Phone",
     phone: "02-123-4567",
     addressLabel: "Address",
-    address: "123 Sukkhaphap Rd., Chatuchak, Bangkok 10900",
+    address: "Samet, Mueang Chon Buri, Chon Buri 20000",
   },
   book: "Book a visit",
   bookSub: "Pick your dentist,\nthen a day and time",
