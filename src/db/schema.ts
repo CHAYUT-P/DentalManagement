@@ -216,9 +216,11 @@ export const appointment = pgTable(
     guardianId: integer("guardian_id").references(() => guardian.id, { onDelete: "set null" }),
     guardianName: text("guardian_name").notNull(),
     phone: text("phone").notNull(),
-    dentistId: integer("dentist_id")
-      .notNull()
-      .references(() => dentist.id, { onDelete: "restrict" }),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "restrict" }),
+    /** NULL = pooled "any dentist" booking waiting for assignment (see settlePool).
+     *  Postgres treats NULLs as distinct in the unique slot index below, so any
+     *  number of pooled rows can share one wall-clock slot — chairs, not the
+     *  index, are what limit them. */
     treatmentKey: text("treatment_key").notNull(),
     /** clinic-local wall clock, Asia/Bangkok */
     date: text("date").notNull(), // YYYY-MM-DD
@@ -306,6 +308,18 @@ export const holiday = pgTable("holiday", {
   end: text("end").notNull(), // YYYY-MM-DD
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Single knobs the staff console owns, as key/value rows. Only `chairs` is
+ * read today: the number of treatment chairs, which caps how many live
+ * bookings (assigned + pooled "any dentist") may hold one wall-clock slot —
+ * the point is a patient never waits for a chair. Seeded to 3.
+ */
+export const clinicSetting = pgTable("clinic_setting", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /** staff-side bell: online bookings, cancellations, check-ins, reminders */

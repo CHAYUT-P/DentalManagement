@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 import React, { useState } from "react";
 import { useStaff, type EditableDentist } from "@/lib/staffStore";
+import { useT } from "@/i18n/lang";
 import { EditDentistModal } from "@/components/staff/EditDentistModal";
 import { IconEdit, IconDentist, IconClock } from "@/components/staff/staffIcons";
 
@@ -12,6 +13,7 @@ const WEEKDAY_NAMES_SHORT = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.
 
 export default function StaffDentistsPage() {
   const { dentists } = useStaff();
+  const dict = useT();
   const [editingDentist, setEditingDentist] = useState<EditableDentist | null>(null);
 
   return (
@@ -56,6 +58,15 @@ export default function StaffDentistsPage() {
 
             <div style={{ fontSize: "12.5px", color: "var(--staff-ink-2)", lineHeight: "1.5" }}>
               &ldquo;{d.text.th.blurb}&rdquo;
+            </div>
+
+            {/* Treatment scope — what the patient booking roster offers */}
+            <div style={{ fontSize: "12px", color: "var(--staff-ink-muted)", lineHeight: "1.6" }}>
+              <strong style={{ color: "var(--staff-ink-2)" }}>รับตรวจ:</strong>{" "}
+              {d.treats.length > 0
+                ? d.treats.map((k) => dict.service[k] || k).join(" · ")
+                : "—"}
+              <span style={{ color: "var(--staff-ink-muted)" }}> (+ตรวจทั่วไปทุกท่าน)</span>
             </div>
 
             {/* Working days chips */}

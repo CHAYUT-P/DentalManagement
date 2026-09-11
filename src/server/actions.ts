@@ -20,7 +20,6 @@ import {
   priceMap,
   removeHoliday,
   removeWaitlist,
-  slotsForDate,
   updateAppointment,
   updateClinicDay,
   updateClinicInfo,
@@ -130,14 +129,28 @@ export async function bookAppointment(input: {
     return { ok: false, error: "invalid" };
   }
 
-  let dentistId = input.dentistId;
+  const dentistId = input.dentistId;
 
-  // "any dentist": find a free one among the actives for this slot
+  // "any dentist": the booking joins the pool (dentist_id NULL) while the
+  // slot holds fewer live bookings than there are chairs. At capacity the
+  // pressure valve runs first — the oldest pooled booking takes a remaining
+  // free dentist, if any — and the newcomer is turned away either way.
   if (dentistId === null) {
-    const slots = await slotsForDate(input.date);
-    const free = slots.filter((s) => s.time === input.time && !s.taken);
-    if (free.length === 0) return { ok: false, error: "slot_taken" };
-    dentistId = free[0].dentistId;
+    const { getChairs, liveAtSlot, slotsForDate, capableDentistIds, settlePool } =
+      await import("@/server/queries");
+    const [chairs, live] = await Promise.all([getChairs(), liveAtSlot(input.date, input.time)]);
+    if (live.length >= chairs) {
+      await settlePool(input.date, input.time);
+      return { ok: false, error: "slot_taken" };
+    }
+    // pooling into a slot no capable dentist covers at all would wait forever
+    const [rows, capable] = await Promise.all([
+      slotsForDate(input.date),
+      capableDentistIds(input.treatmentKey),
+    ]);
+    const capableSet = new Set(capable);
+    const covered = rows.some((r) => r.time === input.time && capableSet.has(r.dentistId));
+    if (!covered) return { ok: false, error: "slot_taken" };
   }
 
   const created = await createAppointment({
@@ -155,8 +168,35 @@ export async function bookAppointment(input: {
 
   if (!created) return { ok: false, error: "slot_taken" };
 
+  const { settlePool } = await import("@/server/queries");
+  await settlePool(input.date, input.time);
+
   revalidateAll();
   return { ok: true, ref: created.ref };
+}
+
+/**
+ * Staff hands a pooled booking to a dentist. Guarded: the dentist must be
+ * free and capable at that slot — first-come still wins over the pool, so a
+ * specific booking that landed mid-flight keeps its chair.
+ */
+export async function assignPoolDentist(
+  id: number,
+  dentistId: number,
+): Promise<{ ok: boolean; error?: "taken" | "invalid" }> {
+  const { freeCapableAtSlot, updateAppointment } = await import("@/server/queries");
+  const all = await listAppointmentsBetween("1970-01-01", "9999-12-31");
+  const target = all.find((a) => a.id === id);
+  if (!target || target.status === "cancelled" || target.dentistId !== null) {
+    return { ok: false, error: "invalid" };
+  }
+  const free = await freeCapableAtSlot(target.date, target.time, target.treatmentKey);
+  if (!free.some((f) => f.id === dentistId)) return { ok: false, error: "taken" };
+  await updateAppointment(id, { dentistId });
+  const { settlePool } = await import("@/server/queries");
+  await settlePool(target.date, target.time);
+  revalidateAll();
+  return { ok: true };
 }
 
 /** the patient-site "my bookings" list — everything under one phone number */
@@ -186,6 +226,9 @@ export async function cancelBooking(ref: string) {
   const target = rows.find((a) => a.ref === ref);
   if (!target) return;
   await updateAppointment(target.id, { status: "cancelled" });
+  // a freed chair can home a pooled booking still waiting at that slot
+  const { settlePool } = await import("@/server/queries");
+  await settlePool(target.date, target.time);
   await dbInsertCancellationNotice(target.ref, target.childName, target.date, target.time);
   revalidateAll();
 }
@@ -210,12 +253,44 @@ export async function staffCreateAppointment(input: {
 }
 
 export async function staffUpdateAppointment(id: number, patch: AppointmentUpdate) {
+  const touchesSlot =
+    patch.status !== undefined ||
+    patch.date !== undefined ||
+    patch.time !== undefined ||
+    patch.dentistId !== undefined;
+  const before = touchesSlot
+    ? (await listAppointmentsBetween("1970-01-01", "9999-12-31")).find((a) => a.id === id)
+    : undefined;
   await updateAppointment(id, patch);
+  // cancelling, moving or (un)assigning can home a pooled booking waiting
+  // at the affected slot — run the pressure valve on both ends of a move
+  if (touchesSlot) {
+    const { settlePool } = await import("@/server/queries");
+    const rows = await listAppointmentsBetween("1970-01-01", "9999-12-31");
+    const after = rows.find((a) => a.id === id);
+    if (before) await settlePool(before.date, before.time);
+    if (after && (!before || after.date !== before.date || after.time !== before.time)) {
+      await settlePool(after.date, after.time);
+    }
+  }
+  revalidateAll();
+}
+
+/** the booking-rules knob (chairs) the settings page owns */
+export async function staffUpdateChairs(chairs: number) {
+  const { setChairs } = await import("@/server/queries");
+  await setChairs(chairs);
   revalidateAll();
 }
 
 export async function staffDeleteAppointment(id: number) {
+  const rows = await listAppointmentsBetween("1970-01-01", "9999-12-31");
+  const target = rows.find((a) => a.id === id);
   await deleteAppointment(id);
+  if (target) {
+    const { settlePool } = await import("@/server/queries");
+    await settlePool(target.date, target.time);
+  }
   revalidateAll();
 }
 
@@ -347,9 +422,10 @@ export async function staffBootstrap() {
     listClinicDays,
     listHolidays,
     priceMap,
+    getChairs,
   } = await import("@/server/queries");
 
-  const [appts, dentists, patients, waitlist, notifications, days, holidays, prices] =
+  const [appts, dentists, patients, waitlist, notifications, days, holidays, prices, chairs] =
     await Promise.all([
       listAppointmentsBetween("1970-01-01", "9999-12-31"),
       listDentists(),
@@ -359,6 +435,7 @@ export async function staffBootstrap() {
       listClinicDays(),
       listHolidays(),
       priceMap(),
+      getChairs(),
     ]);
 
   return {
@@ -371,6 +448,7 @@ export async function staffBootstrap() {
     schedule: days,
     holidays,
     servicePrices: prices,
+    settings: { chairs },
   };
 }
 

@@ -8,6 +8,7 @@
 import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 
 import type { IconKey } from "@/data/icons";
+import { isIconKey } from "@/data/icons";
 import { minutesOf, weekday, weekdayIndex } from "@/lib/dates";
 /**
  * The client instance is imported directly (not via "@/db", whose `server-only`
@@ -20,6 +21,7 @@ import {
   child,
   clinicDay,
   clinicInfo,
+  clinicSetting,
   dentist,
   dentistShift,
   dentistText,
@@ -100,7 +102,8 @@ export interface AppointmentDTO {
   guardianId: number | null;
   guardianName: string;
   phone: string;
-  dentistId: number;
+  /** null = pooled "any dentist" booking still waiting for assignment */
+  dentistId: number | null;
   dentistSlug: string;
   dentistName: string;
   treatmentKey: IconKey;
@@ -356,13 +359,190 @@ export async function dateHasRoom(date: string, today: string, nowMin: number): 
   return slots.some((s) => !s.taken && minutesOf(s.time) > leadMin);
 }
 
+/* ═══════════════════════════════ pool ("any dentist") ════════════════════ */
+/**
+ * Pooled bookings are appointments with dentist_id NULL: the parent picked a
+ * time but no dentist. They consume a chair like any booking, and the staff
+ * console (or settlePool below) assigns them a dentist afterwards.
+ *
+ * The three rules, agreed with the clinic:
+ * 1. A specific-dentist booking is always allowed while that dentist is free
+ *    — the pool never reserves or blocks a dentist (first-come wins).
+ * 2. An "any dentist" booking joins the pool while live bookings (assigned +
+ *    pooled, every treatment — chairs are shared) stay under the chair count.
+ * 3. settlePool is the pressure valve: it runs after every booking change at
+ *    a slot and assigns the oldest pooled booking whenever the slot is at
+ *    chair capacity and a capable dentist is still free. With room to spare
+ *    the pool waits for the staff to place it by hand.
+ */
+
+export async function getChairs(): Promise<number> {
+  const rows = await db.select().from(clinicSetting).where(eq(clinicSetting.key, "chairs"));
+  const n = Number(rows[0]?.value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3;
+}
+
+export async function setChairs(n: number): Promise<void> {
+  const chairs = Number.isFinite(n) && n > 0 ? String(Math.floor(n)) : "3";
+  await db
+    .insert(clinicSetting)
+    .values({ key: "chairs", value: chairs })
+    .onConflictDoUpdate({ target: clinicSetting.key, set: { value: chairs, updatedAt: new Date() } });
+}
+
+/** the routine visits every dentist takes — mirrors convert.ts (client copy) */
+const GENERAL_TREATS: IconKey[] = ["checkup", "consult", "followup"];
+
+/** ids of active dentists who take this treatment (routine visits: everyone) */
+export async function capableDentistIds(treatmentKey: IconKey): Promise<number[]> {
+  const active = await db
+    .select({ id: dentist.id })
+    .from(dentist)
+    .where(eq(dentist.isActive, true));
+  if (GENERAL_TREATS.includes(treatmentKey)) return active.map((a) => a.id);
+  const claimed = await db.select({ id: dentistTreat.dentistId }).from(dentistTreat).where(
+    eq(dentistTreat.treatmentKey, treatmentKey),
+  );
+  const able = new Set(claimed.map((c) => c.id));
+  const ids = active.map((a) => a.id).filter((id) => able.has(id));
+  // a treatment nobody claims yet stays bookable with anyone, like the roster UI
+  return ids.length > 0 ? ids : active.map((a) => a.id);
+}
+
+export interface SlotLiveRow {
+  id: number;
+  treatmentKey: IconKey;
+  dentistId: number | null;
+  createdAt: Date;
+}
+
+export interface SlotLoad {
+  /** live bookings (assigned + pooled, every treatment) holding this time */
+  live: number;
+  /** of which, still waiting for a dentist */
+  pool: number;
+}
+
+/**
+ * Chair load for whole dates at once: the booking calendar's "any dentist"
+ * mode admits a time while live < chairs, so it needs these counts, not the
+ * per-dentist taken flags. One query per call, grouped here.
+ */
+export async function slotLoadForDates(dates: string[]): Promise<Record<string, Record<string, SlotLoad>>> {
+  const out: Record<string, Record<string, SlotLoad>> = {};
+  if (dates.length === 0) return out;
+  const rows = await db
+    .select({
+      date: appointment.date,
+      time: appointment.time,
+      dentistId: appointment.dentistId,
+    })
+    .from(appointment)
+    .where(and(inArray(appointment.date, dates), ne(appointment.status, "cancelled")));
+  for (const r of rows) {
+    const day = (out[r.date] ??= {});
+    const cell = (day[r.time] ??= { live: 0, pool: 0 });
+    cell.live += 1;
+    if (r.dentistId === null) cell.pool += 1;
+  }
+  return out;
+}
+
+/** every live (non-cancelled) booking holding one wall-clock slot, oldest first */
+export async function liveAtSlot(date: string, time: string): Promise<SlotLiveRow[]> {  const rows = await db
+    .select({
+      id: appointment.id,
+      treatmentKey: appointment.treatmentKey,
+      dentistId: appointment.dentistId,
+      createdAt: appointment.createdAt,
+    })
+    .from(appointment)
+    .where(
+      and(
+        eq(appointment.date, date),
+        eq(appointment.time, time),
+        ne(appointment.status, "cancelled"),
+      ),
+    )
+    .orderBy(asc(appointment.createdAt), asc(appointment.id));
+  return rows.map((r) => ({
+    id: r.id,
+    treatmentKey: isIconKey(r.treatmentKey) ? r.treatmentKey : "checkup",
+    dentistId: r.dentistId,
+    createdAt: r.createdAt,
+  }));
+}
+
+/**
+ * Capable dentists free at one slot: on shift covering that clock time, no
+ * live booking there, active. Order follows the roster (by id).
+ */
+export async function freeCapableAtSlot(
+  date: string,
+  time: string,
+  treatmentKey: IconKey,
+): Promise<{ id: number; slug: string }[]> {
+  const [capable, slots] = await Promise.all([
+    capableDentistIds(treatmentKey),
+    slotsForDate(date),
+  ]);
+  if (capable.length === 0) return [];
+  const capableSet = new Set(capable);
+  const seen = new Set<number>();
+  const out: { id: number; slug: string }[] = [];
+  for (const s of slots) {
+    if (s.time !== time || s.taken || !capableSet.has(s.dentistId) || seen.has(s.dentistId)) continue;
+    seen.add(s.dentistId);
+    out.push({ id: s.dentistId, slug: s.dentistSlug });
+  }
+  // slotsForDate only emits rows inside a dentist's enabled shift, so every
+  // row here is already on-shift coverage — no extra shift check needed
+  return out;
+}
+
+/**
+ * Assign pooled bookings while the slot is at chair capacity and a capable
+ * dentist is still free. Oldest pool first; each assignment is guarded by the
+ * same unique index as a normal booking, so a mid-flight race just skips.
+ * Returns the refs that got a dentist.
+ */
+export async function settlePool(date: string, time: string): Promise<string[]> {
+  const assigned: string[] = [];
+  for (;;) {
+    const chairs = await getChairs();
+    const live = await liveAtSlot(date, time);
+    if (live.length < chairs) break; // room to spare — the pool waits for staff
+    const oldest = live.find((r) => r.dentistId === null);
+    if (!oldest) break;
+    const free = await freeCapableAtSlot(date, time, oldest.treatmentKey);
+    if (free.length === 0) break;
+    const target = free[0];
+    const updated = await db
+      .update(appointment)
+      .set({ dentistId: target.id, updatedAt: new Date() })
+      .where(and(eq(appointment.id, oldest.id), ne(appointment.status, "cancelled")))
+      .returning({ ref: appointment.ref });
+    if (updated.length === 0) break; // taken/cancelled mid-flight — stop, staff sees it
+    assigned.push(updated[0].ref);
+    const d = await dentistName(target.id);
+    await db.insert(staffNotification).values({
+      type: "online_booking",
+      title: "จัดแพทย์ให้คิวรอแล้ว",
+      body: `${updated[0].ref} ได้คุณหมอ${d.name || target.slug} (${date} ${time} น.)`,
+      refCode: updated[0].ref,
+    });
+  }
+  return assigned;
+}
+
 /* ═══════════════════════════════ appointments ═══════════════════════════ */
 
 export interface CreateAppointmentInput {
   date: string;
   time: string;
   treatmentKey: IconKey;
-  dentistId: number;
+  /** null = pooled "any dentist" booking (see settlePool) */
+  dentistId: number | null;
   childName: string;
   guardianName: string;
   phone: string;
@@ -444,11 +624,15 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   const row = inserted[0];
   if (!row) return null; // slot taken mid-flight
 
-  const d = await dentistName(row.dentistId);
+  // pooled rows have no dentist yet — the slug stays empty until settlePool
+  // or the staff console assigns one
+  const d = row.dentistId === null ? { slug: "", name: "" } : await dentistName(row.dentistId);
   await db.insert(staffNotification).values({
     type: "online_booking",
     title: "การจองใหม่ออนไลน์",
-    body: `${row.childName} นัดหมาย ${row.date} เวลา ${row.time} น. (${row.ref})`,
+    body:
+      `${row.childName} นัดหมาย ${row.date} เวลา ${row.time} น. (${row.ref})` +
+      (row.dentistId === null ? " — รอจัดแพทย์" : ""),
     refCode: row.ref,
   });
 
@@ -523,7 +707,8 @@ export interface AppointmentUpdate {
   status?: AppointmentStatus;
   date?: string;
   time?: string;
-  dentistId?: number;
+  /** null unassigns back to the pool; a number assigns (guarded by callers) */
+  dentistId?: number | null;
   note?: string;
   price?: number | null;
   childName?: string;

@@ -26,6 +26,7 @@ export function toUIAppointment(a: AppointmentDTO): StaffAppointment {
     guardianName: a.guardianName,
     phone: a.phone,
     dentistSlug: a.dentistSlug,
+    dentistId: a.dentistId,
     treatmentKey: a.treatmentKey,
     source: a.source,
     status: a.status,

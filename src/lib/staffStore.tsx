@@ -6,6 +6,7 @@ import type { IconKey } from "@/data/icons";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import { todayISO } from "@/lib/dates";
 import {
+  assignPoolDentist,
   staffAddChild,
   staffAddHoliday,
   staffAddWaitlist,
@@ -16,6 +17,7 @@ import {
   staffRemoveWaitlist,
   staffSetWaitlistStatus,
   staffUpdateAppointment,
+  staffUpdateChairs,
   staffUpdateDay,
   staffUpdateDentist,
   staffUpdatePatient,
@@ -68,8 +70,13 @@ interface StaffContextType {
   servicePrices: Record<IconKey, number | null>;
   schedule: ClinicDaySetting[];
   holidays: { id: number; start: string; end: string; name: string }[];
+  /** booking-rules knobs (chairs caps one wall-clock slot) */
+  settings: { chairs: number };
+  updateChairs: (chairs: number) => void;
+  /** hand a pooled ("any dentist") booking to a dentist */
+  assignDentist: (id: string, dentistSlug: string) => void;
   // Actions — same names the UI already calls; each writes to Postgres
-  createAppointment: (data: Omit<StaffAppointment, "id" | "ref" | "createdAt">) => StaffAppointment;
+  createAppointment: (data: Omit<StaffAppointment, "id" | "ref" | "createdAt" | "dentistId">) => StaffAppointment;
   updateAppointment: (id: string, updates: Partial<StaffAppointment>) => void;
   updateStatus: (id: string, status: AppointmentStatus) => void;
   rescheduleAppointment: (id: string, date: string, time: string, dentistSlug?: string) => void;
@@ -157,11 +164,12 @@ export function StaffProvider({
   /* ── appointments ──────────────────────────────────────────────────────── */
 
   const createAppointment = useCallback(
-    (data: Omit<StaffAppointment, "id" | "ref" | "createdAt">): StaffAppointment => {
+    (data: Omit<StaffAppointment, "id" | "ref" | "createdAt" | "dentistId">): StaffAppointment => {
       // optimistic shell so the modal can close at once; the real row lands
       // with the refresh a moment later (ref may differ if of a race)
       const optimistic: StaffAppointment = {
         ...data,
+        dentistId: null,
         id: `pending-${Date.now()}`,
         ref: "…",
         createdAt: data.date,
@@ -318,6 +326,21 @@ export function StaffProvider({
     [mutate],
   );
 
+  /* ── pool ("any dentist") assignment ─────────────────────────────────── */
+
+  const assignDentist = useCallback(
+    (id: string, dentistSlug: string) => {
+      const numeric = Number(id);
+      const dentistId = slugToId.get(dentistSlug);
+      if (!Number.isFinite(numeric) || dentistId === undefined) return;
+      void mutate("จัดแพทย์", async () => {
+        const res = await assignPoolDentist(numeric, dentistId);
+        if (!res.ok) showToast("เวลานั้นไม่ว่างแล้ว กรุณาเลือกแพทย์ท่านอื่น");
+      });
+    },
+    [mutate, slugToId, showToast],
+  );
+
   /* ── prices / schedule / holidays ──────────────────────────────────────── */
 
   const updateServicePrice = useCallback(
@@ -354,6 +377,15 @@ export function StaffProvider({
   const removeHoliday = useCallback(
     (id: number | string) => {
       void mutate("ลบวันหยุด", () => staffRemoveHoliday(Number(id)));
+    },
+    [mutate],
+  );
+
+  const updateChairs = useCallback(
+    (chairs: number) => {
+      const n = Number.isFinite(chairs) && chairs > 0 ? Math.floor(chairs) : 3;
+      setState((s) => ({ ...s, settings: { ...s.settings, chairs: n } }));
+      void mutate("บันทึกจำนวนเก้าอี้", () => staffUpdateChairs(n));
     },
     [mutate],
   );
@@ -407,6 +439,9 @@ export function StaffProvider({
       servicePrices: state.servicePrices,
       schedule: asClinicSchedule(state.schedule),
       holidays: state.holidays,
+      settings: state.settings ?? { chairs: 3 },
+      updateChairs,
+      assignDentist,
       createAppointment,
       updateAppointment,
       updateStatus,
@@ -438,7 +473,7 @@ export function StaffProvider({
       createAppointment, updateAppointment, updateStatus, rescheduleAppointment,
       deleteAppointment, updateDentist, createPatient, updatePatient, addPatientChild,
       addWaitlist, updateWaitlistStatus, removeWaitlist, updateServicePrice,
-      updateDayOpen, updateDayTime, addHoliday, removeHoliday,
+      updateDayOpen, updateDayTime, addHoliday, removeHoliday, updateChairs, assignDentist,
       markAllNotificationsRead, simulateOnlineBooking, resetAllData,
     ],
   );

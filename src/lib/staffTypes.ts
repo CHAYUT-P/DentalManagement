@@ -20,6 +20,8 @@ export interface StaffAppointment {
   guardianName: string;
   phone: string;
   dentistSlug: string;
+  /** null = pooled "any dentist" booking still waiting for assignment */
+  dentistId: number | null;
   treatmentKey: IconKey;
   source: BookingSource;
   status: AppointmentStatus;

@@ -5,7 +5,8 @@
  *   1. seed idempotency
  *   2. availability: taken slots match booked appointments
  *   3. booking: create → appears in lists; double-booking is refused
- *   4. "any dentist" booking picks a free dentist
+ *   4. pool ("any dentist"): joins unassigned, waits while chairs spare,
+ *      specific bookings bypass it, pressure settles oldest first
  *   5. cancel → frees the slot + staff notification
  *   6. staff mutations: status/price/schedule/waitlist
  *   7. roster: deactivating a dentist removes their availability
@@ -133,10 +134,63 @@ async function main() {
   const notif = await db.select().from(staffNotification);
   check("staff got an online-booking notification", notif.some((n) => n.type === "online_booking"));
 
-  // ── 4. "any dentist" picks a free dentist ───────────────────────────────
-  const slotsAtTarget = (await slotsForDate(targetDate)).filter((s) => s.time === targetTime);
-  const freeAtTarget = slotsAtTarget.filter((s) => !s.taken);
-  check("other dentists still free at the same time", freeAtTarget.length > 0);
+  // ── 4. pool ("any dentist") ───────────────────────────────────────────
+  // chairs=2 keeps the scenario small; restored to 3 in cleanup
+  const {
+    setChairs,
+    getChairs,
+    liveAtSlot,
+    settlePool,
+    freeCapableAtSlot,
+  } = await import("../src/server/queries");
+  await setChairs(2);
+  check("chair count persists", (await getChairs()) === 2);
+
+  // a weekday slot with no demo bookings and full checkup coverage
+  const poolDate = nextWeekday();
+  const dayRows = await slotsForDate(poolDate);
+  const poolTime =
+    ["10:00", "10:30", "11:00", "13:30", "14:00", "14:30", "15:00"].find((t) => {
+      const at = dayRows.filter((s) => s.time === t);
+      return at.length >= 3 && at.every((s) => !s.taken);
+    }) ?? "10:00";
+
+  const pooled = await createAppointment({
+    date: poolDate,
+    time: poolTime,
+    treatmentKey: "checkup",
+    dentistId: null,
+    childName: "น้องพูล",
+    guardianName: "คุณแม่พูล",
+    phone: "0990000011",
+    source: "online",
+  });
+  check("any-dentist booking joins the pool unassigned", pooled !== null && pooled.dentistId === null);
+
+  const live1 = await liveAtSlot(poolDate, poolTime);
+  check("pooled booking holds a chair", live1.length === 1 && live1[0].dentistId === null);
+
+  const settledEarly = await settlePool(poolDate, poolTime);
+  check("pool waits while chairs spare", settledEarly.length === 0);
+
+  const freeTwo = (await freeCapableAtSlot(poolDate, poolTime, "checkup")).slice(0, 2);
+  const spec1 = await createAppointment({
+    date: poolDate, time: poolTime, treatmentKey: "checkup", dentistId: freeTwo[0].id,
+    childName: "น้องเจาะจง1", guardianName: "คุณแม่เจาะจง", phone: "0990000012", source: "online",
+  });
+  const spec2 = await createAppointment({
+    date: poolDate, time: poolTime, treatmentKey: "checkup", dentistId: freeTwo[1].id,
+    childName: "น้องเจาะจง2", guardianName: "คุณแม่เจาะจง", phone: "0990000013", source: "online",
+  });
+  check("specific bookings bypass the pool (first-come wins)", spec1 !== null && spec2 !== null);
+
+  const settled = await settlePool(poolDate, poolTime);
+  const poolAfter = await liveAtSlot(poolDate, poolTime);
+  check(
+    "pressure settles the oldest pooled booking first",
+    settled.length === 1 && settled[0] === pooled!.ref && poolAfter.every((r) => r.dentistId !== null),
+    settled.join(","),
+  );
 
   // ── 5. cancel frees the slot ────────────────────────────────────────────
   await db
@@ -191,7 +245,12 @@ async function main() {
   // ── cleanup: remove test bookings/notifications, reseed demo ────────────
   await db.delete(appointment).where(eq(appointment.phone, "0990000001"));
   await db.delete(appointment).where(eq(appointment.phone, "0990000002"));
+  await db.delete(appointment).where(eq(appointment.phone, "0990000011"));
+  await db.delete(appointment).where(eq(appointment.phone, "0990000012"));
+  await db.delete(appointment).where(eq(appointment.phone, "0990000013"));
   await db.delete(staffNotification);
+  const { setChairs: restoreChairs } = await import("../src/server/queries");
+  await restoreChairs(3);
   await promisify(execFile)("pnpm", ["db:seed"], { cwd: process.cwd() });
 
   console.log(`\n${passed} passed, ${failed} failed`);

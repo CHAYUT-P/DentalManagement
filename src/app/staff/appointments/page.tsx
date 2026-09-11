@@ -4,7 +4,8 @@
 export const dynamic = "force-dynamic";
 
 import React, { useState, useMemo } from "react";
-import { useStaff, type StaffAppointment } from "@/lib/staffStore";
+import { useStaff, type EditableDentist, type StaffAppointment } from "@/lib/staffStore";
+import { canTreat } from "@/lib/convert";
 import { addDays } from "@/lib/dates";
 import { useT } from "@/i18n/lang";
 import { BookingModal } from "@/components/staff/BookingModal";
@@ -24,7 +25,7 @@ import {
 type RangeFilter = "today" | "upcoming" | "past" | "all";
 
 export default function StaffAppointmentsPage() {
-  const { today, appointments, dentists, updateStatus } = useStaff();
+  const { today, appointments, dentists, updateStatus, assignDentist, settings } = useStaff();
   const dict = useT();
 
   const [range, setRange] = useState<RangeFilter>("today");
@@ -89,6 +90,14 @@ export default function StaffAppointmentsPage() {
 
   return (
     <div className="staff-container">
+      <PoolPanel
+        today={today}
+        appointments={appointments}
+        dentists={dentists}
+        chairs={settings.chairs}
+        dictService={dict.service}
+        onAssign={assignDentist}
+      />
       {/* Page Header */}
       <div className="staff-page-header">
         <div>
@@ -277,9 +286,18 @@ export default function StaffAppointmentsPage() {
                     </td>
 
                     <td>
-                      <div style={{ fontWeight: "500" }}>
-                        {dentist?.text.th.name || "แพทย์ทั่วไป"}
-                      </div>
+                      {appt.dentistId === null ? (
+                        <span
+                          className="status-pill"
+                          style={{ background: "#fff9db", color: "#8a6d00", border: "1px solid #ffd43b", fontSize: "11px" }}
+                        >
+                          รอจัดแพทย์
+                        </span>
+                      ) : (
+                        <div style={{ fontWeight: "500" }}>
+                          {dentist?.text.th.name || "แพทย์ทั่วไป"}
+                        </div>
+                      )}
                     </td>
 
                     <td>
@@ -373,6 +391,124 @@ export default function StaffAppointmentsPage() {
       {showBookingModal && (
         <BookingModal onClose={() => setShowBookingModal(false)} />
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Pooled "any dentist" bookings: live rows with no dentist yet. Staff  */
+/* hands each one to a capable dentist; the server still guards the    */
+/* slot, so a specific booking that landed mid-flight keeps its chair. */
+/* ------------------------------------------------------------------ */
+
+function PoolPanel({
+  today,
+  appointments,
+  dentists,
+  chairs,
+  dictService,
+  onAssign,
+}: {
+  today: string;
+  appointments: StaffAppointment[];
+  dentists: EditableDentist[];
+  chairs: number;
+  dictService: Record<string, string>;
+  onAssign: (id: string, dentistSlug: string) => void;
+}) {
+  const [pick, setPick] = useState<Record<string, string>>({});
+
+  const pooled = useMemo(
+    () =>
+      appointments
+        .filter((a) => a.status === "confirmed" && a.dentistId === null && a.date >= today)
+        .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1)),
+    [appointments, today],
+  );
+
+  if (pooled.length === 0) return null;
+
+  const liveAt = (date: string, time: string) =>
+    appointments.filter((a) => a.status === "confirmed" && a.date === date && a.time === time)
+      .length;
+
+  return (
+    <div
+      style={{
+        background: "#fff9db",
+        border: "1.5px solid #ffd43b",
+        borderRadius: "14px",
+        padding: "16px 18px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <strong style={{ fontSize: "14.5px", color: "var(--staff-ink)" }}>
+          รอจัดแพทย์ ({pooled.length})
+        </strong>
+        <span style={{ fontSize: "12px", color: "var(--staff-ink-muted)" }}>
+          จองแบบไม่เลือกแพทย์ — เลือกคุณหมอที่ว่างให้แต่ละคิว (เก้าอี้ {chairs} ตัวต่อช่วงเวลา)
+        </span>
+      </div>
+
+      {pooled.map((a) => {
+        const capable = dentists.filter((d) => d.isActive && canTreat(d.treats, a.treatmentKey));
+        const load = liveAt(a.date, a.time);
+        return (
+          <div
+            key={a.id}
+            style={{
+              background: "#ffffff",
+              border: "1px solid var(--staff-border)",
+              borderRadius: "10px",
+              padding: "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ minWidth: "120px" }}>
+              <div style={{ fontWeight: 700, fontSize: "13.5px" }}>
+                {a.date} · {a.time} น.
+              </div>
+              <div style={{ fontSize: "11.5px", color: load >= chairs ? "#c92a2a" : "var(--staff-ink-muted)", fontWeight: load >= chairs ? 700 : 400 }}>
+                {load}/{chairs} เก้าอี้{load >= chairs ? " — เต็ม" : ""}
+              </div>
+            </div>
+            <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: "13.5px" }}>{a.childName}</div>
+              <div style={{ fontSize: "11.5px", color: "var(--staff-ink-muted)" }}>
+                {dictService[a.treatmentKey] || a.treatmentKey} · {a.guardianName} · {a.phone} · {a.ref}
+              </div>
+            </div>
+            <select
+              className="staff-select"
+              value={pick[a.id] ?? ""}
+              onChange={(e) => setPick((p) => ({ ...p, [a.id]: e.target.value }))}
+              aria-label={`เลือกแพทย์ให้ ${a.childName}`}
+            >
+              <option value="">— เลือกแพทย์ —</option>
+              {capable.map((d) => (
+                <option key={d.slug} value={d.slug}>
+                  {d.text.th.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn-primary-staff"
+              style={{ padding: "7px 16px", fontSize: "12.5px" }}
+              disabled={!pick[a.id]}
+              onClick={() => pick[a.id] && onAssign(a.id, pick[a.id])}
+            >
+              จัดแพทย์
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

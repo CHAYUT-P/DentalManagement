@@ -5,7 +5,7 @@ import { isIconKey } from "@/data/icons";
 import { services } from "@/data/services";
 import { nowMinutes, addDays, todayISO } from "@/lib/dates";
 import { toUIDentists } from "@/lib/convert";
-import { listClinicDays, listDentists, listHolidays, listTreatments, slotsForDate } from "@/server/queries";
+import { listClinicDays, listDentists, listHolidays, listTreatments, slotsForDate, slotLoadForDates, getChairs } from "@/server/queries";
 import { BookingFlow } from "@/components/BookingFlow";
 
 export const metadata: Metadata = {
@@ -46,6 +46,10 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
     slots[d] = slotLists[i];
   });
 
+  // chair load per day/time for "any dentist" mode (admits while live < chairs)
+  // plus the chair count itself — one batch read for the whole window
+  const [load, chairs] = await Promise.all([slotLoadForDates(dates), getChairs()]);
+
   // prices for the compact labels
   const prices: Partial<Record<string, number | null>> = {};
   for (const t of await listTreatments()) {
@@ -62,6 +66,8 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
       openDays={clinicDays.map((c) => ({ day: c.day, isOpen: c.isOpen }))}
       holidays={holidays.map((h) => ({ start: h.start, end: h.end, name: h.name }))}
       slots={slots}
+      load={load}
+      chairs={chairs}
       prices={prices}
       popular={popular}
       preTreatment={rawT && isIconKey(rawT) ? rawT : undefined}

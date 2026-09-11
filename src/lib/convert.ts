@@ -55,7 +55,14 @@ export function toUIDentists(list: DentistDTO[]): (Dentist & { id: number })[] {
 }
 
 /** the routine visits every dentist takes — mirrors data/dentists.ts */
-const GENERAL_TREATS: IconKey[] = ["checkup", "consult", "followup"];
+export const GENERAL_TREATS: IconKey[] = ["checkup", "consult", "followup"];
+
+/** can a dentist with these treats take this treatment? */
+export function canTreat(treats: IconKey[], k: IconKey): boolean {
+  if (GENERAL_TREATS.includes(k)) return true;
+  if (treats.includes(k)) return true;
+  return false;
+}
 
 /** who can be booked for a treatment, over a DB-driven roster */
 export function dentistsForUI(list: Dentist[], k: IconKey): Dentist[] {

@@ -197,6 +197,8 @@ export default function StaffSettingsPage() {
     showToast,
     schedule,
     holidays,
+    settings,
+    updateChairs,
     updateDayOpen,
     updateDayTime,
     addHoliday,
@@ -213,7 +215,7 @@ export default function StaffSettingsPage() {
   const [newHolidayName, setNewHolidayName] = useState("");
 
   // Booking rules state
-  const [chairCount, setChairCount] = useState<number>(3);
+  const [chairCount, setChairCount] = useState<number>(settings.chairs);
   const [slotGranularity, setSlotGranularity] = useState("30");
   const [advanceDays, setAdvanceDays] = useState("14");
   const [leadCutoffMin, setLeadCutoffMin] = useState("60");
@@ -276,6 +278,9 @@ export default function StaffSettingsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    // chairs cap one wall-clock slot for online booking (see settlePool) —
+    // persisted, unlike the display-only knobs below which are still local
+    if (chairCount !== settings.chairs) updateChairs(chairCount);
     // clinic contact details now persist to Postgres (clinic_info) — the
     // patient /clinic page and the home info card read this same row
     staffUpdateClinicInfo({

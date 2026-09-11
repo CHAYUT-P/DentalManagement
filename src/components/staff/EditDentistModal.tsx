@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useStaff, type EditableDentist, type ShiftHour } from "@/lib/staffStore";
+import type { IconKey } from "@/data/icons";
+import { GENERAL_TREATS } from "@/lib/convert";
+import { dict } from "@/i18n/dict";
 import { IconX, IconCheck } from "./staffIcons";
 
 interface EditDentistModalProps {
@@ -12,7 +15,7 @@ interface EditDentistModalProps {
 const WEEKDAY_NAMES = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 
 export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
-  const { updateDentist } = useStaff();
+  const { updateDentist, servicePrices } = useStaff();
 
   const [thName, setThName] = useState(dentist.text.th.name);
   const [enName, setEnName] = useState(dentist.text.en.name);
@@ -21,6 +24,22 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
   const [thBlurb, setThBlurb] = useState(dentist.text.th.blurb);
   const [isActive, setIsActive] = useState(dentist.isActive);
   const [shifts, setShifts] = useState<ShiftHour[]>(dentist.shifts);
+  /** every treatment the clinic offers (DB price list) plus anything this
+   *  dentist already carries, so unchecking the last dentist never hides a key */
+  const allTreats = useMemo(() => {
+    const keys = new Set<IconKey>([
+      ...(Object.keys(servicePrices) as IconKey[]),
+      ...dentist.treats,
+    ]);
+    return [...keys].sort((a, b) =>
+      (dict.th.service[a] || a).localeCompare(dict.th.service[b] || b, "th"),
+    );
+  }, [servicePrices, dentist.treats]);
+  const [treats, setTreats] = useState<IconKey[]>(dentist.treats);
+
+  const toggleTreat = (k: IconKey) => {
+    setTreats((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+  };
 
   const toggleDay = (w: number) => {
     setShifts((prev) =>
@@ -46,6 +65,7 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
     updateDentist(dentist.slug, {
       isActive,
       shifts,
+      treats,
       text: {
         ...dentist.text,
         th: {
@@ -161,6 +181,48 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
                 value={thBlurb}
                 onChange={(e) => setThBlurb(e.target.value)}
               />
+            </div>
+
+            {/* Treatments this dentist takes — the patient booking roster reads this */}
+            <div className="form-group">
+              <label style={{ marginBottom: "8px" }}>หัตถการที่รับตรวจ (Treatment Scope)</label>
+              <div style={{ fontSize: "12px", color: "var(--staff-ink-muted)", marginBottom: "8px" }}>
+                ตรวจทั่วไป ปรึกษา และติดตามผล — ทุกแพทย์รับอยู่แล้ว คนไข้เลือกแพทย์ท่านใดก็ได้
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {allTreats.map((k) => {
+                  const general = GENERAL_TREATS.includes(k);
+                  const on = general || treats.includes(k);
+                  return (
+                    <label
+                      key={k}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "7px",
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        border: "1px solid",
+                        borderColor: on ? "var(--staff-primary)" : "var(--staff-border)",
+                        background: on ? "var(--staff-primary-light)" : "#ffffff",
+                        color: on ? "var(--staff-primary)" : "var(--staff-ink-muted)",
+                        fontSize: "12.5px",
+                        fontWeight: on ? 700 : 500,
+                        cursor: general ? "default" : "pointer",
+                        opacity: general ? 0.85 : 1,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={general}
+                        onChange={() => toggleTreat(k)}
+                      />
+                      <span>{dict.th.service[k] || k}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Weekly Shift Hours */}

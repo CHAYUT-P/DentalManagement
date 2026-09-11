@@ -23,6 +23,7 @@ import {
   child,
   clinicDay,
   clinicInfo,
+  clinicSetting,
   dentist,
   dentistShift,
   dentistText,
@@ -270,6 +271,11 @@ async function main() {
   await seedTreatments();
   await seedClinicDays();
   await seedClinicInfo();
+  // chair count staff edits later — never overwritten by a re-seed
+  await db
+    .insert(clinicSetting)
+    .values({ key: "chairs", value: "3" })
+    .onConflictDoNothing();
   await seedHolidays();
   const { childIdByName, guardianIdByName } = await seedPatients();
 

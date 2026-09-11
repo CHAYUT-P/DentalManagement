@@ -36,7 +36,7 @@ async function main() {
   ok(`booking confirmed with ref ${result.ref}`, result.ok && !!result.ref, JSON.stringify(result));
   if (!result.ok) process.exit(1);
 
-  console.log("\n— 2. Booking visible in the system —");
+  console.log("\n— 2. Booking visible in the system (pooled) —");
   const mine = await actions.myBookings("0912345678");
   ok(
     "patient /bookings finds it by phone",
@@ -45,21 +45,32 @@ async function main() {
   );
   const staffList = await queries.listAppointmentsBetween(today, addDays(today, 30));
   const onStaff = staffList.find(a => a.ref === result.ref);
-  ok("staff appointment list has it", !!onStaff && onStaff.dentistSlug === "naree" && onStaff.time === time);
+  ok("staff list has it pooled (no dentist yet)", !!onStaff && onStaff.dentistId === null);
   const notifs = await queries.listNotifications();
   ok("staff notification bell has it", notifs.some(n => n.type === "online_booking" && n.refCode === result.ref));
 
+  console.log("\n— 2b. Staff hands the pool booking to a dentist —");
+  const capableFree = await queries.freeCapableAtSlot(date, time, "fluoride");
+  ok("a capable dentist is free at that slot", capableFree.length > 0);
+  const dentistId = capableFree[0].id;
+  const dentistSlug = capableFree[0].slug;
+  const assigned = await actions.assignPoolDentist(onStaff!.id, dentistId);
+  ok("assign succeeds", assigned.ok);
+  const staffList2 = await queries.listAppointmentsBetween(today, addDays(today, 30));
+  const onStaff2 = staffList2.find(a => a.ref === result.ref);
+  ok("staff list now shows the dentist", !!onStaff2 && onStaff2.dentistSlug === dentistSlug);
+
   console.log("\n— 3. Slot now reads taken —");
   const slots = await queries.slotsForDate(date);
-  const nareeSlot = slots.find(s => s.dentistSlug === "naree" && s.time === time);
-  ok(`${time} with naree shows taken`, nareeSlot?.taken === true);
+  const takenSlot = slots.find(s => s.dentistSlug === dentistSlug && s.time === time);
+  ok(`${time} with ${dentistSlug} shows taken`, takenSlot?.taken === true);
   const others = slots.filter(s => s.time === time && !s.taken);
-  ok("other dentists at 14:00 still free", others.length > 0);
+  ok("other dentists still free", others.length > 0);
 
-  console.log("\n— 4. Double-booking refused —");
+  console.log("\n— 4. Double-booking refused, specific bypasses pool —");
   const clash = await actions.bookAppointment({
     date, time, treatmentKey: "checkup",
-    dentistId: (await queries.listDentists()).find(d => d.slug === "naree")!.id,
+    dentistId,
     childName: "น้องชนกัน", guardianName: "คุณชน", phone: "0988888888", forSelf: false,
   });
   ok("second booking at same slot rejected", !clash.ok && clash.error === "slot_taken");
@@ -98,7 +109,7 @@ async function main() {
   await actions.cancelBooking(result.ref!);
   const after = await actions.myBookings("0912345678");
   ok("booking now cancelled", after[0]?.status === "cancelled");
-  const freed = (await queries.slotsForDate(date)).find(s => s.dentistSlug === "naree" && s.time === time);
+  const freed = (await queries.slotsForDate(date)).find(s => s.dentistSlug === dentistSlug && s.time === time);
   ok("slot freed for others", freed?.taken === false);
   const cancelNotifs = await queries.listNotifications();
   ok("staff told about cancellation", cancelNotifs.some(n => n.type === "cancellation" && n.refCode === result.ref));

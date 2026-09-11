@@ -26,7 +26,7 @@ export function AppointmentDetailModal({
   appointment,
   onClose,
 }: AppointmentDetailModalProps) {
-  const { dentists, patients, updateStatus, rescheduleAppointment, updateAppointment, createPatient, showToast } = useStaff();
+  const { dentists, patients, updateStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast } = useStaff();
   const dict = useT();
 
   const [isRescheduling, setIsRescheduling] = useState(false);
@@ -85,7 +85,13 @@ export function AppointmentDetailModal({
   };
 
   const handleSaveReschedule = () => {
-    rescheduleAppointment(appointment.id, newDate, newTime, newDentist);
+    const moved = newDate !== appointment.date || newTime !== appointment.time;
+    if (appointment.dentistId === null && newDentist && !moved) {
+      // same slot, first dentist: guarded assign rejects a taken chair
+      assignDentist(appointment.id, newDentist);
+    } else {
+      rescheduleAppointment(appointment.id, newDate, newTime, newDentist);
+    }
     if (editNotes !== appointment.notes) {
       updateAppointment(appointment.id, { notes: editNotes.trim() });
     }
@@ -353,7 +359,23 @@ export function AppointmentDetailModal({
                   <span>ทันตแพทย์</span>
                 </div>
                 <strong style={{ fontSize: "15px", color: "var(--staff-ink)", display: "block" }}>
-                  {dentist?.text.th.name || "แพทย์ทั่วไป"}
+                  {appointment.dentistId === null ? (
+                    <span
+                      style={{
+                        fontSize: "12.5px",
+                        fontWeight: 700,
+                        color: "#8a6d00",
+                        background: "#fff9db",
+                        border: "1px solid #ffd43b",
+                        padding: "2px 10px",
+                        borderRadius: "999px",
+                      }}
+                    >
+                      รอจัดแพทย์ (จองแบบไม่เลือกแพทย์)
+                    </span>
+                  ) : (
+                    dentist?.text.th.name || "แพทย์ทั่วไป"
+                  )}
                 </strong>
               </div>
 
@@ -564,6 +586,9 @@ export function AppointmentDetailModal({
                   value={newDentist}
                   onChange={(e) => setNewDentist(e.target.value)}
                 >
+                  {appointment.dentistId === null ? (
+                    <option value="">— รอจัดแพทย์ (ยังไม่เลือก) —</option>
+                  ) : null}
                   {dentists.map((d) => (
                     <option key={d.slug} value={d.slug}>
                       {d.text.th.name}
