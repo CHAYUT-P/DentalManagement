@@ -1,0 +1,13 @@
+{
+  "name": "staff-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Denta Kids staff console as a cross-platform desktop app (Tauri shell on the hosted /staff pages)",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
