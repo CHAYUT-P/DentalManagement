@@ -648,6 +648,8 @@ export interface CreateAppointmentInput {
   source?: AppointmentSource;
   note?: string;
   price?: number | null;
+  /** verified LINE userId — a linked guardian wins over phone matching */
+  lineUserId?: string;
 }
 
 /** make a booking reference: DK- plus four digits, retrying on collision */
@@ -670,23 +672,27 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   const ref = await nextRef();
 
   // match the family by phone — a first-time caller is registered so the
-  // booking links to a real guardian/child, not just free text
+  // booking links to a real guardian/child, not just free text. A LINE-linked
+  // account wins over the phone match: every booking stays on one guardian
+  // even when the family types a different contact number.
   const digits = input.phone.replace(/\D/g, "");
   const fam = await findFamilyByPhone(digits);
-  let guardianId = fam[0]?.id ?? null;
-  let childId: number | null = fam[0]?.children.find((c) => c.name === input.childName)?.id ?? null;
+  const lineGuardian = input.lineUserId ? await findGuardianByLineId(input.lineUserId) : null;
+  let guardianId = lineGuardian?.id ?? fam[0]?.id ?? null;
 
   if (!guardianId) {
     guardianId = await upsertGuardian({ name: input.guardianName, phone: digits });
   }
+
+  let childId: number | null = null;
   if (input.childName && !input.forSelf) {
     const name = input.childName.trim();
-    const known = await findFamilyByPhone(digits);
-    childId = known[0]?.children.find((c) => c.name === name)?.id ?? null;
+    const kids = await db.select().from(child).where(eq(child.guardianId, guardianId));
+    childId = kids.find((c) => c.name === name)?.id ?? null;
     if (!childId) {
       await addChildToGuardian(guardianId, name);
-      childId =
-        (await findFamilyByPhone(digits))[0]?.children.find((c) => c.name === name)?.id ?? null;
+      const again = await db.select().from(child).where(eq(child.guardianId, guardianId));
+      childId = again.find((c) => c.name === name)?.id ?? null;
     }
   }
 
@@ -862,6 +868,12 @@ export async function findFamilyByPhone(phone: string): Promise<GuardianDTO[]> {
       })),
     registeredAt: g.createdAt.toISOString().slice(0, 10),
   }));
+}
+
+/** the LINE side of the phone lookup — one verified userId, one guardian */
+export async function findGuardianByLineId(lineUserId: string) {
+  const rows = await db.select().from(guardian).where(eq(guardian.lineUserId, lineUserId));
+  return rows[0] ?? null;
 }
 
 export async function listPatients(): Promise<GuardianDTO[]> {

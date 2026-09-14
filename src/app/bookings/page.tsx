@@ -11,9 +11,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * LINE login is not wired yet, so "this patient" is the demo family: the same
- * phone number the seed gave คุณแม่มณฑิรา. When LIFF arrives, the verified
- * LINE userId picks the guardian row instead and this page changes one lookup.
+ * Outside LINE there is no patient identity, so the server view is the demo
+ * family (the seed's คุณแม่มณฑิรา phone). Inside LIFF the client swaps this
+ * prop for the verified account's bookings — see BookingsPage.
  */
 const DEMO_PHONE = "0812345678";
 

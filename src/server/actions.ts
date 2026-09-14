@@ -227,6 +227,11 @@ export async function bookAppointment(input: {
     await releaseHold(input.holdToken);
   }
 
+  // verify LINE identity up front — a linked account decides which guardian
+  // row the booking lands on, and it gets the push confirmation after
+  const { verifyLineIdToken } = await import("@/server/line");
+  const identity = input.lineIdToken ? await verifyLineIdToken(input.lineIdToken) : null;
+
   const verdict = await slotVerdict(input.date, input.time, input.treatmentKey, dentistId);
   if (verdict !== "ok") {
     // at capacity the pressure valve runs first — the oldest pooled booking
@@ -249,6 +254,7 @@ export async function bookAppointment(input: {
     forSelf: input.forSelf,
     source: "online",
     price: null,
+    lineUserId: identity?.userId,
   });
 
   if (!created) return { ok: false, error: "slot_taken" };
@@ -256,19 +262,15 @@ export async function bookAppointment(input: {
   const { settlePool } = await import("@/server/queries");
   await settlePool(input.date, input.time);
 
-  // inside LINE the browser hands us a signed ID token — verify it, link the
-  // account to the guardian row, then confirm the booking in their chat. Any
-  // LINE failure degrades to a normal booking, never a failed one.
-  if (input.lineIdToken) {
-    const { verifyLineIdToken, linkGuardianLine, pushLineText } = await import("@/server/line");
-    const identity = await verifyLineIdToken(input.lineIdToken);
-    if (identity && created.guardianId) {
-      await linkGuardianLine(created.guardianId, identity);
-      await pushLineText(
-        identity.userId,
-        `จองคิวสำเร็จ ✓\nรหัสจอง: ${created.ref}\nวันที่ ${input.date} เวลา ${input.time}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
-      );
-    }
+  // link the account to the guardian row, then confirm in their chat — any
+  // LINE failure degrades to a normal booking, never a failed one
+  if (identity && created.guardianId) {
+    const { linkGuardianLine, pushLineText } = await import("@/server/line");
+    await linkGuardianLine(created.guardianId, identity);
+    await pushLineText(
+      identity.userId,
+      `จองคิวสำเร็จ ✓\nรหัสจอง: ${created.ref}\nวันที่ ${input.date} เวลา ${input.time}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
+    );
   }
 
   revalidateAll();
@@ -304,6 +306,26 @@ export async function myBookings(phone: string) {
   return listAppointmentsBetween("1970-01-01", "9999-12-31").then((all) =>
     all
       .filter((a) => a.phone.replace(/\D/g, "") === phone.replace(/\D/g, ""))
+      .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1)),
+  );
+}
+
+/**
+ * The LINE path for the same page — the LIFF ID token is verified server-side
+ * and the linked guardian's bookings come back. null = token rejected or LINE
+ * not configured (caller falls back to the phone view); [] = verified but no
+ * guardian linked yet.
+ */
+export async function myBookingsByLine(lineIdToken: string) {
+  const { verifyLineIdToken } = await import("@/server/line");
+  const { findGuardianByLineId } = await import("@/server/queries");
+  const identity = await verifyLineIdToken(lineIdToken);
+  if (!identity) return null;
+  const g = await findGuardianByLineId(identity.userId);
+  if (!g) return [];
+  return listAppointmentsBetween("1970-01-01", "9999-12-31").then((all) =>
+    all
+      .filter((a) => a.guardianId === g.id)
       .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1)),
   );
 }

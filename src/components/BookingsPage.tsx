@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { dentistBySlug } from "@/data/dentists";
 import type { IconKey } from "@/data/icons";
 import { iconLibrary } from "@/data/icons";
 import { useLang } from "@/i18n/lang";
 import { fmtShort } from "@/lib/dates";
-import { cancelBooking } from "@/server/actions";
+import { cancelBooking, myBookingsByLine } from "@/server/actions";
 import { Check, Cross } from "./icons";
 import { EmptySlip, Eyebrow, Screen, Slip } from "./screen";
 import { ServiceIcon } from "./serviceIcons";
@@ -73,14 +73,54 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
   const { t } = useLang();
   const [pending, start] = useTransition();
 
+  /* inside LINE the signed ID token names the account — the verified userId
+     picks the guardian's bookings and the profile names the header. Outside
+     LINE nothing changes: the phone-keyed `bookings` prop is the view. */
+  const [lineRows, setLineRows] = useState<BookingView[] | null>(null);
+  const [lineName, setLineName] = useState<string | null>(null);
+  useEffect(() => {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (!liffId) return;
+    let cancelled = false;
+    import("@line/liff")
+      .then(async ({ default: liff }) => {
+        await liff.init({ liffId });
+        if (!liff.isLoggedIn()) return;
+        const token = liff.getIDToken();
+        const [profile, rows] = await Promise.all([
+          liff.getProfile().catch(() => null),
+          token ? myBookingsByLine(token) : null,
+        ]);
+        if (cancelled || !rows) return;
+        setLineRows(
+          rows.map((a) => ({
+            ref: a.ref,
+            date: a.date,
+            time: a.time,
+            treatmentKey: a.treatmentKey,
+            dentistSlug: a.dentistSlug || null,
+            status: a.status,
+            childName: a.childName,
+          })),
+        );
+        if (profile) setLineName(profile.displayName);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const shown = lineRows ?? bookings;
+
   // the next visit: a live booking from today onwards — confirmed, checked in,
   // or in the chair right now all still belong on the slip
   const live = (s: BookingView["status"]) =>
     s === "confirmed" || s === "arrived" || s === "in_chair";
-  const upcoming = bookings
+  const upcoming = shown
     .filter((b) => live(b.status) && b.date >= today)
     .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1));
-  const history = bookings
+  const history = shown
     .filter((b) => !live(b.status) || b.date < today)
     .sort((a, b) => (a.date + a.time > b.date + b.time ? -1 : 1));
 
@@ -98,6 +138,7 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
 
   return (
     <Screen title={t.nav.bookings} back="/">
+      {lineName ? <p className="hint" style={{ padding: "0 4px 8px" }}>LINE · {lineName}</p> : null}
       <Eyebrow>{t.bookingsPage.upcoming}</Eyebrow>
       {next ? (
         <>
