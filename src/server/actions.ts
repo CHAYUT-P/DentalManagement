@@ -207,6 +207,8 @@ export async function bookAppointment(input: {
   forSelf: boolean;
   /** token from holdSlot — the slot reservation being confirmed */
   holdToken?: string;
+  /** LIFF ID token when the page runs inside LINE — verified server-side */
+  lineIdToken?: string;
 }): Promise<BookResult> {
   // minimal validation — never trust the client, even ours
   if (!input.date || !input.time || !input.treatmentKey || !input.phone || !input.guardianName) {
@@ -253,6 +255,21 @@ export async function bookAppointment(input: {
 
   const { settlePool } = await import("@/server/queries");
   await settlePool(input.date, input.time);
+
+  // inside LINE the browser hands us a signed ID token — verify it, link the
+  // account to the guardian row, then confirm the booking in their chat. Any
+  // LINE failure degrades to a normal booking, never a failed one.
+  if (input.lineIdToken) {
+    const { verifyLineIdToken, linkGuardianLine, pushLineText } = await import("@/server/line");
+    const identity = await verifyLineIdToken(input.lineIdToken);
+    if (identity && created.guardianId) {
+      await linkGuardianLine(created.guardianId, identity);
+      await pushLineText(
+        identity.userId,
+        `จองคิวสำเร็จ ✓\nรหัสจอง: ${created.ref}\nวันที่ ${input.date} เวลา ${input.time}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
+      );
+    }
+  }
 
   revalidateAll();
   return { ok: true, ref: created.ref };

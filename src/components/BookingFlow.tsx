@@ -299,6 +299,8 @@ export function BookingFlow(props: BookingFlowProps) {
   const [time, setTime] = useState<string | null>(null);
   /** token for the picked slot's temporary reservation (hold-then-confirm) */
   const [holdToken, setHoldToken] = useState<string | null>(null);
+  /** LINE-signed ID token — only present when the page runs inside LIFF */
+  const [lineIdToken, setLineIdToken] = useState<string | null>(null);
 
   const [contactName, setContactName] = useState("");
   const [contactTel, setContactTel] = useState("");
@@ -328,6 +330,24 @@ export function BookingFlow(props: BookingFlowProps) {
     () => family.flatMap((p) => p.children.map((c) => ({ ...c, guardian: p.name }))),
     [family],
   );
+
+  /* inside LINE the LIFF context is already logged in — grab the signed ID
+     token so the server can learn who booked; a normal browser visit just
+     skips this and books by phone number as before */
+  useEffect(() => {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+    if (!liffId) return;
+    let cancelled = false;
+    import("@line/liff")
+      .then(async ({ default: liff }) => {
+        await liff.init({ liffId });
+        if (!cancelled && liff.isLoggedIn()) setLineIdToken(liff.getIDToken());
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const chosen = dentist ? dentists.find((d) => d.slug === dentist) : undefined;
   const roster = treatment ? dentistsForUI(dentists, treatment) : dentists;
@@ -495,6 +515,7 @@ export function BookingFlow(props: BookingFlowProps) {
         phone: contactTel,
         forSelf: visitFor === "self",
         holdToken: holdToken ?? undefined,
+        lineIdToken: lineIdToken ?? undefined,
       });
       if (result.ok && result.ref) {
         setHoldToken(null);
