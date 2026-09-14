@@ -1,8 +1,5 @@
 "use client";
 
-/** staff data lives in Postgres — render on request, never prerender */
-export const dynamic = "force-dynamic";
-
 import React, { useState, useMemo } from "react";
 import { useStaff, type EditableDentist, type StaffAppointment } from "@/lib/staffStore";
 import { canTreat } from "@/lib/convert";
@@ -157,8 +154,11 @@ export default function StaffAppointmentsPage() {
         >
           <option value="">สถานะทั้งหมด</option>
           <option value="confirmed">ยืนยันแล้ว (Confirmed)</option>
+          <option value="arrived">เช็คอินแล้ว (Arrived)</option>
+          <option value="in_chair">กำลังตรวจ (In chair)</option>
           <option value="completed">เสร็จสิ้น (Completed)</option>
           <option value="cancelled">ยกเลิกแล้ว (Cancelled)</option>
+          <option value="no_show">ไม่มาตามนัด (No-show)</option>
         </select>
 
         {/* Channel Dropdown */}
@@ -335,8 +335,11 @@ export default function StaffAppointmentsPage() {
                     <td>
                       <span className={`status-pill ${appt.status}`}>
                         {appt.status === "confirmed" && "ยืนยันแล้ว"}
+                        {appt.status === "arrived" && "เช็คอินแล้ว"}
+                        {appt.status === "in_chair" && "กำลังตรวจ"}
                         {appt.status === "completed" && "เสร็จสิ้น"}
                         {appt.status === "cancelled" && "ยกเลิกแล้ว"}
+                        {appt.status === "no_show" && "ไม่มา"}
                       </span>
                     </td>
 
@@ -421,7 +424,12 @@ function PoolPanel({
   const pooled = useMemo(
     () =>
       appointments
-        .filter((a) => a.status === "confirmed" && a.dentistId === null && a.date >= today)
+        .filter(
+          (a) =>
+            (a.status === "confirmed" || a.status === "arrived") &&
+            a.dentistId === null &&
+            a.date >= today,
+        )
         .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1)),
     [appointments, today],
   );
@@ -429,7 +437,7 @@ function PoolPanel({
   if (pooled.length === 0) return null;
 
   const liveAt = (date: string, time: string) =>
-    appointments.filter((a) => a.status === "confirmed" && a.date === date && a.time === time)
+    appointments.filter((a) => a.status !== "cancelled" && a.date === date && a.time === time)
       .length;
 
   return (

@@ -11,10 +11,12 @@ import {
   staffAddHoliday,
   staffAddWaitlist,
   staffCreateAppointment,
+  staffCreateDentist,
   staffDeleteAppointment,
   staffMarkNotificationsRead,
   staffRemoveHoliday,
   staffRemoveWaitlist,
+  staffSetQueueStatus,
   staffSetWaitlistStatus,
   staffUpdateAppointment,
   staffUpdateChairs,
@@ -79,9 +81,12 @@ interface StaffContextType {
   createAppointment: (data: Omit<StaffAppointment, "id" | "ref" | "createdAt" | "dentistId">) => StaffAppointment;
   updateAppointment: (id: string, updates: Partial<StaffAppointment>) => void;
   updateStatus: (id: string, status: AppointmentStatus) => void;
+  /** queue transitions — check-in stamps the clinic clock server-side */
+  setQueueStatus: (id: string, status: "arrived" | "in_chair" | "completed" | "no_show") => void;
   rescheduleAppointment: (id: string, date: string, time: string, dentistSlug?: string) => void;
   deleteAppointment: (id: string) => void;
   updateDentist: (slug: string, updates: Partial<EditableDentist>) => void;
+  createDentist: (input: Parameters<typeof staffCreateDentist>[0]) => void;
   createPatient: (data: Omit<PatientRecord, "id" | "registeredAt">) => void;
   updatePatient: (id: string, updates: Partial<PatientRecord>) => void;
   addPatientChild: (patientId: string, name: string) => void;
@@ -221,6 +226,15 @@ export function StaffProvider({
     [updateAppointment],
   );
 
+  const setQueueStatus = useCallback(
+    (id: string, status: "arrived" | "in_chair" | "completed" | "no_show") => {
+      const numeric = Number(id);
+      if (!Number.isFinite(numeric)) return;
+      void mutate("อัปเดตคิว", () => staffSetQueueStatus(numeric, status));
+    },
+    [mutate],
+  );
+
   const rescheduleAppointment = useCallback(
     (id: string, date: string, time: string, dentistSlug?: string) => {
       updateAppointment(id, { date, time, dentistSlug, status: "confirmed" });
@@ -253,6 +267,13 @@ export function StaffProvider({
           shifts: updates.shifts,
         }),
       );
+    },
+    [mutate],
+  );
+
+  const createDentist = useCallback(
+    (input: Parameters<typeof staffCreateDentist>[0]) => {
+      void mutate("เพิ่มทันตแพทย์", () => staffCreateDentist(input));
     },
     [mutate],
   );
@@ -445,9 +466,11 @@ export function StaffProvider({
       createAppointment,
       updateAppointment,
       updateStatus,
+      setQueueStatus,
       rescheduleAppointment,
       deleteAppointment,
       updateDentist,
+      createDentist,
       createPatient,
       updatePatient,
       addPatientChild,
@@ -470,8 +493,8 @@ export function StaffProvider({
     }),
     [
       today, state, toast, showToast, walkinOpen, syncing,
-      createAppointment, updateAppointment, updateStatus, rescheduleAppointment,
-      deleteAppointment, updateDentist, createPatient, updatePatient, addPatientChild,
+      createAppointment, updateAppointment, updateStatus, setQueueStatus, rescheduleAppointment,
+      deleteAppointment, updateDentist, createDentist, createPatient, updatePatient, addPatientChild,
       addWaitlist, updateWaitlistStatus, removeWaitlist, updateServicePrice,
       updateDayOpen, updateDayTime, addHoliday, removeHoliday, updateChairs, assignDentist,
       markAllNotificationsRead, simulateOnlineBooking, resetAllData,

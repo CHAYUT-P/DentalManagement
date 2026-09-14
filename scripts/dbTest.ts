@@ -231,6 +231,56 @@ async function main() {
   await removeWaitlist(entry!.id);
   check("waitlist remove works", !(await listWaitlist()).some((w) => w.id === entry!.id));
 
+  // queue board: check-in → waiting, call → serving, done → off the board
+  const { queueDay, queueStatus, updateAppointment } = await import("../src/server/queries");
+  const qAppt = await createAppointment({
+    date: today,
+    time: "08:30",
+    treatmentKey: "checkup",
+    dentistId: naree.id,
+    childName: "น้องคิวเช็ค",
+    guardianName: "คุณแม่คิวเช็ค",
+    phone: "0990000021",
+    source: "walkin",
+  });
+  check("booking for the queue board is created", qAppt !== null);
+  await updateAppointment(qAppt!.id, { status: "arrived", checkedInAt: "08:55" });
+  let board = await queueDay(today);
+  check(
+    "checked-in booking joins the queue",
+    board.waiting.some((w) => w.ref === qAppt!.ref && w.kind === "booking"),
+  );
+  const lookedUp = await queueStatus({ date: today, ref: qAppt!.ref });
+  check(
+    "queue lookup reports position",
+    lookedUp.found && lookedUp.state === "waiting" && (lookedUp.position ?? 0) >= 1,
+    JSON.stringify(lookedUp),
+  );
+  const lookedUpByPhone = await queueStatus({ date: today, phone: "0990000021" });
+  check("queue lookup by phone finds the same booking", lookedUpByPhone.ref === qAppt!.ref);
+  await updateAppointment(qAppt!.id, { status: "in_chair" });
+  board = await queueDay(today);
+  check(
+    "called booking moves to serving",
+    board.serving.some((w) => w.ref === qAppt!.ref) &&
+      !board.waiting.some((w) => w.ref === qAppt!.ref),
+  );
+  await updateAppointment(qAppt!.id, { status: "completed" });
+  board = await queueDay(today);
+  check(
+    "completed booking leaves the queue",
+    !board.waiting.concat(board.serving).some((w) => w.ref === qAppt!.ref),
+  );
+  await db.delete(appointment).where(eq(appointment.id, qAppt!.id));
+
+  const seededWalk = (await listWaitlist()).find((w) => w.status === "waiting");
+  const lookedUpWalk = await queueStatus({ date: today, ref: `W-${seededWalk!.id}` });
+  check(
+    "walk-in ref lookup reports position",
+    lookedUpWalk.found && lookedUpWalk.state === "waiting" && (lookedUpWalk.position ?? 0) >= 1,
+    JSON.stringify(lookedUpWalk),
+  );
+
   // ── 7. roster deactivation ──────────────────────────────────────────────
   const { updateDentist } = await import("../src/server/queries");
   const siriporn = dentistsAll.find((d) => d.slug === "siriporn")!;

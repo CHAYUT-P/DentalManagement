@@ -6,7 +6,13 @@ import type { IconKey } from "@/data/icons";
  * the client store (and its React context) into the server bundle.
  */
 
-export type AppointmentStatus = "confirmed" | "completed" | "cancelled";
+export type AppointmentStatus =
+  | "confirmed"
+  | "arrived"
+  | "in_chair"
+  | "completed"
+  | "cancelled"
+  | "no_show";
 export type BookingSource = "online" | "phone" | "walkin";
 
 export interface StaffAppointment {
@@ -25,6 +31,8 @@ export interface StaffAppointment {
   treatmentKey: IconKey;
   source: BookingSource;
   status: AppointmentStatus;
+  /** HH:MM the family checked in at the desk (status "arrived" onward) */
+  checkedInAt?: string | null;
   notes?: string;
   price?: number;
   createdAt: string;

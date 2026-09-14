@@ -5,7 +5,7 @@ import { isIconKey } from "@/data/icons";
 import { services } from "@/data/services";
 import { nowMinutes, addDays, todayISO } from "@/lib/dates";
 import { toUIDentists } from "@/lib/convert";
-import { listClinicDays, listDentists, listHolidays, listTreatments, slotsForDate, slotLoadForDates, getChairs } from "@/server/queries";
+import { listActiveDentists, listClinicDays, listHolidays, listTreatments, slotsForDate, slotLoadForDates, getChairs } from "@/server/queries";
 import { BookingFlow } from "@/components/BookingFlow";
 
 export const metadata: Metadata = {
@@ -33,7 +33,7 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
 
   const today = todayISO();
   const [dentistRows, clinicDays, holidays] = await Promise.all([
-    listDentists(),
+    listActiveDentists(),
     listClinicDays(),
     listHolidays(),
   ]);

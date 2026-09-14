@@ -20,7 +20,7 @@ import {
   yearOf,
 } from "@/lib/dates";
 import { dentistsForUI } from "@/lib/convert";
-import { bookAppointment, familyByPhone } from "@/server/actions";
+import { bookAppointment, familyByPhone, holdSlot, releaseSlotHold } from "@/server/actions";
 import type { SlotRow } from "@/server/queries";
 import { Check, Chevron, ChevronLeft } from "./icons";
 import { Mascot } from "./Mascot";
@@ -178,6 +178,7 @@ function DayCalendar({
   holidays,
   slots,
   dentist,
+  capable,
   load,
   chairs,
 }: {
@@ -189,6 +190,8 @@ function DayCalendar({
   slots: Record<string, SlotRow[]>;
   /** null = "any dentist" (chair-load mode); a slug = that dentist's own grid */
   dentist: string | null;
+  /** slugs able to do the picked treatment — bounds "any dentist" days */
+  capable: Set<string>;
   load: Record<string, Record<string, { live: number; pool: number }>>;
   chairs: number;
 }) {
@@ -244,16 +247,19 @@ function DayCalendar({
           const closed = !out && (closedWeekday.get(weekday(iso)) === true || holidayName !== undefined);
           const daySlots = slots[iso] ?? [];
           const dayLoad = load[iso] ?? {};
-          // "any dentist" fills by chairs: a day is full when every clock time
-          // already holds chairs-many live bookings. A named dentist keeps
-          // their own grid — and a day with no shift at all is their day off.
-          const mine = dentist === null ? null : daySlots.filter((s) => s.dentistSlug === dentist);
-          const off = !out && !closed && mine !== null && mine.length === 0;
+          // "any dentist" still has to mean *capable* dentists: a specialist
+          // treatment (one dentist takes it) must grey out that dentist's
+          // days off, not light up every day anyone is in.
+          const mine =
+            dentist === null
+              ? daySlots.filter((s) => s.dentistSlug !== null && capable.has(s.dentistSlug))
+              : daySlots.filter((s) => s.dentistSlug === dentist);
+          const off = !out && !closed && mine.length === 0;
           const full =
-            !out && !closed && !off && daySlots.length > 0 &&
-            (mine !== null
+            !out && !closed && !off &&
+            (dentist !== null
               ? mine.every((s) => s.taken)
-              : [...new Set(daySlots.map((s) => s.time))].every(
+              : [...new Set(mine.map((s) => s.time))].every(
                   (hhmm) => (dayLoad[hhmm]?.live ?? 0) >= chairs,
                 ));
           return (
@@ -291,6 +297,8 @@ export function BookingFlow(props: BookingFlowProps) {
   const [dentist, setDentist] = useState<string | null | undefined>(props.preDentist ?? undefined);
   const [date, setDate] = useState<string | null>(null);
   const [time, setTime] = useState<string | null>(null);
+  /** token for the picked slot's temporary reservation (hold-then-confirm) */
+  const [holdToken, setHoldToken] = useState<string | null>(null);
 
   const [contactName, setContactName] = useState("");
   const [contactTel, setContactTel] = useState("");
@@ -323,6 +331,8 @@ export function BookingFlow(props: BookingFlowProps) {
 
   const chosen = dentist ? dentists.find((d) => d.slug === dentist) : undefined;
   const roster = treatment ? dentistsForUI(dentists, treatment) : dentists;
+  /** slugs able to do the picked treatment — bounds the calendar in "any" mode */
+  const capable = useMemo(() => new Set(roster.map((d) => d.slug)), [roster]);
 
   /* the free times on the picked day — for a named dentist their own open
      rows; for "any dentist" every clock time whose chair load still has room
@@ -369,7 +379,32 @@ export function BookingFlow(props: BookingFlowProps) {
     return `${p.toLocaleString("en-US")} ${t.common.baht}`;
   };
 
+  /** drop the current slot reservation — the picked slot is about to change */
+  function clearHold() {
+    if (holdToken) void releaseSlotHold(holdToken);
+    setHoldToken(null);
+  }
+
+  /** picking a time reserves it server-side for HOLD_MINUTES — if the slot was
+   *  just taken, unselect and say so rather than failing at confirm */
+  function pickTime(hhmm: string) {
+    clearHold();
+    setTime(hhmm);
+    setBookErr(null);
+    if (!treatment || !date) return;
+    const dentistId = dentist ? (dentists.find((d) => d.slug === dentist)?.id ?? null) : null;
+    void holdSlot({ date, time: hhmm, treatmentKey: treatment, dentistId }).then((r) => {
+      if (r.ok && r.token) {
+        setHoldToken(r.token);
+      } else {
+        setTime(null);
+        setBookErr(t.booking.slotTaken);
+      }
+    });
+  }
+
   function pickTreatment(k: IconKey) {
+    clearHold();
     setTreatment(k);
     // a dentist picked for the previous treatment may not take this one —
     // drop back to the dentist step instead of showing an empty calendar
@@ -384,6 +419,7 @@ export function BookingFlow(props: BookingFlowProps) {
   }
 
   function pickDentist(slug: string | null) {
+    clearHold();
     setDentist(slug);
     setStep(3);
   }
@@ -458,8 +494,10 @@ export function BookingFlow(props: BookingFlowProps) {
         guardianName: contactName.trim(),
         phone: contactTel,
         forSelf: visitFor === "self",
+        holdToken: holdToken ?? undefined,
       });
       if (result.ok && result.ref) {
+        setHoldToken(null);
         setConfirmedRef(result.ref);
       } else {
         setBookErr(result.error === "slot_taken" ? t.booking.slotTaken : t.booking.bookError);
@@ -597,6 +635,7 @@ export function BookingFlow(props: BookingFlowProps) {
                 today={today}
                 date={date}
                 onPick={(iso) => {
+                  clearHold();
                   setDate(iso);
                   setTime(null);
                 }}
@@ -604,6 +643,7 @@ export function BookingFlow(props: BookingFlowProps) {
                 holidays={holidays}
                 slots={slots}
                 dentist={dentist ?? null}
+                capable={capable}
                 load={load}
                 chairs={chairs}
               />
@@ -614,14 +654,15 @@ export function BookingFlow(props: BookingFlowProps) {
                   <Eyebrow>{t.booking.pickTime}</Eyebrow>
                   <div className="slotWrap">
                     {daySlots.morning.length > 0 ? (
-                      <SlotBank label={t.booking.morning} times={daySlots.morning} time={time} onPick={setTime} />
+                      <SlotBank label={t.booking.morning} times={daySlots.morning} time={time} onPick={pickTime} />
                     ) : null}
                     {daySlots.afternoon.length > 0 ? (
-                      <SlotBank label={t.booking.afternoon} times={daySlots.afternoon} time={time} onPick={setTime} />
+                      <SlotBank label={t.booking.afternoon} times={daySlots.afternoon} time={time} onPick={pickTime} />
                     ) : null}
                     {daySlots.morning.length === 0 && daySlots.afternoon.length === 0 ? (
                       <p className="hint">{t.booking.fullDay}</p>
                     ) : null}
+                    {time && holdToken ? <p className="hint">{t.booking.holdNote}</p> : null}
                   </div>
                 </>
               ) : null}

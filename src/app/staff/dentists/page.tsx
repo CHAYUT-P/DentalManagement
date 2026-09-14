@@ -1,13 +1,10 @@
 "use client";
 
-/** staff data lives in Postgres — render on request, never prerender */
-export const dynamic = "force-dynamic";
-
 import React, { useState } from "react";
 import { useStaff, type EditableDentist } from "@/lib/staffStore";
 import { useT } from "@/i18n/lang";
 import { EditDentistModal } from "@/components/staff/EditDentistModal";
-import { IconEdit, IconDentist, IconClock } from "@/components/staff/staffIcons";
+import { IconEdit, IconDentist, IconClock, IconPlus } from "@/components/staff/staffIcons";
 
 const WEEKDAY_NAMES_SHORT = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 
@@ -15,6 +12,7 @@ export default function StaffDentistsPage() {
   const { dentists } = useStaff();
   const dict = useT();
   const [editingDentist, setEditingDentist] = useState<EditableDentist | null>(null);
+  const [adding, setAdding] = useState(false);
 
   return (
     <div className="staff-container">
@@ -23,6 +21,10 @@ export default function StaffDentistsPage() {
           <h2>จัดการทีมทันตแพทย์และเวรตรวจ (Dentist Roster)</h2>
           <p>กำหนดข้อมูลแพทย์ ความเชี่ยวชาญ และตารางเวลาลงตรวจประจำสัปดาห์ (ข้อมูลจะแสดงบนหน้าเว็บคนไข้)</p>
         </div>
+        <button type="button" className="btn-primary-staff" onClick={() => setAdding(true)}>
+          <IconPlus size={16} />
+          <span>เพิ่มทันตแพทย์</span>
+        </button>
       </div>
 
       <div className="dentist-card-grid">
@@ -108,6 +110,7 @@ export default function StaffDentistsPage() {
           onClose={() => setEditingDentist(null)}
         />
       )}
+      {adding && <EditDentistModal dentist={null} onClose={() => setAdding(false)} />}
     </div>
   );
 }

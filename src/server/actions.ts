@@ -28,6 +28,7 @@ import {
   updateTreatmentPrice,
   updateWaitlistStatus,
   upsertGuardian,
+  clinicNowHHMM,
   type AppointmentUpdate,
   type DentistUpdate,
   type NewDentistInput,
@@ -110,6 +111,90 @@ export interface BookResult {
   error?: "slot_taken" | "invalid";
 }
 
+/**
+ * Slot-only validation shared by `holdSlot` and `bookAppointment`. "ok" means
+ * the slot may be held or booked right now: in range, on a shift a capable
+ * dentist works, and either that dentist is free (named) or the chairs aren't
+ * full (pool). Active holds count as taken/at-capacity everywhere.
+ */
+async function slotVerdict(
+  date: string,
+  time: string,
+  treatmentKey: IconKey,
+  dentistId: number | null,
+): Promise<"ok" | "invalid" | "slot_taken"> {
+  const { todayISO, nowMinutes, minutesOf } = await import("@/lib/dates");
+  const today = todayISO();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today) return "invalid";
+  if (!/^\d{2}:\d{2}$/.test(time)) return "invalid";
+  // never bookable: a past date, or today with under an hour to spare —
+  // the same lead the calendar enforces
+  if (date === today && minutesOf(time) < nowMinutes() + 60) return "invalid";
+
+  const { getChairs, liveAtSlot, activeHoldsAtSlot, slotsForDate, capableDentistIds } =
+    await import("@/server/queries");
+
+  // "any dentist": the booking joins the pool (dentist_id NULL) while the
+  // slot holds fewer live rows — bookings + active holds — than there are
+  // chairs. Pooling into a slot no capable dentist covers would wait forever.
+  if (dentistId === null) {
+    const [chairs, live, holds, rows, capable] = await Promise.all([
+      getChairs(),
+      liveAtSlot(date, time),
+      activeHoldsAtSlot(date, time),
+      slotsForDate(date),
+      capableDentistIds(treatmentKey),
+    ]);
+    if (live.length + holds >= chairs) return "slot_taken";
+    const capableSet = new Set(capable);
+    const covered = rows.some((r) => r.time === time && capableSet.has(r.dentistId));
+    if (!covered) return "slot_taken";
+    return "ok";
+  }
+
+  // a named dentist must take this treatment AND be on shift at that slot —
+  // slotsForDate rows only exist inside enabled shifts on open days, and an
+  // active hold marks the slot taken exactly like a booking
+  const [capable, rows] = await Promise.all([
+    capableDentistIds(treatmentKey),
+    slotsForDate(date),
+  ]);
+  if (!capable.includes(dentistId)) return "invalid";
+  const slot = rows.find((r) => r.dentistId === dentistId && r.time === time);
+  if (!slot || slot.taken) return "slot_taken";
+  return "ok";
+}
+
+/**
+ * Hold-then-confirm, step one: reserve the picked slot for HOLD_MINUTES so it
+ * can't be taken while the family types contact details. Returns the token
+ * the client must pass to `bookAppointment`. Same validation as a booking —
+ * a slot you can't book can't be held.
+ */
+export async function holdSlot(input: {
+  date: string;
+  time: string;
+  treatmentKey: IconKey;
+  /** dentist id, or null for "any dentist" — holds a chair */
+  dentistId: number | null;
+}): Promise<{ ok: boolean; token?: string; expiresAt?: string }> {
+  if (!input.date || !input.time || !input.treatmentKey) return { ok: false };
+  if ((await slotVerdict(input.date, input.time, input.treatmentKey, input.dentistId)) !== "ok") {
+    return { ok: false };
+  }
+  const { createHold } = await import("@/server/queries");
+  const hold = await createHold(input);
+  if (!hold) return { ok: false }; // an active hold landed mid-flight
+  return { ok: true, token: hold.token, expiresAt: hold.expiresAt.toISOString() };
+}
+
+/** release a hold early — the family picked a different slot or backed out */
+export async function releaseSlotHold(token: string): Promise<void> {
+  if (!token) return;
+  const { releaseHold } = await import("@/server/queries");
+  await releaseHold(token);
+}
+
 export async function bookAppointment(input: {
   date: string;
   time: string;
@@ -120,6 +205,8 @@ export async function bookAppointment(input: {
   guardianName: string;
   phone: string;
   forSelf: boolean;
+  /** token from holdSlot — the slot reservation being confirmed */
+  holdToken?: string;
 }): Promise<BookResult> {
   // minimal validation — never trust the client, even ours
   if (!input.date || !input.time || !input.treatmentKey || !input.phone || !input.guardianName) {
@@ -129,28 +216,24 @@ export async function bookAppointment(input: {
     return { ok: false, error: "invalid" };
   }
 
+  // consume the caller's hold first — deleting it means our own reservation
+  // can't trip the checks below; if it lapsed and someone grabbed the slot
+  // meanwhile, the normal validation still fails honestly
   const dentistId = input.dentistId;
+  if (input.holdToken) {
+    const { releaseHold } = await import("@/server/queries");
+    await releaseHold(input.holdToken);
+  }
 
-  // "any dentist": the booking joins the pool (dentist_id NULL) while the
-  // slot holds fewer live bookings than there are chairs. At capacity the
-  // pressure valve runs first — the oldest pooled booking takes a remaining
-  // free dentist, if any — and the newcomer is turned away either way.
-  if (dentistId === null) {
-    const { getChairs, liveAtSlot, slotsForDate, capableDentistIds, settlePool } =
-      await import("@/server/queries");
-    const [chairs, live] = await Promise.all([getChairs(), liveAtSlot(input.date, input.time)]);
-    if (live.length >= chairs) {
+  const verdict = await slotVerdict(input.date, input.time, input.treatmentKey, dentistId);
+  if (verdict !== "ok") {
+    // at capacity the pressure valve runs first — the oldest pooled booking
+    // takes a remaining free dentist — and the newcomer is turned away either way
+    if (dentistId === null && verdict === "slot_taken") {
+      const { settlePool } = await import("@/server/queries");
       await settlePool(input.date, input.time);
-      return { ok: false, error: "slot_taken" };
     }
-    // pooling into a slot no capable dentist covers at all would wait forever
-    const [rows, capable] = await Promise.all([
-      slotsForDate(input.date),
-      capableDentistIds(input.treatmentKey),
-    ]);
-    const capableSet = new Set(capable);
-    const covered = rows.some((r) => r.time === input.time && capableSet.has(r.dentistId));
-    if (!covered) return { ok: false, error: "slot_taken" };
+    return { ok: false, error: verdict };
   }
 
   const created = await createAppointment({
@@ -273,6 +356,24 @@ export async function staffUpdateAppointment(id: number, patch: AppointmentUpdat
       await settlePool(after.date, after.time);
     }
   }
+  revalidateAll();
+}
+
+/**
+ * The queue board's transitions: confirmed → arrived (check-in stamps the
+ * clinic clock — it is the queue order key) → in_chair → completed, or
+ * no_show when the family never turned up. None of these free the slot, so
+ * no settlePool — only `cancelled` does, and it goes through
+ * staffUpdateAppointment.
+ */
+export async function staffSetQueueStatus(
+  id: number,
+  status: "arrived" | "in_chair" | "completed" | "no_show",
+) {
+  await updateAppointment(id, {
+    status,
+    ...(status === "arrived" ? { checkedInAt: clinicNowHHMM() } : {}),
+  });
   revalidateAll();
 }
 

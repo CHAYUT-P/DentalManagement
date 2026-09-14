@@ -1,7 +1,7 @@
 import { HomePage } from "@/components/HomePage";
 import { toUIDentists } from "@/lib/convert";
 import { weekday, todayISO } from "@/lib/dates";
-import { getClinicInfo, listClinicDays, listDentists } from "@/server/queries";
+import { getClinicInfo, listActiveDentists, listClinicDays } from "@/server/queries";
 
 /** every fact on this page is DB data — never prerender it */
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function Home() {
   const [dentistRows, days, info] = await Promise.all([
-    listDentists(),
+    listActiveDentists(),
     listClinicDays(),
     getClinicInfo(),
   ]);

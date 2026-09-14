@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { StaffSidebar } from "@/components/staff/StaffSidebar";
 import { StaffTopbar } from "@/components/staff/StaffTopbar";
@@ -16,8 +17,13 @@ export const metadata: Metadata = {
  * state once (appointments, dentists, patients, waitlist, prices, schedule) and
  * hands it to the provider. Mutations go through Server Actions which
  * revalidate these routes, so navigating between pages re-reads fresh data.
+ *
+ * `connection()` pins every /staff route to request time: the data comes from
+ * Postgres and must never be prerendered at build (route segment config set in
+ * a client page does not apply — the layout carries it instead).
  */
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
+  await connection();
   const initial = await staffBootstrap();
 
   return (

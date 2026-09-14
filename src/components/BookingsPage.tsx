@@ -27,7 +27,7 @@ export interface BookingView {
   time: string;
   treatmentKey: IconKey;
   dentistSlug: string | null;
-  status: "confirmed" | "completed" | "cancelled";
+  status: "confirmed" | "arrived" | "in_chair" | "completed" | "cancelled" | "no_show";
   childName: string;
 }
 
@@ -50,7 +50,11 @@ function PastRow({ a }: { a: BookingView }) {
       <span className="hSide">
         <span className={`tag ${a.status === "completed" ? "done" : "off"}`}>
           {a.status === "completed" ? <Check size={10} /> : <Cross size={10} />}
-          {a.status === "completed" ? t.bookingsPage.done : t.bookingsPage.cancelled}
+          {a.status === "completed"
+            ? t.bookingsPage.done
+            : a.status === "no_show"
+              ? t.bookingsPage.noshow
+              : t.bookingsPage.cancelled}
         </span>
         {a.status === "cancelled" ? null : (
           <a
@@ -69,12 +73,15 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
   const { t } = useLang();
   const [pending, start] = useTransition();
 
-  // the next visit: first confirmed appointment from today onwards
+  // the next visit: a live booking from today onwards — confirmed, checked in,
+  // or in the chair right now all still belong on the slip
+  const live = (s: BookingView["status"]) =>
+    s === "confirmed" || s === "arrived" || s === "in_chair";
   const upcoming = bookings
-    .filter((b) => b.status === "confirmed" && b.date >= today)
+    .filter((b) => live(b.status) && b.date >= today)
     .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1));
   const history = bookings
-    .filter((b) => b.status !== "confirmed" || b.date < today)
+    .filter((b) => !live(b.status) || b.date < today)
     .sort((a, b) => (a.date + a.time > b.date + b.time ? -1 : 1));
 
   const next = upcoming[0];

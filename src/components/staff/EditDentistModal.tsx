@@ -8,34 +8,58 @@ import { dict } from "@/i18n/dict";
 import { IconX, IconCheck } from "./staffIcons";
 
 interface EditDentistModalProps {
-  dentist: EditableDentist;
+  /** null = create a new dentist */
+  dentist: EditableDentist | null;
   onClose: () => void;
 }
 
 const WEEKDAY_NAMES = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+const TINT_CHOICES = ["rose", "peri", "violet", "blue", "steel", "gold", "lav"];
+const TINT_HEX: Record<string, string> = {
+  rose: "#fb70a4",
+  peri: "#7c86e8",
+  violet: "#a06cd5",
+  blue: "#4dabf7",
+  steel: "#748ffc",
+  gold: "#f2b03d",
+  lav: "#b197fc",
+};
+
+/** create-mode default shifts: Mon–Sat 09:00–18:00, Sunday off */
+const defaultShifts = (): ShiftHour[] =>
+  [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+    weekday,
+    enabled: weekday !== 0,
+    start: "09:00",
+    end: "18:00",
+  }));
 
 export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
-  const { updateDentist, servicePrices } = useStaff();
+  const { updateDentist, createDentist, servicePrices } = useStaff();
+  const isNew = dentist === null;
 
-  const [thName, setThName] = useState(dentist.text.th.name);
-  const [enName, setEnName] = useState(dentist.text.en.name);
-  const [thTitle, setThTitle] = useState(dentist.text.th.title);
-  const [enTitle, setEnTitle] = useState(dentist.text.en.title);
-  const [thBlurb, setThBlurb] = useState(dentist.text.th.blurb);
-  const [isActive, setIsActive] = useState(dentist.isActive);
-  const [shifts, setShifts] = useState<ShiftHour[]>(dentist.shifts);
+  const [slug, setSlug] = useState("");
+  const [years, setYears] = useState(1);
+  const [tint, setTint] = useState("lav");
+  const [thName, setThName] = useState(dentist?.text.th.name ?? "");
+  const [enName, setEnName] = useState(dentist?.text.en.name ?? "");
+  const [thTitle, setThTitle] = useState(dentist?.text.th.title ?? "");
+  const [enTitle, setEnTitle] = useState(dentist?.text.en.title ?? "");
+  const [thBlurb, setThBlurb] = useState(dentist?.text.th.blurb ?? "");
+  const [isActive, setIsActive] = useState(dentist?.isActive ?? true);
+  const [shifts, setShifts] = useState<ShiftHour[]>(dentist?.shifts ?? defaultShifts());
   /** every treatment the clinic offers (DB price list) plus anything this
    *  dentist already carries, so unchecking the last dentist never hides a key */
   const allTreats = useMemo(() => {
     const keys = new Set<IconKey>([
       ...(Object.keys(servicePrices) as IconKey[]),
-      ...dentist.treats,
+      ...(dentist?.treats ?? []),
     ]);
     return [...keys].sort((a, b) =>
       (dict.th.service[a] || a).localeCompare(dict.th.service[b] || b, "th"),
     );
-  }, [servicePrices, dentist.treats]);
-  const [treats, setTreats] = useState<IconKey[]>(dentist.treats);
+  }, [servicePrices, dentist]);
+  const [treats, setTreats] = useState<IconKey[]>(dentist?.treats ?? []);
 
   const toggleTreat = (k: IconKey) => {
     setTreats((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
@@ -61,6 +85,38 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
       .filter((s) => s.enabled)
       .map((s) => WEEKDAY_NAMES[s.weekday])
       .join(", ");
+
+    if (isNew) {
+      createDentist({
+        slug: slug.trim().toLowerCase(),
+        years,
+        tint,
+        treats,
+        shifts,
+        text: {
+          th: {
+            name: thName,
+            title: thTitle,
+            blurb: thBlurb,
+            bio: "",
+            credentials: [],
+            languages: "",
+            days: activeDaysTh || "ตามนัดหมาย",
+          },
+          en: {
+            name: enName,
+            title: enTitle,
+            blurb: thBlurb,
+            bio: "",
+            credentials: [],
+            languages: "",
+            days: "",
+          },
+        },
+      });
+      onClose();
+      return;
+    }
 
     updateDentist(dentist.slug, {
       isActive,
@@ -90,7 +146,7 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: "600px" }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>แก้ไขข้อมูลและตารางตรวจทันตแพทย์</h3>
+          <h3>{isNew ? "เพิ่มทันตแพทย์ใหม่" : "แก้ไขข้อมูลและตารางตรวจทันตแพทย์"}</h3>
           <button type="button" className="btn-action-icon" onClick={onClose}>
             <IconX size={16} />
           </button>
@@ -98,7 +154,63 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
 
         <form onSubmit={handleSave}>
           <div className="modal-body">
-            {/* Status toggle */}
+            {isNew && (
+              <>
+                {/* identity — slug is the URL key on the patient site */}
+                <div className="form-row-2">
+                  <div className="form-group">
+                    <label>Slug (ภาษาอังกฤษพิมพ์เล็ก ใช้ใน URL) *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      pattern="[a-z0-9-]+"
+                      placeholder="เช่น somchai"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>ประสบการณ์ (ปี)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      max={60}
+                      value={years}
+                      onChange={(e) => setYears(Number(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+
+                {/* card colour on the patient site */}
+                <div className="form-group">
+                  <label style={{ marginBottom: "8px" }}>สีการ์ดบนหน้าเว็บคนไข้</label>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {TINT_CHOICES.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTint(t)}
+                        title={t}
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          borderRadius: "999px",
+                          border: tint === t ? "3px solid var(--staff-primary)" : "2px solid var(--staff-border)",
+                          background: TINT_HEX[t],
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Status toggle — new dentists always start active */}
+            {!isNew && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--staff-surface-subtle)", padding: "12px 16px", borderRadius: "10px", border: "1px solid var(--staff-border)" }}>
               <div>
                 <strong style={{ fontSize: "14px" }}>สถานะการรับนัด (Active Status)</strong>
@@ -125,6 +237,7 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
                 )}
               </button>
             </div>
+            )}
 
             {/* Names */}
             <div className="form-row-2">
@@ -284,7 +397,7 @@ export function EditDentistModal({ dentist, onClose }: EditDentistModalProps) {
             </button>
             <button type="submit" className="btn-primary-staff">
               <IconCheck size={16} />
-              <span>บันทึกการแก้ไข</span>
+              <span>{isNew ? "เพิ่มทันตแพทย์" : "บันทึกการแก้ไข"}</span>
             </button>
           </div>
         </form>

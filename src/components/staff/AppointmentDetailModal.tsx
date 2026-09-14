@@ -26,7 +26,7 @@ export function AppointmentDetailModal({
   appointment,
   onClose,
 }: AppointmentDetailModalProps) {
-  const { dentists, patients, updateStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast } = useStaff();
+  const { today, dentists, patients, updateStatus, setQueueStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast } = useStaff();
   const dict = useT();
 
   const [isRescheduling, setIsRescheduling] = useState(false);
@@ -84,6 +84,12 @@ export function AppointmentDetailModal({
     }
   };
 
+  /** one-tap queue moves — check-in stamps the clinic clock on the server */
+  const queueMove = (status: "arrived" | "in_chair" | "completed" | "no_show") => {
+    setQueueStatus(appointment.id, status);
+    onClose();
+  };
+
   const handleSaveReschedule = () => {
     const moved = newDate !== appointment.date || newTime !== appointment.time;
     if (appointment.dentistId === null && newDentist && !moved) {
@@ -125,8 +131,11 @@ export function AppointmentDetailModal({
                 style={{ fontSize: "12px", padding: "3px 10px", fontWeight: "600" }}
               >
                 {appointment.status === "confirmed" && "ยืนยันแล้ว (Confirmed)"}
+                {appointment.status === "arrived" && "เช็คอินแล้ว (Arrived)"}
+                {appointment.status === "in_chair" && "กำลังตรวจ (In chair)"}
                 {appointment.status === "completed" && "ตรวจเสร็จสิ้น (Completed)"}
                 {appointment.status === "cancelled" && "ยกเลิกแล้ว (Cancelled)"}
+                {appointment.status === "no_show" && "ไม่มาตามนัด (No-show)"}
               </span>
               {appointment.forSelf && (
                 <span
@@ -675,23 +684,42 @@ export function AppointmentDetailModal({
 
         {/* Modal Footer */}
         <div className="modal-footer" style={{ padding: "16px 24px", justifyContent: "space-between" }}>
-          {appointment.status === "confirmed" ? (
-            <button
-              type="button"
-              className="btn-secondary-staff"
-              style={{
-                color: "var(--staff-status-cancelled-fg)",
-                borderColor: "#ffc9c9",
-                background: "#fff5f5",
-                padding: "10px 18px",
-                fontSize: "13.5px",
-                fontWeight: "600",
-              }}
-              onClick={handleCancel}
-            >
-              <IconX size={15} />
-              <span>ยกเลิกนัด (Cancel)</span>
-            </button>
+          {appointment.status === "confirmed" || appointment.status === "arrived" ? (
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                className="btn-secondary-staff"
+                style={{
+                  color: "var(--staff-status-cancelled-fg)",
+                  borderColor: "#ffc9c9",
+                  background: "#fff5f5",
+                  padding: "10px 18px",
+                  fontSize: "13.5px",
+                  fontWeight: "600",
+                }}
+                onClick={handleCancel}
+              >
+                <IconX size={15} />
+                <span>ยกเลิกนัด (Cancel)</span>
+              </button>
+              {appointment.status === "confirmed" && appointment.date <= today && (
+                <button
+                  type="button"
+                  className="btn-secondary-staff"
+                  style={{
+                    color: "var(--staff-status-noshow-fg)",
+                    borderColor: "#dee2e6",
+                    background: "#f1f3f5",
+                    padding: "10px 18px",
+                    fontSize: "13.5px",
+                    fontWeight: "600",
+                  }}
+                  onClick={() => queueMove("no_show")}
+                >
+                  <span>ไม่มา (No-show)</span>
+                </button>
+              )}
+            </div>
           ) : (
             <div />
           )}
@@ -705,7 +733,40 @@ export function AppointmentDetailModal({
             >
               ปิด
             </button>
-            {appointment.status === "confirmed" && (
+            {appointment.status === "confirmed" && appointment.date === today && (
+              <button
+                type="button"
+                className="btn-primary-staff"
+                style={{ padding: "10px 20px", fontSize: "13.5px", fontWeight: "600" }}
+                onClick={() => queueMove("arrived")}
+              >
+                <IconWalkIn size={16} />
+                <span>เช็คอิน (Check in)</span>
+              </button>
+            )}
+            {appointment.status === "confirmed" && appointment.date !== today && (
+              <button
+                type="button"
+                className="btn-primary-staff"
+                style={{ background: "#2b8a3e", padding: "10px 20px", fontSize: "13.5px", fontWeight: "600" }}
+                onClick={handleComplete}
+              >
+                <IconCheck size={16} />
+                <span>ตรวจเสร็จสิ้น (Mark Done)</span>
+              </button>
+            )}
+            {appointment.status === "arrived" && (
+              <button
+                type="button"
+                className="btn-primary-staff"
+                style={{ padding: "10px 20px", fontSize: "13.5px", fontWeight: "600" }}
+                onClick={() => queueMove("in_chair")}
+              >
+                <IconDentist size={16} />
+                <span>เรียกเข้าตรวจ (Call in)</span>
+              </button>
+            )}
+            {appointment.status === "in_chair" && (
               <button
                 type="button"
                 className="btn-primary-staff"

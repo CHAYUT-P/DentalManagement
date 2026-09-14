@@ -34,6 +34,19 @@
   --staff-status-cancelled-fg: #e03131;
   --staff-status-cancelled-border: #ffc9c9;
 
+  /* queue flow: checked in (amber) → in the chair (violet) → didn't come (grey) */
+  --staff-status-arrived-bg: #fff9db;
+  --staff-status-arrived-fg: #8a6d00;
+  --staff-status-arrived-border: #ffd43b;
+
+  --staff-status-inchair-bg: #f3f0ff;
+  --staff-status-inchair-fg: #5f3dc4;
+  --staff-status-inchair-border: #d0bfff;
+
+  --staff-status-noshow-bg: #f1f3f5;
+  --staff-status-noshow-fg: #868e96;
+  --staff-status-noshow-border: #dee2e6;
+
   --staff-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
   --staff-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08);
   --staff-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
@@ -940,6 +953,28 @@
   opacity: 0.65;
 }
 
+.appt-chip-card.arrived {
+  background: var(--staff-status-arrived-bg);
+  border: 1px solid var(--staff-status-arrived-border);
+  border-left: 4px solid var(--staff-status-arrived-fg);
+  color: var(--staff-ink);
+}
+
+.appt-chip-card.in_chair {
+  background: var(--staff-status-inchair-bg);
+  border: 1px solid var(--staff-status-inchair-border);
+  border-left: 4px solid var(--staff-status-inchair-fg);
+  color: var(--staff-ink);
+}
+
+.appt-chip-card.no_show {
+  background: var(--staff-status-noshow-bg);
+  border: 1px solid var(--staff-status-noshow-border);
+  border-left: 4px solid var(--staff-status-noshow-fg);
+  color: var(--staff-ink-muted);
+  opacity: 0.7;
+}
+
 .appt-chip-header {
   display: flex;
   align-items: center;
@@ -1240,6 +1275,24 @@
   background: var(--staff-status-cancelled-bg);
   color: var(--staff-status-cancelled-fg);
   border: 1px solid var(--staff-status-cancelled-border);
+}
+
+.status-pill.arrived {
+  background: var(--staff-status-arrived-bg);
+  color: var(--staff-status-arrived-fg);
+  border: 1px solid var(--staff-status-arrived-border);
+}
+
+.status-pill.in_chair {
+  background: var(--staff-status-inchair-bg);
+  color: var(--staff-status-inchair-fg);
+  border: 1px solid var(--staff-status-inchair-border);
+}
+
+.status-pill.no_show {
+  background: var(--staff-status-noshow-bg);
+  color: var(--staff-status-noshow-fg);
+  border: 1px solid var(--staff-status-noshow-border);
 }
 
 /* Master Data Tables */
@@ -1673,5 +1726,172 @@
     flex-direction: row;
     overflow-x: auto;
     padding: 6px 10px;
+  }
+}
+
+/* ── Today's queue board (/staff/queue) ──────────────────────────────────
+   Three lanes — expected → waiting → in chair. Big cards, one tap per move;
+   the board is what a nurse uses with a queue of kids in front of her. */
+
+.queue-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.queue-lane {
+  background: #ffffff;
+  border: 1px solid var(--staff-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--staff-shadow-sm);
+}
+
+.queue-lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--staff-border);
+  background: #fafafa;
+}
+
+.queue-lane-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.queue-lane-head.serving {
+  background: var(--staff-status-inchair-bg);
+  border-bottom-color: var(--staff-status-inchair-border);
+}
+
+.queue-lane-count {
+  min-width: 26px;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--staff-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.queue-lane-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.queue-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--staff-ink-muted);
+  font-size: 13px;
+}
+
+.queue-card {
+  border: 1px solid var(--staff-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #fff;
+}
+
+.queue-card.serving {
+  border-color: var(--staff-status-inchair-border);
+  background: var(--staff-status-inchair-bg);
+}
+
+.queue-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.queue-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--staff-primary);
+}
+
+.queue-pos {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--staff-status-arrived-bg);
+  color: var(--staff-status-arrived-fg);
+  border: 1px solid var(--staff-status-arrived-border);
+}
+
+.queue-pos.serving {
+  background: var(--staff-status-inchair-bg);
+  color: var(--staff-status-inchair-fg);
+  border-color: var(--staff-status-inchair-border);
+}
+
+.queue-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--staff-ink-muted);
+}
+
+.queue-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.queue-sub {
+  font-size: 12.5px;
+  color: var(--staff-ink-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.queue-sub.muted {
+  color: var(--staff-ink-muted);
+  font-size: 11.5px;
+}
+
+.queue-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.queue-btn {
+  flex: 1;
+  justify-content: center;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.queue-btn.done {
+  background: var(--staff-status-completed-fg);
+}
+
+@media (max-width: 1100px) {
+  .queue-board {
+    grid-template-columns: 1fr;
+  }
+  .queue-lane-body {
+    max-height: none;
   }
 }

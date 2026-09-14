@@ -30,6 +30,7 @@ export function toUIAppointment(a: AppointmentDTO): StaffAppointment {
     treatmentKey: a.treatmentKey,
     source: a.source,
     status: a.status,
+    checkedInAt: a.checkedInAt,
     notes: a.note,
     price: a.price ?? undefined,
     forSelf: a.forSelf,

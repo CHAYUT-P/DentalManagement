@@ -1,12 +1,13 @@
 # Denta Kids — Project Understanding
 
-Pediatric dental clinic. Two products, one shared backend.
+Pediatric dental clinic. Four products, one shared backend.
 
 | # | Product | Users | Stack |
 |---|---------|-------|-------|
 | 1 | **Patient web** — LINE LIFF booking app | Parents/guardians of child patients | Next.js (App Router), mobile-first, opened inside LINE |
-| 2 | **Staff app** — desktop management tool | Clinic staff (front desk, admin) | **Truly native Windows** — C# / WinUI 3. No Electron, no webview wrapper |
-| 3 | **Backend** | both apps | Next.js route handlers + managed Postgres |
+| 2 | **Staff app** — desktop management tool | Clinic staff (front desk, admin) | **Tauri 2 shell** over the hosted `/staff` console (`apps/staff-desktop`) |
+| 3 | **Queue-check web** — minimal status page | Parents waiting at the clinic | Static site (`queue/`), calls `/api/queue`; hosted separately |
+| 4 | **Backend** | all apps | Next.js route handlers + managed Postgres |
 
 The clinic already runs a separate application for patient management; it stays in charge for now.
 Product 2 starts as *appointments + website content* only, and may absorb the old system later.
@@ -17,7 +18,7 @@ Product 2 starts as *appointments + website content* only, and may absorb the ol
 
 | Decision | Choice |
 |---|---|
-| Staff app platform | Native Windows, C# / WinUI 3 |
+| Staff app platform | **Tauri 2** (WebView wrapper, Windows + macOS) — supersedes the earlier WinUI 3 plan: the web console already exists and works, a native rewrite bought nothing for a scheduling tool |
 | Backend shape | Next.js API routes + managed Postgres (one deploy serves LIFF pages *and* the API the desktop app calls) |
 | LINE | OA + Messaging API + LIFF channels exist, but credentials are held by the owner's aunt and not available yet → **build against a mock, wire the real thing later behind one interface** |
 | Booking flow | Treatment → dentist → date/time, **auto-confirmed** (no staff approval step) |
@@ -75,7 +76,7 @@ full on the server and on the phone, and a reload does not mint a new reference.
 Mock appointments are stored as an offset in days from today, so they never rot;
 `openDay()` nudges one off a Sunday, since the clinic is closed then.
 
-## 2. Staff app (native Windows)
+## 2. Staff app (Tauri desktop)
 
 - **Appointments**: schedule view (day/week, by dentist), create phone-in bookings, edit, cancel, mark done/no-show.
 - **Dentists**: add/edit/remove — name (TH/EN), photo, specialty, description, working days/shifts. *Profile and description are published to the patient web.*
@@ -207,7 +208,7 @@ screens deep:
 - Thai-first audience, with an English switch (header top-right, left of the bell; Thai default) for non-Thai parents.
 - **PDPA**: records are about minors. Consent, retention and who can see what need a real answer before launch.
 - The old clinic application stays the source of truth for patient records → risk of two calendars disagreeing. How the two coexist is unresolved.
-- Development happens on macOS. **A WinUI 3 app cannot be compiled or run from here** — a Windows machine or VM is required to build and test it.
+- Development happens on macOS. Tauri compiles here and on Windows — the earlier WinUI 3 blocker is gone.
 - Next.js in this repo is a modified build: `next dev` writes an `AGENTS.md` instructing that the guides in `node_modules/next/dist/docs/` be read before writing code. Do that; the APIs differ from common knowledge.
 
 ## Prior art
@@ -270,18 +271,18 @@ screens deep:
 ## Backend (built 2026-09-09)
 
 Postgres 16 in Docker (`docker-compose.yml`, db `dentalweb`) + Drizzle ORM.
-One deploy serves the LIFF pages and the API; the future WinUI 3 staff app is
-just another HTTP/action client.
+One deploy serves the LIFF pages and the API; the Tauri staff app is just a
+webview pointed at `/staff`, and the queue-check site calls `/api/queue`.
 
 | Piece | File | What it is |
 |---|---|---|
-| Schema | `src/db/schema.ts` | 14 tables: dentist(+text/treat/shift), treatment, guardian, child, appointment, clinic_day, holiday, promotion, staff_notification, waitlist_entry, message_log |
+| Schema | `src/db/schema.ts` | 15 tables: dentist(+text/treat/shift), treatment, guardian, child, appointment, slot_hold, clinic_day, holiday, promotion, staff_notification, waitlist_entry, message_log |
 | Client | `src/db/client.ts` | pooled postgres.js + drizzle; `DATABASE_URL` from `.env` |
 | Queries (DAL) | `src/server/queries.ts` | every read/availability function; `slotsForDate` is THE definition of "what is free" |
 | Mutations | `src/server/actions.ts` | Server Actions (`'use server'` + `server-only`); each write revalidates affected paths |
 | Converters | `src/lib/convert.ts`, `src/lib/staffConvert.ts` | DB DTOs ⇄ UI shapes so components render unchanged |
 | Seed | `scripts/seed.ts` (`pnpm db:seed`) | idempotent demo data; appointment dates computed from today on each run |
-| Verification | `scripts/dbTest.ts` (`pnpm db:test`) | 16 end-to-end DB checks (booking, double-booking guard, cancel, waitlist, prices, deactivation) |
+| Verification | `scripts/dbTest.ts` (`pnpm db:test`) | 27 end-to-end DB checks (booking, double-booking guard, cancel, waitlist, queue board, prices, deactivation) |
 | Config | `drizzle.config.ts`, `.env` | schema path + connection string; change `.env` only when moving to cloud Postgres |
 
 **Invariants now enforced by the database**
@@ -290,6 +291,10 @@ just another HTTP/action client.
 - A booking only lands on an open day with an enabled shift for that dentist.
 - Deactivating a dentist removes their slots everywhere at once.
 - Patient `/bookings` and staff views read the same rows — no two calendars.
+- Picking a time writes a 10-minute `slot_hold` (hold-then-confirm): a named
+  hold marks that dentist's slot taken, every hold occupies a chair for pool
+  capacity. Confirming consumes the hold via its token; a lapsed hold frees
+  itself — every read filters on `expires_at`, no sweeper needed.
 
 **Slot availability is real.** The mock hash-fullness in `BookingFlow` is gone;
 free/taken comes from `slotsForDate` (open weekday + holiday check + shifts +
@@ -299,15 +304,33 @@ next working day.
 
 **Staff console** is fed by `staffBootstrap()` (one round-trip) and every
 button calls a Server Action, then re-reads state. localStorage store removed.
+All `/staff/*` routes are dynamic via `connection()` in the staff layout —
+`force-dynamic` exports in `"use client"` pages are ignored, so without it the
+build prerenders staff pages and bakes patient data into static HTML.
+
+**Queue flow (added 2026-09-13).** Appointment status widened to
+`confirmed → arrived → in_chair → completed` (+ `cancelled`, `no_show`),
+with `checked_in_at` stamped on check-in. `/staff/queue` merges checked-in
+bookings with the `waitlist_entry` walk-in queue into one board
+(`queueDay(date)` in queries.ts): waiting column (check-in/arrived order)
+and serving column (`in_chair`). Staff actions live in `actions.ts` as
+`setAppointmentQueueStatus`. The public read side is `GET /api/queue`
+— `?date=` (any day: scheduled/waiting/serving/done + active dentist list),
+`?dentist=slug` filter, and `?ref=`/`?phone=` lookup (`?ref=W-12` covers
+walk-ins; child nickname + position only, no guardian name/phone) — and the
+standalone static site in `queue/`
+(`config.js` points it at the API base).
 
 **Commands**: `pnpm db:push` (schema → DB), `pnpm db:seed`, `pnpm db:test`,
 `pnpm db:studio` (Drizzle GUI). Dev: `docker compose up -d` then `pnpm dev`.
 
 **Known limits (deliberate for this round)**
-- No staff auth (the web console is a mockup for the native app; add auth before
-  any public deploy of `/staff`).
+- No staff auth (add auth before any public deploy of `/staff` — the Tauri app
+  loads that URL, so the auth gate must live in the web layer).
 - Patient identity = typed phone number; `/bookings` shows the demo family's
   phone (`0812345678`). LIFF login will swap this lookup, nothing else.
 - LINE still mocked (credentials pending) — the interface is one file swap.
+- `pnpm db:test` **deletes all appointments/waitlist/notifications then
+  reseeds** — verification only, never run it against real data.
 - `staffResetDemoData` shells out to `pnpm db:seed`; replace with a proper
   action before production.

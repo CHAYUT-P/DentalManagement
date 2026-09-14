@@ -1,8 +1,5 @@
 "use client";
 
-/** staff data lives in Postgres — render on request, never prerender */
-export const dynamic = "force-dynamic";
-
 import React, { useState, useMemo, useCallback } from "react";
 import { useStaff, type StaffAppointment } from "@/lib/staffStore";
 import { addDays, weekday, daysFrom, fmtLong } from "@/lib/dates";

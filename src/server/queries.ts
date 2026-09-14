@@ -5,11 +5,11 @@
  * only ever runs on the server in the app because only server code imports it.
  */
 
-import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, ne } from "drizzle-orm";
 
 import type { IconKey } from "@/data/icons";
 import { isIconKey } from "@/data/icons";
-import { minutesOf, weekday, weekdayIndex } from "@/lib/dates";
+import { minutesOf, todayISO, weekday, weekdayIndex } from "@/lib/dates";
 /**
  * The client instance is imported directly (not via "@/db", whose `server-only`
  * guard would also block the seed/verification scripts that legitimately reuse
@@ -28,6 +28,7 @@ import {
   dentistTreat,
   guardian,
   holiday,
+  slotHold,
   staffNotification,
   treatment,
   waitlistEntry,
@@ -109,6 +110,8 @@ export interface AppointmentDTO {
   treatmentKey: IconKey;
   source: AppointmentSource;
   status: AppointmentStatus;
+  /** HH:MM the family checked in — set when status moves to "arrived" */
+  checkedInAt: string | null;
   note: string;
   price: number | null;
   forSelf: boolean;
@@ -201,6 +204,11 @@ export async function listDentists(): Promise<DentistDTO[]> {
       text: { th: mapText(th), en: mapText(en) },
     };
   });
+}
+
+/** patient-facing list — deactivated dentists stay staff-only */
+export async function listActiveDentists(): Promise<DentistDTO[]> {
+  return (await listDentists()).filter((d) => d.isActive);
 }
 
 /* ═══════════════════════════════ treatments ═════════════════════════════ */
@@ -331,6 +339,15 @@ export async function slotsForDate(date: string): Promise<SlotRow[]> {
 
   const takenSet = new Set(booked.map((b) => `${b.dentistId}:${b.time}`));
 
+  // an active slot hold blocks that named dentist's slot exactly like a booking
+  const held = await db
+    .select({ dentistId: slotHold.dentistId, time: slotHold.time })
+    .from(slotHold)
+    .where(and(eq(slotHold.date, date), gt(slotHold.expiresAt, new Date())));
+  for (const h of held) {
+    if (h.dentistId !== null) takenSet.add(`${h.dentistId}:${h.time}`);
+  }
+
   const out: SlotRow[] = [];
   for (const d of active) {
     // only this weekday's shift — never the other six rows
@@ -445,6 +462,18 @@ export async function slotLoadForDates(dates: string[]): Promise<Record<string, 
     cell.live += 1;
     if (r.dentistId === null) cell.pool += 1;
   }
+
+  // active holds occupy chairs too, so a held time can't look free on the calendar
+  const holds = await db
+    .select({ date: slotHold.date, time: slotHold.time, dentistId: slotHold.dentistId })
+    .from(slotHold)
+    .where(and(inArray(slotHold.date, dates), gt(slotHold.expiresAt, new Date())));
+  for (const r of holds) {
+    const day = (out[r.date] ??= {});
+    const cell = (day[r.time] ??= { live: 0, pool: 0 });
+    cell.live += 1;
+    if (r.dentistId === null) cell.pool += 1;
+  }
   return out;
 }
 
@@ -471,6 +500,74 @@ export async function liveAtSlot(date: string, time: string): Promise<SlotLiveRo
     dentistId: r.dentistId,
     createdAt: r.createdAt,
   }));
+}
+
+/* ═══════════════════════════════ slot holds ══════════════════════════════ */
+/**
+ * Hold-then-confirm: picking a slot writes a short reservation so a family
+ * typing contact details can't lose the time to someone else. Every read
+ * filters on `expires_at` — a lapsed hold stops counting by itself, no
+ * background sweeper. Confirming deletes the hold then runs the normal
+ * booking validation, so a lapsed hold just falls back to "is it still free?"
+ * instead of failing artificially.
+ */
+
+/** how long a picked slot is reserved while the family finishes the form */
+export const HOLD_MINUTES = 10;
+
+/** active holds at one wall-clock slot — they occupy chairs like bookings */
+export async function activeHoldsAtSlot(date: string, time: string): Promise<number> {
+  const rows = await db
+    .select({ id: slotHold.id })
+    .from(slotHold)
+    .where(and(eq(slotHold.date, date), eq(slotHold.time, time), gt(slotHold.expiresAt, new Date())));
+  return rows.length;
+}
+
+/**
+ * Reserve (date, time) for HOLD_MINUTES; returns the token the client passes
+ * back to confirm, or null when an active hold already sits there. For a
+ * named dentist the unique index does the work — the ON CONFLICT clause only
+ * overwrites a lapsed row. A pool hold (dentistId null) has no index; the
+ * caller checks chair capacity and the final booking re-checks anyway.
+ */
+export async function createHold(input: {
+  dentistId: number | null;
+  date: string;
+  time: string;
+  treatmentKey: string;
+}): Promise<{ token: string; expiresAt: Date } | null> {
+  // prune lapsed rows so the table stays small and the upsert can reuse them
+  await db.delete(slotHold).where(lt(slotHold.expiresAt, new Date()));
+
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + HOLD_MINUTES * 60_000);
+  const base = {
+    dentistId: input.dentistId,
+    treatmentKey: input.treatmentKey,
+    date: input.date,
+    time: input.time,
+    expiresAt,
+  };
+  const rows =
+    input.dentistId === null
+      ? await db.insert(slotHold).values({ ...base, token }).returning({ token: slotHold.token })
+      : await db
+          .insert(slotHold)
+          .values({ ...base, token })
+          .onConflictDoUpdate({
+            target: [slotHold.dentistId, slotHold.date, slotHold.time],
+            set: { token, expiresAt, treatmentKey: input.treatmentKey, createdAt: new Date() },
+            // only a lapsed hold may be replaced — an active one wins
+            setWhere: lt(slotHold.expiresAt, new Date()),
+          })
+          .returning({ token: slotHold.token });
+  return rows.length === 0 ? null : { token, expiresAt };
+}
+
+/** drop a hold — called at confirm time and when the family picks another slot */
+export async function releaseHold(token: string): Promise<void> {
+  await db.delete(slotHold).where(eq(slotHold.token, token));
 }
 
 /**
@@ -661,6 +758,7 @@ function toAppointmentDTO(
     treatmentKey: asIconKey(row.treatmentKey),
     source: row.source as AppointmentSource,
     status: row.status as AppointmentStatus,
+    checkedInAt: row.checkedInAt,
     note: row.note,
     price: row.price,
     forSelf: row.forSelf,
@@ -705,6 +803,8 @@ export async function listAppointmentsByPhone(phone: string): Promise<Appointmen
 
 export interface AppointmentUpdate {
   status?: AppointmentStatus;
+  /** set by the queue flow when the family checks in */
+  checkedInAt?: string | null;
   date?: string;
   time?: string;
   /** null unassigns back to the pool; a number assigns (guarded by callers) */
@@ -874,6 +974,16 @@ export async function listWaitlist(): Promise<WaitlistDTO[]> {
   }));
 }
 
+/** the clinic's wall clock as HH:MM (Asia/Bangkok) — check-in/arrival stamps */
+export function clinicNowHHMM(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(now);
+}
+
 export async function addWaitlist(input: {
   childName: string;
   guardianPhone?: string;
@@ -881,13 +991,7 @@ export async function addWaitlist(input: {
   dentistId?: number | null;
   note?: string;
 }): Promise<void> {
-  const now = new Date();
-  const hhmm = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Bangkok",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(now);
+  const hhmm = clinicNowHHMM();
   await db.insert(waitlistEntry).values({
     childName: input.childName,
     guardianPhone: (input.guardianPhone ?? "").replace(/\D/g, ""),
@@ -912,6 +1016,191 @@ export async function updateWaitlistStatus(
 
 export async function removeWaitlist(id: number): Promise<void> {
   await db.delete(waitlistEntry).where(eq(waitlistEntry.id, id));
+}
+
+/* ═══════════════════════ queue board (public read) ══════════════════════ */
+
+/**
+ * One row of the live queue: a checked-in booking or a walk-in, ordered by
+ * when the patient arrived. This is the shape /api/queue and the queue-check
+ * site consume — ref codes and display names only, never phone numbers.
+ */
+export interface QueueItemDTO {
+  /** "booking" = appointment row, "walkin" = waitlist row */
+  kind: "booking" | "walkin";
+  /** "DK-4821" for bookings, "W-12" for walk-ins */
+  ref: string;
+  name: string;
+  /** scheduled = booked, not here yet; waiting = in line; serving = in the chair */
+  state: "scheduled" | "waiting" | "serving" | "done" | "no_show";
+  /** check-in / walk-in arrival (HH:MM) — the live-lane sort key */
+  at: string;
+  /** the booked slot (bookings only) */
+  time: string | null;
+  dentistSlug: string | null;
+  dentistName: string;
+}
+
+export interface QueueDayDTO {
+  /** active dentists — the queue site's doctor filter options */
+  dentists: { slug: string; name: string }[];
+  /** confirmed bookings, slot order */
+  scheduled: QueueItemDTO[];
+  /** checked-in bookings + waiting walk-ins, arrival order */
+  waiting: QueueItemDTO[];
+  /** in the chair now, arrival order */
+  serving: QueueItemDTO[];
+  /** finished / no-show bookings, slot order */
+  done: QueueItemDTO[];
+}
+
+const byAt = (a: QueueItemDTO, b: QueueItemDTO) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+const byTime = (a: QueueItemDTO, b: QueueItemDTO) =>
+  (a.time ?? "") < (b.time ?? "") ? -1 : (a.time ?? "") > (b.time ?? "") ? 1 : 0;
+
+/**
+ * The full public day view: who's booked, who's waiting, who's in the chair,
+ * who's done. Walk-ins only exist "today" — the waitlist has no date.
+ * /api/queue and the queue-check site consume this — ref codes and display
+ * names only, never phone numbers.
+ */
+export async function queueDay(date: string): Promise<QueueDayDTO> {
+  const isToday = date === todayISO();
+  const [appts, walks, docs] = await Promise.all([
+    db
+      .select({ a: appointment, dslug: dentist.slug, dname: dentistText.name })
+      .from(appointment)
+      .leftJoin(dentist, eq(dentist.id, appointment.dentistId))
+      .leftJoin(
+        dentistText,
+        and(eq(dentistText.dentistId, dentist.id), eq(dentistText.lang, "th")),
+      )
+      .where(and(eq(appointment.date, date), ne(appointment.status, "cancelled"))),
+    isToday
+      ? db
+          .select({ w: waitlistEntry, dslug: dentist.slug, dname: dentistText.name })
+          .from(waitlistEntry)
+          .leftJoin(dentist, eq(dentist.id, waitlistEntry.dentistId))
+          .leftJoin(
+            dentistText,
+            and(eq(dentistText.dentistId, dentist.id), eq(dentistText.lang, "th")),
+          )
+      : Promise.resolve([]),
+    db
+      .select({ slug: dentist.slug, name: dentistText.name })
+      .from(dentist)
+      .leftJoin(
+        dentistText,
+        and(eq(dentistText.dentistId, dentist.id), eq(dentistText.lang, "th")),
+      )
+      .where(eq(dentist.isActive, true)),
+  ]);
+
+  const booked: QueueItemDTO[] = appts.map((r) => ({
+    kind: "booking",
+    ref: r.a.ref,
+    name: r.a.childName,
+    state:
+      r.a.status === "confirmed"
+        ? "scheduled"
+        : r.a.status === "arrived"
+          ? "waiting"
+          : r.a.status === "in_chair"
+            ? "serving"
+            : r.a.status === "no_show"
+              ? "no_show"
+              : "done",
+    at: r.a.checkedInAt ?? r.a.time,
+    time: r.a.time,
+    dentistSlug: r.dslug,
+    dentistName: r.dname ?? "",
+  }));
+  const walked: QueueItemDTO[] = walks.map((r) => ({
+    kind: "walkin",
+    ref: `W-${r.w.id}`,
+    name: r.w.childName,
+    state:
+      r.w.status === "in_chair" ? "serving" : r.w.status === "done" ? "done" : "waiting",
+    at: r.w.arrivedAt,
+    time: null,
+    dentistSlug: r.dslug,
+    dentistName: r.dname ?? "",
+  }));
+
+  return {
+    dentists: docs.map((d) => ({ slug: d.slug, name: d.name ?? d.slug })),
+    scheduled: booked.filter((i) => i.state === "scheduled").sort(byTime),
+    waiting: [...booked, ...walked].filter((i) => i.state === "waiting").sort(byAt),
+    serving: [...booked, ...walked].filter((i) => i.state === "serving").sort(byAt),
+    done: [...booked, ...walked]
+      .filter((i) => i.state === "done" || i.state === "no_show")
+      .sort(byTime),
+  };
+}
+
+export interface QueueLookupDTO {
+  found: boolean;
+  ref?: string;
+  name?: string;
+  /** scheduled = booked but not checked in yet */
+  state?: "scheduled" | "waiting" | "serving" | "done" | "cancelled" | "no_show";
+  /** 1-based position among the waiting list */
+  position?: number;
+  ahead?: number;
+  time?: string;
+}
+
+/**
+ * "Where am I in the queue?" — by booking ref or guardian phone, today's
+ * appointments only. Positions count the merged waiting list above.
+ */
+export async function queueStatus(input: {
+  date: string;
+  ref?: string;
+  phone?: string;
+}): Promise<QueueLookupDTO> {
+  const digits = (input.phone ?? "").replace(/\D/g, "");
+  const ref = (input.ref ?? "").trim().toUpperCase();
+  if (!ref && digits.length < 9) return { found: false };
+
+  if (ref.startsWith("W-")) {
+    const id = Number(ref.slice(2));
+    const [w] = Number.isFinite(id)
+      ? await db.select().from(waitlistEntry).where(eq(waitlistEntry.id, id))
+      : [];
+    if (!w) return { found: false };
+    const base = { found: true as const, ref, name: w.childName };
+    if (w.status === "done") return { ...base, state: "done" };
+    if (w.status === "in_chair") return { ...base, state: "serving" };
+    const { waiting } = await queueDay(input.date);
+    const position = waiting.findIndex((x) => x.ref === ref) + 1;
+    return { ...base, state: "waiting", position, ahead: Math.max(0, position - 1) };
+  }
+
+  const rows = await db.select().from(appointment).where(eq(appointment.date, input.date));
+  const target = rows.find(
+    (a) => (ref && a.ref.toUpperCase() === ref) || (digits.length >= 9 && a.phone === digits),
+  );
+  if (!target) return { found: false };
+
+  const base = { found: true as const, ref: target.ref, name: target.childName, time: target.time };
+  switch (target.status) {
+    case "cancelled":
+      return { ...base, state: "cancelled" };
+    case "no_show":
+      return { ...base, state: "no_show" };
+    case "completed":
+      return { ...base, state: "done" };
+    case "in_chair":
+      return { ...base, state: "serving" };
+    case "arrived": {
+      const { waiting } = await queueDay(input.date);
+      const position = waiting.findIndex((w) => w.ref === target.ref) + 1;
+      return { ...base, state: "waiting", position, ahead: Math.max(0, position - 1) };
+    }
+    default:
+      return { ...base, state: "scheduled" };
+  }
 }
 
 /* ═════════════════════════════ notifications ════════════════════════════ */
@@ -1007,6 +1296,8 @@ export interface NewDentistInput {
 }
 
 export async function createDentist(input: NewDentistInput): Promise<void> {
+  const sorts = await db.select({ s: dentist.sort }).from(dentist);
+  const sort = sorts.reduce((m, r) => Math.max(m, r.s), -1) + 1;
   const [row] = await db
     .insert(dentist)
     .values({
@@ -1015,6 +1306,7 @@ export async function createDentist(input: NewDentistInput): Promise<void> {
       tint: input.tint,
       face: {},
       isActive: true,
+      sort,
     })
     .returning({ id: dentist.id });
 

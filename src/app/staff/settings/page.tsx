@@ -1,8 +1,5 @@
 "use client";
 
-/** staff data lives in Postgres — render on request, never prerender */
-export const dynamic = "force-dynamic";
-
 import React, { useState } from "react";
 import { useStaff } from "@/lib/staffStore";
 import { staffUpdateClinicInfo } from "@/server/actions";

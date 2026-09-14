@@ -12,6 +12,7 @@ import {
   IconServices,
   IconSettings,
   IconBell,
+  IconClock,
   IconExternal,
   IconWalkIn,
   IconZap,
@@ -19,13 +20,23 @@ import {
 
 export function StaffSidebar() {
   const pathname = usePathname();
-  const { waitlist, notifications, simulateOnlineBooking, setWalkinOpen } = useStaff();
+  const { today, appointments, waitlist, notifications, simulateOnlineBooking, setWalkinOpen } =
+    useStaff();
 
   const waitingCount = waitlist.filter((w) => w.status === "waiting").length;
   const unreadNotifs = notifications.filter((n) => n.unread).length;
+  const queueCount =
+    appointments.filter((a) => a.date === today && (a.status === "arrived" || a.status === "in_chair"))
+      .length + waitingCount;
 
   const navItems = [
     { href: "/staff", label: "ตารางนัดหมาย (Schedule)", icon: IconCalendar, exact: true },
+    {
+      href: "/staff/queue",
+      label: "คิววันนี้ (Queue)",
+      icon: IconClock,
+      badge: queueCount > 0 ? `${queueCount}` : undefined,
+    },
     { href: "/staff/appointments", label: "จัดการนัดทั้งหมด (Bookings)", icon: IconList },
     {
       // the queue is a drawer on the schedule page, so this jumps there and opens it

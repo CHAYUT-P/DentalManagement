@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { DentistsPage } from "@/components/DentistsPage";
 import { toUIDentists } from "@/lib/convert";
-import { listDentists } from "@/server/queries";
+import { listActiveDentists } from "@/server/queries";
 
 export const metadata: Metadata = {
   title: "Denta Kids · ทีมทันตแพทย์",
@@ -13,6 +13,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const dentists = toUIDentists(await listDentists());
+  const dentists = toUIDentists(await listActiveDentists());
   return <DentistsPage dentists={dentists} />;
 }

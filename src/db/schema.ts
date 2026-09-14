@@ -201,7 +201,18 @@ export const child = pgTable(
 /* ────────────────────────────── booking ────────────────────────────────── */
 
 export type AppointmentSource = "online" | "phone" | "walkin";
-export type AppointmentStatus = "confirmed" | "completed" | "cancelled";
+/**
+ * confirmed → arrived (checked in at the desk) → in_chair (being treated) →
+ * completed. `no_show` and `cancelled` end the booking early. Everything except
+ * `cancelled` still holds the slot (see the partial unique index below).
+ */
+export type AppointmentStatus =
+  | "confirmed"
+  | "arrived"
+  | "in_chair"
+  | "completed"
+  | "cancelled"
+  | "no_show";
 
 export const appointment = pgTable(
   "appointment",
@@ -228,6 +239,8 @@ export const appointment = pgTable(
     durationMin: integer("duration_min").notNull().default(30),
     source: text("source").notNull().default("online"), // AppointmentSource
     status: text("status").notNull().default("confirmed"), // AppointmentStatus
+    /** HH:MM the family checked in at the desk — the queue board orders by it */
+    checkedInAt: text("checked_in_at"),
     note: text("note").notNull().default(""),
     price: integer("price"),
     /** visitFor = "self" → the booker is the patient (adult), no child */
@@ -245,6 +258,38 @@ export const appointment = pgTable(
       .where(sql`status <> 'cancelled'`),
     index("appointment_date_idx").on(t.date),
     index("appointment_phone_idx").on(t.phone),
+  ],
+);
+
+/**
+ * A short-lived reservation made when a family picks a slot, before they
+ * finish the contact details — the hold-then-confirm pattern. While a hold is
+ * active (`expires_at` in the future) it counts exactly like a booking: a
+ * named-dentist hold marks that dentist's slot taken, and every hold occupies
+ * a chair so pooled bookings still respect capacity. Confirming deletes the
+ * hold and inserts the appointment; an abandoned hold simply lapses — every
+ * read filters on `expires_at`, so no sweeper is needed. The unique index on
+ * (dentist_id, date, time) makes two holds for the same named slot impossible;
+ * NULL dentist_id rows are pool holds, kept distinct like appointments.
+ */
+export const slotHold = pgTable(
+  "slot_hold",
+  {
+    id: serial("id").primaryKey(),
+    /** random token the client passes back at confirm — proves the hold is theirs */
+    token: text("token").notNull(),
+    /** NULL = pooled "any dentist" hold holding a chair */
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "cascade" }),
+    treatmentKey: text("treatment_key").notNull(),
+    date: text("date").notNull(), // YYYY-MM-DD
+    time: text("time").notNull(), // HH:MM
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("slot_hold_token_idx").on(t.token),
+    uniqueIndex("slot_hold_slot_idx").on(t.dentistId, t.date, t.time),
+    index("slot_hold_date_idx").on(t.date),
   ],
 );
 
