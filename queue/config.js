@@ -4,4 +4,4 @@
  *
  *   window.QUEUE_API = "https://denta-kids.vercel.app";
  */
-window.QUEUE_API = "http://localhost:3000";
+window.QUEUE_API = "https://denta-kids-ten.vercel.app";
