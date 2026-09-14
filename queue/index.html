@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Denta Kids · คิวตอนนี้</title>
+    <meta name="description" content="เช็คคิวตรวจฟันแบบเรียลไทม์ — นัด รอคิว กำลังตรวจ" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Mitr:wght@500;600&family=Prompt:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="q">
+      <header class="q-head">
+        <div class="q-brand">
+          <span class="q-tooth" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+              <path
+                d="M16 6.9c-2 0-3-1-5-1-2.8 0-4.7 2.3-4.7 5.6 0 2.5.8 3.9 1.35 5.8.45 1.65.6 3.1.75 4.8.25 1.8.65 4 2.35 4 1.65 0 2-1.95 2.35-4 .3-1.7 1.2-2.15 2.85-2.15s2.55.45 2.85 2.15c.35 2.05.7 4 2.35 4 1.7 0 2.1-2.2 2.35-4 .15-1.7.3-3.15.75-4.8.55-1.9 1.35-3.3 1.35-5.8 0-3.3-1.9-5.6-4.7-5.6-2 0-2.85.9-4.85.9Z"
+                fill="#fff"
+              />
+            </svg>
+          </span>
+          <div>
+            <h1>Denta Kids</h1>
+            <p>คิวตอนนี้ · Live queue</p>
+          </div>
+        </div>
+        <div class="q-clock" id="clock">–:–</div>
+      </header>
+
+      <!-- my queue lookup -->
+      <form class="q-find" id="findForm">
+        <input
+          id="findInput"
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          placeholder="รหัสนัด DK-0000 หรือเบอร์โทร"
+        />
+        <button type="submit">เช็คคิว</button>
+      </form>
+      <div class="q-mine" id="mine" hidden></div>
+
+      <!-- day + doctor pickers -->
+      <div class="q-controls">
+        <label class="q-ctl">
+          <span>วันที่</span>
+          <input type="date" id="day" />
+        </label>
+        <label class="q-ctl">
+          <span>คุณหมอ</span>
+          <select id="doc">
+            <option value="">ทุกท่าน</option>
+          </select>
+        </label>
+      </div>
+      <div class="q-daylabel" id="dayLabel"></div>
+
+      <!-- now serving -->
+      <section class="q-section">
+        <h2>กำลังตรวจ <span>In the chair</span></h2>
+        <div id="serving" class="q-serving"></div>
+      </section>
+
+      <!-- waiting -->
+      <section class="q-section">
+        <h2>รอคิว <span>Waiting</span></h2>
+        <ol id="waiting" class="q-waiting"></ol>
+      </section>
+
+      <!-- booked, not checked in yet -->
+      <section class="q-section">
+        <h2>นัดที่จองไว้ <span>Booked</span></h2>
+        <ol id="scheduled" class="q-waiting"></ol>
+      </section>
+
+      <!-- finished -->
+      <section class="q-section">
+        <h2>เสร็จแล้ว <span>Done</span></h2>
+        <ol id="done" class="q-waiting q-done"></ol>
+      </section>
+
+      <footer class="q-foot">
+        <span id="updated">อัปเดตล่าสุด –:–</span>
+        <span class="q-dot" aria-hidden="true"></span>
+        <span>รีเฟรชอัตโนมัติทุก 15 วินาที</span>
+      </footer>
+    </main>
+
+    <div class="q-offline" id="offline" hidden>
+      เชื่อมต่อไม่ได้ — กำลังลองใหม่…
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

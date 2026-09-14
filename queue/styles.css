@@ -1,0 +1,359 @@
+/* Denta Kids — queue check. Flat, on-brand (rose/lavender), phone-first. */
+
+:root {
+  --app: #fdf4f6;
+  --card: #ffffff;
+  --rose: #fb70a4;
+  --rose-deep: #e8598f;
+  --lav: #e6d1f3;
+  --ink: #332c5e;
+  --ink-2: #4a3f6b;
+  --muted: #9575b5;
+  --line: rgba(203, 160, 196, 0.25);
+  --green: #2b8a3e;
+  --green-bg: #ebfbee;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  font-family: "Prompt", system-ui, sans-serif;
+  background: var(--app);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.q {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+}
+
+/* ── header ─────────────────────────────────────────────────────────── */
+
+.q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 2px 14px;
+}
+
+.q-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.q-tooth {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--rose);
+  display: grid;
+  place-items: center;
+}
+
+.q-brand h1 {
+  font-family: "Mitr", sans-serif;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.q-brand p {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.q-clock {
+  font-family: "Mitr", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── my-queue lookup ────────────────────────────────────────────────── */
+
+.q-find {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.q-find input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  outline: none;
+}
+
+.q-find input:focus {
+  border-color: var(--rose);
+}
+
+.q-find button {
+  padding: 12px 18px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  color: #fff;
+  background: var(--rose-deep);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.q-find button:active {
+  transform: scale(0.97);
+}
+
+.q-mine {
+  margin: 8px 0 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--lav);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.q-mine strong {
+  font-family: "Mitr", sans-serif;
+  font-size: 17px;
+}
+
+.q-mine .big {
+  font-family: "Mitr", sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.q-mine.ok {
+  background: var(--green-bg);
+  outline: 2px solid var(--green);
+}
+
+/* ── day + doctor pickers ───────────────────────────────────────────── */
+
+.q-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.q-ctl {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.q-ctl > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.q-ctl input,
+.q-ctl select {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  outline: none;
+  appearance: none;
+}
+
+.q-ctl input:focus,
+.q-ctl select:focus {
+  border-color: var(--rose);
+}
+
+.q-daylabel {
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+/* ── sections ───────────────────────────────────────────────────────── */
+
+.q-section {
+  margin-top: 18px;
+}
+
+.q-section h2 {
+  font-family: "Mitr", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 8px;
+}
+
+.q-section h2 span {
+  font-family: "Prompt", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+/* now serving — big, impossible to miss */
+
+.q-serving {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.q-serving .srv {
+  background: var(--rose);
+  color: #fff;
+  border-radius: 16px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.q-serving .srv .ref {
+  font-family: "Mitr", sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.q-serving .srv .who {
+  font-size: 15px;
+  font-weight: 500;
+  opacity: 0.95;
+}
+
+.q-serving .srv .dr {
+  margin-left: auto;
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
+.q-none {
+  background: var(--card);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+/* waiting list */
+
+.q-waiting {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.q-waiting li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+
+.q-waiting li:first-child {
+  padding-top: 4px;
+}
+
+.q-waiting .pos {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-family: "Mitr", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rose-deep);
+}
+
+.q-waiting .who {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.q-waiting .meta {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.q-waiting .ref {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* done rows sit quieter than the live lanes */
+
+.q-done .who,
+.q-done .ref {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ── footer / offline ───────────────────────────────────────────────── */
+
+.q-foot {
+  margin-top: auto;
+  padding-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.q-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.q-offline {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  font-size: 12.5px;
+  padding: 8px 16px;
+  border-radius: 999px;
+}
