@@ -1093,8 +1093,9 @@
    My bookings: the history under the slip
    ========================================================================== */
 
-/* skeleton while LINE identity resolves — holds the layout so the demo
-   rows never flash inside LIFF */
+/* skeletons — while LINE identity resolves and while a route streams in.
+   Shapes mirror each page's layout so the swap reads as "content arriving",
+   not a different page flashing by. */
 .skel {
   border-radius: var(--r-card);
   border: 1px solid var(--line);
@@ -1112,6 +1113,63 @@
 .skelRow {
   height: 46px;
   margin-top: 10px;
+}
+
+/* big blocks — hero card, map, the rose CTA */
+.skelHero { height: 118px; }
+.skelMap { height: 150px; }
+.skelBtn { height: 46px; border-radius: 999px; }
+
+/* the home duo: two action cards side by side */
+.skelDuo {
+  display: flex;
+  gap: 12px;
+}
+.skelDuo > .skel { flex: 1; height: 76px; }
+
+/* a white card holding shimmer rows — same container as .pick/.ledger */
+.skelCard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 2px 13px;
+}
+
+.skelItem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 0;
+  box-shadow: 0 1px 0 var(--line);
+}
+.skelItem:last-child { box-shadow: none; }
+
+.skelTxt {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* shimmer pieces — borders off so lines/discs read flat inside cards */
+.skelLabel { display: block; width: 42%; height: 13px; border: 0; border-radius: 6px; }
+.skelLine { display: block; height: 9px; border: 0; border-radius: 5px; }
+.skelLine.w30 { width: 30%; }
+.skelLine.w40 { width: 40%; }
+.skelLine.w50 { width: 50%; }
+.skelLine.w60 { width: 60%; }
+.skelLine.w70 { width: 70%; }
+.skelDisc { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 0; }
+.skelAvatar { flex: none; width: 56px; height: 56px; border-radius: 50%; border: 0; }
+.skelAvatarBig { display: inline-block; width: 72px; height: 72px; border-radius: 50%; border: 0; }
+.skelPill { flex: none; width: 74px; height: 30px; border-radius: 999px; border: 0; margin-left: auto; }
+
+/* the fake topbar so the shell matches a Screen page chrome */
+.skelTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -4px 0 4px;
 }
 
 .hist {

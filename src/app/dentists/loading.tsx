@@ -1,3 +1,5 @@
 import { PageLoading } from "@/components/PageLoading";
 
-export default PageLoading;
+export default function Loading() {
+  return <PageLoading variant="docs" />;
+}
