@@ -145,23 +145,6 @@ export function Ribbon({ msg, face = true }: { msg: string; face?: boolean }) {
     <footer className="ribbon">
       {face ? <Mascot h={22} id="rib" /> : null}
       <span className="msg">{msg}</span>
-      <Link
-        href="/staff"
-        title="เปิดระบบจัดการเจ้าหน้าที่ (Staff Console)"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          marginLeft: "6px",
-          fontSize: "10px",
-          fontWeight: "500",
-          background: "rgba(255, 255, 255, 0.28)",
-          padding: "2px 8px",
-          borderRadius: "999px",
-          color: "#fff",
-        }}
-      >
-        Staff ↗
-      </Link>
     </footer>
   );
 }
