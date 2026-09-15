@@ -1115,6 +1115,25 @@
   margin-top: 10px;
 }
 
+/* slip-shaped block for /bookings — card, big date stub, perf line, stamp */
+.skelSlipCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  min-height: 210px;
+}
+.skelBig { width: 92px; height: 40px; border: 0; border-radius: 8px; }
+.skelPerf { height: 1px; background: var(--line); margin: 2px -14px; }
+.skelStamp {
+  align-self: flex-end;
+  width: 68px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  margin-top: auto;
+}
+
 /* big blocks — hero card, map, the rose CTA */
 .skelHero { height: 118px; }
 .skelMap { height: 150px; }

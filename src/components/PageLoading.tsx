@@ -59,6 +59,28 @@ function Top() {
   );
 }
 
+/** slip-shaped skeleton — the same body the bookings page uses while LIFF
+ *  resolves, so the route shell and the in-page loader read as one stage */
+export function BookingsSkeleton() {
+  return (
+    <>
+      <div className="skelCard skelSlipCard">
+        <i className="skel skelLine w30" />
+        <i className="skel skelBig" />
+        <span className="skelPerf" />
+        <span className="skelTxt" style={{ gap: 10 }}>
+          <i className="skel skelLine w70" />
+          <i className="skel skelLine w50" />
+          <i className="skel skelLine w60" />
+        </span>
+        <i className="skel skelStamp" />
+      </div>
+      <i className="skel skelLabel" />
+      <Card n={4} />
+    </>
+  );
+}
+
 export function PageLoading({ variant = "generic" }: { variant?: Variant }) {
   let body: React.ReactNode;
   switch (variant) {
@@ -92,9 +114,7 @@ export function PageLoading({ variant = "generic" }: { variant?: Variant }) {
       body = (
         <>
           <Top />
-          <div className="skel skelSlip" />
-          <i className="skel skelLabel" />
-          <Card n={4} />
+          <BookingsSkeleton />
         </>
       );
       break;

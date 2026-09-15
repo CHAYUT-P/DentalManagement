@@ -10,6 +10,7 @@ import { fmtShort } from "@/lib/dates";
 import { cancelBooking, myBookingsByLine } from "@/server/actions";
 import { Check, Cross } from "./icons";
 import { EmptySlip, Eyebrow, Screen, Slip } from "./screen";
+import { BookingsSkeleton } from "./PageLoading";
 import { ServiceIcon } from "./serviceIcons";
 
 /**
@@ -144,12 +145,11 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
   }
 
   if (linePending) {
+    // same shapes the route shell used — the topbar is real now, so the swap
+    // from loading.tsx to here is only the chrome appearing, not a relayout
     return (
       <Screen title={t.nav.bookings} back="/">
-        <div className="skel skelSlip" aria-busy="true" />
-        <div className="skel skelRow" />
-        <div className="skel skelRow" />
-        <div className="skel skelRow" />
+        <BookingsSkeleton />
       </Screen>
     );
   }
