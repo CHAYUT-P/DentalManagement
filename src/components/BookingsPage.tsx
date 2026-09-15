@@ -75,9 +75,13 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
 
   /* inside LINE the signed ID token names the account — the verified userId
      picks the guardian's bookings and the profile names the header. Outside
-     LINE nothing changes: the phone-keyed `bookings` prop is the view. */
+     LINE nothing changes: the phone-keyed `bookings` prop is the view. The
+     demo rows never render while LIFF is still resolving — a skeleton holds
+     the space so nobody sees bookings that aren't theirs. */
   const [lineRows, setLineRows] = useState<BookingView[] | null>(null);
   const [lineName, setLineName] = useState<string | null>(null);
+  // no LIFF configured → nothing to wait for; the env var is build-time inlined
+  const [linePending, setLinePending] = useState(() => !!process.env.NEXT_PUBLIC_LIFF_ID);
   useEffect(() => {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
     if (!liffId) return;
@@ -105,7 +109,10 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
         );
         if (profile) setLineName(profile.displayName);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLinePending(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -134,6 +141,17 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
       await cancelBooking(ref);
       setCancelTarget(null);
     });
+  }
+
+  if (linePending) {
+    return (
+      <Screen title={t.nav.bookings} back="/">
+        <div className="skel skelSlip" aria-busy="true" />
+        <div className="skel skelRow" />
+        <div className="skel skelRow" />
+        <div className="skel skelRow" />
+      </Screen>
+    );
   }
 
   return (

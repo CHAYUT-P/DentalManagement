@@ -1093,6 +1093,27 @@
    My bookings: the history under the slip
    ========================================================================== */
 
+/* skeleton while LINE identity resolves — holds the layout so the demo
+   rows never flash inside LIFF */
+.skel {
+  border-radius: var(--r-card);
+  border: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--card) 25%, #f3eef7 50%, var(--card) 75%);
+  background-size: 200% 100%;
+  animation: skelShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes skelShimmer {
+  to { background-position: -200% 0; }
+}
+
+.skelSlip { height: 150px; }
+
+.skelRow {
+  height: 46px;
+  margin-top: 10px;
+}
+
 .hist {
   display: flex;
   flex-direction: column;
