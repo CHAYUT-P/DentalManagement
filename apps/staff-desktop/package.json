@@ -2,12 +2,25 @@
   "name": "staff-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Denta Kids staff console as a cross-platform desktop app (Tauri shell on the hosted /staff pages)",
+  "description": "Denta Kids staff console — standalone desktop app (bundled UI, calls /api/staff)",
   "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build"
+    "dev": "vite",
+    "dev:app": "tauri dev",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build:app": "tauri build"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2"
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4",
+    "typescript": "^5",
+    "vite": "^6"
   }
 }

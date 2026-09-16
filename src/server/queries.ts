@@ -585,7 +585,8 @@ export async function checkRate(key: string, limit: number, windowSec: number): 
       target: rateLimit.key,
       set: {
         count: sql`CASE WHEN ${rateLimit.resetAt} < now() THEN 1 ELSE ${rateLimit.count} + 1 END`,
-        resetAt: sql`CASE WHEN ${rateLimit.resetAt} < now() THEN ${resetAt} ELSE ${rateLimit.resetAt} END`,
+        // windowSec is a server-side constant — safe to parameterize
+        resetAt: sql`CASE WHEN ${rateLimit.resetAt} < now() THEN now() + ${windowSec} * interval '1 second' ELSE ${rateLimit.resetAt} END`,
       },
     })
     .returning({ count: rateLimit.count });

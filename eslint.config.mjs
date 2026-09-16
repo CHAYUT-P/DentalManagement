@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "backup/**",
     // Tauri Rust build output
     "**/src-tauri/target/**",
+    // desktop app frontend build output
+    "apps/staff-desktop/dist/**",
     // local agent tooling, not part of the app
     ".opencode/**",
   ]),

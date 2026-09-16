@@ -4,8 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.dentakids.staff",
   "build": {
-    "frontendDist": "https://REPLACE-WITH-DEPLOYED-URL/staff",
-    "devUrl": "http://localhost:3000/staff"
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "windows": [
@@ -20,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' https://denta-kids-ten.vercel.app http://localhost:3000 http://localhost:5173 ws://localhost:5173; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "bundle": {

@@ -149,6 +149,31 @@
   #n-staff   { top: 240px; left: 880px; width: 210px; color: var(--amber); }
   #n-queue   { top: 510px; left: 880px; width: 210px; color: var(--violet); }
 
+  /* security gate badges on the wires */
+  .gate {
+    position: absolute;
+    font-size: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(11, 16, 32, 0.9);
+    border: 1px solid var(--panel-border);
+    color: var(--txt-dim);
+    white-space: nowrap;
+    backdrop-filter: blur(10px);
+    transition: all 0.5s;
+    z-index: 2;
+  }
+  .gate.lit {
+    border-color: currentColor;
+    color: var(--txt);
+    box-shadow: 0 0 16px currentColor;
+    transform: scale(1.08);
+  }
+  #g-rate  { top: 168px; left: 268px; color: #ff9eb8; }
+  #g-pin   { top: 322px; left: 768px; color: #f2b544; }
+  #g-phone { top: 196px; left: 290px; color: #ff9eb8; }
+
   /* story bar */
   .story {
     margin-top: 30px;
@@ -193,7 +218,7 @@
 <header>
   <div class="badge">DentaKids · Live Architecture</div>
   <h1>ระบบจองคิวคลินิกทันตกรรมเด็ก</h1>
-  <p>Booking → LINE → Reminders — every request, animated</p>
+  <p>Booking → LINE → Reminders — every request, animated · now with the security layer</p>
 </header>
 
 <div class="stage" id="stage">
@@ -261,7 +286,7 @@
   <div class="node" id="n-staff">
     <span class="icon">🦷</span><h2>Staff Console</h2>
     <div class="sub">/staff dashboard<br />queue · check-in · schedule</div>
-    <div class="chips"><span class="chip">browser + Tauri</span><span class="chip">⚠ no auth</span></div>
+    <div class="chips"><span class="chip">browser + Tauri</span><span class="chip">🔒 PIN gate</span></div>
   </div>
 
   <div class="node" id="n-queue">
@@ -269,6 +294,11 @@
     <div class="sub">static site (queue/)<br />public board + check page</div>
     <div class="chips"><span class="chip">polls /api/queue</span></div>
   </div>
+
+  <!-- security gates sitting on the wires -->
+  <div class="node gate" id="g-rate">🛡 rate limit · per IP</div>
+  <div class="node gate" id="g-phone">📱 phone / LINE id</div>
+  <div class="node gate" id="g-pin">🔒 STAFF_PIN</div>
 </div>
 
 <div class="story">
@@ -330,6 +360,15 @@ const STORY = [
   { t: "Queue display", c: "#8b7cf6",
     b: "The lobby board + public check page poll /api/queue — first names only, read-only, no patient data leaks.",
     flows: ["queue"], nodes: ["n-queue", "n-vercel", "n-neon"] },
+  { t: "🛡 Rate limit shield", c: "#ff9eb8",
+    b: "Every public action (hold, book, cancel, lookups) is throttled per IP in the rate_limit table — 20–40 calls per 10 min. A spam loop dies at the gate; real families never notice.",
+    flows: ["book"], nodes: ["n-patient", "g-rate", "n-vercel", "n-neon"] },
+  { t: "📱 My bookings — two doors", c: "#ff9eb8",
+    b: "Inside LINE: verified userId picks the guardian's bookings automatically. Outside: the phone gate — type the booking phone to see your rows. Cancel needs ref + phone together, so a guessed DK-xxxx alone does nothing.",
+    flows: ["book"], nodes: ["n-patient", "g-phone", "n-vercel", "n-neon"] },
+  { t: "🔒 Staff PIN gate", c: "#f2b544",
+    b: "/staff and every staff action check an httpOnly cookie set by the PIN login (env STAFF_PIN). No cookie → the page shows the PIN screen and actions refuse. Login tries are throttled 5/10min. The desktop app logs in once.",
+    flows: ["staff"], nodes: ["n-staff", "g-pin", "n-vercel"] },
 ];
 
 let step = -1, paused = false, stepTimer = null;

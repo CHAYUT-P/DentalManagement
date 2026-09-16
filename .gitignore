@@ -19,6 +19,8 @@ node_modules
 
 # production
 /build
+/apps/staff-desktop/dist
+/apps/staff-desktop/src-tauri/target
 
 # misc
 .DS_Store

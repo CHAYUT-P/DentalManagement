@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
 
 import { cookies } from "next/headers";
@@ -42,8 +43,21 @@ export async function isStaffAuthed(): Promise<boolean> {
   return crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
 }
 
+/**
+ * Verified-by-the-route context: /api/staff validates the bearer token once,
+ * then runs the real actions inside this scope — the actions' own requireStaff
+ * sees the store and passes. Keeps a single implementation of each staff op;
+ * the API never reimplements them.
+ */
+const staffScope = new AsyncLocalStorage<boolean>();
+
+export function withStaffToken<T>(fn: () => Promise<T>): Promise<T> {
+  return staffScope.run(true, fn);
+}
+
 /** throws — every staff action calls this before touching data */
 export async function requireStaff(): Promise<void> {
+  if (staffScope.getStore()) return; // the API route already checked the token
   if (!(await isStaffAuthed())) throw new Error("staff auth required");
 }
 
@@ -72,4 +86,16 @@ export async function staffGrantCookie(): Promise<void> {
 /** sign-out — clears the cookie on this device */
 export async function staffClearCookie(): Promise<void> {
   (await cookies()).delete(COOKIE);
+}
+
+/** the bearer token the desktop app sends — same derived value as the cookie */
+export function staffToken(): string | null {
+  return expected();
+}
+
+/** constant-time bearer-token check for /api/staff */
+export function staffTokenOk(token: string): boolean {
+  const want = expected();
+  if (!want || token.length !== want.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(want));
 }
