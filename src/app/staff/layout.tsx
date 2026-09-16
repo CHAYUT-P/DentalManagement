@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { notFound } from "next/navigation";
 
 import { StaffLoginGate } from "@/components/staff/StaffLoginGate";
 import { StaffSidebar } from "@/components/staff/StaffSidebar";
@@ -26,8 +27,14 @@ export const metadata: Metadata = {
  */
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   await connection();
-  // the page gate — the cookie is set by staffLogin; actions guard themselves
-  if (!(await isStaffAuthed())) return <StaffLoginGate />;
+  /**
+   * The staff console is the desktop app — the web URL 404s in production so
+   * there's no findable staff surface at all. Escape hatch: STAFF_WEB=1
+   * re-enables the pages behind the PIN gate (e.g. the app is broken and the
+   * desk needs the schedule from a browser). Dev mode renders freely.
+   */
+  if (process.env.NODE_ENV === "production" && process.env.STAFF_WEB !== "1") notFound();
+  if (process.env.STAFF_WEB === "1" && !(await isStaffAuthed())) return <StaffLoginGate />;
   const initial = await staffBootstrap();
 
   return (

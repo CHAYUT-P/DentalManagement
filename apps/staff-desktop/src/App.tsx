@@ -3,7 +3,7 @@ import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { LoginScreen } from "./components/LoginScreen";
 import { StaffSidebar } from "./components/StaffSidebar";
-import { hasStaffToken, staffBootstrap, type StaffBootstrap } from "./api";
+import { ensureStaffToken, hasStaffToken, staffBootstrap, type StaffBootstrap } from "./api";
 
 import { StaffTopbar } from "@/components/staff/StaffTopbar";
 import { StaffProvider } from "@/lib/staffStore";
@@ -28,8 +28,18 @@ import "@/app/staff/staff.css";
  */
 export default function App() {
   const [authed, setAuthed] = useState(hasStaffToken());
+  const [silentFailed, setSilentFailed] = useState(false);
   const [initial, setInitial] = useState<StaffBootstrap | null>(null);
   const [loadErr, setLoadErr] = useState(false);
+
+  // clinic builds carry the PIN — exchange it silently; no PIN → manual screen
+  useEffect(() => {
+    if (authed) return;
+    void ensureStaffToken().then((ok) => {
+      if (ok) setAuthed(true);
+      else setSilentFailed(true);
+    });
+  }, [authed]);
 
   const load = useCallback(() => {
     staffBootstrap()
@@ -45,7 +55,17 @@ export default function App() {
     if (authed) load();
   }, [authed, load]);
 
-  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
+  if (!authed) {
+    // silent exchange still in flight — a plain spinner, not the login form
+    if (!silentFailed) {
+      return (
+        <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", color: "#9aa4c4" }}>
+          กำลังเข้าสู่ระบบ…
+        </div>
+      );
+    }
+    return <LoginScreen onLogin={() => setAuthed(true)} />;
+  }
 
   if (!initial) {
     return (

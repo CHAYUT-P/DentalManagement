@@ -29,6 +29,8 @@ function expected(): string | null {
 }
 
 export async function isStaffAuthed(): Promise<boolean> {
+  // local dev is trusted — Vercel preview/production builds run NODE_ENV=production
+  if (process.env.NODE_ENV !== "production") return true;
   let got: string | undefined;
   try {
     got = (await cookies()).get(COOKIE)?.value;

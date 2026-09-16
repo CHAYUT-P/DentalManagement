@@ -285,8 +285,8 @@
 
   <div class="node" id="n-staff">
     <span class="icon">🦷</span><h2>Staff Console</h2>
-    <div class="sub">/staff dashboard<br />queue · check-in · schedule</div>
-    <div class="chips"><span class="chip">browser + Tauri</span><span class="chip">🔒 PIN gate</span></div>
+    <div class="sub">Tauri desktop app<br />queue · check-in · schedule</div>
+    <div class="chips"><span class="chip">Tauri app only</span><span class="chip">🔒 silent token</span></div>
   </div>
 
   <div class="node" id="n-queue">
@@ -366,8 +366,8 @@ const STORY = [
   { t: "📱 My bookings — two doors", c: "#ff9eb8",
     b: "Inside LINE: verified userId picks the guardian's bookings automatically. Outside: the phone gate — type the booking phone to see your rows. Cancel needs ref + phone together, so a guessed DK-xxxx alone does nothing.",
     flows: ["book"], nodes: ["n-patient", "g-phone", "n-vercel", "n-neon"] },
-  { t: "🔒 Staff PIN gate", c: "#f2b544",
-    b: "/staff and every staff action check an httpOnly cookie set by the PIN login (env STAFF_PIN). No cookie → the page shows the PIN screen and actions refuse. Login tries are throttled 5/10min. The desktop app logs in once.",
+  { t: "🖥 Staff — app only", c: "#f2b544",
+    b: "In production there is no public /staff URL — the console is 404 for the web. The Tauri app signs itself in silently with the PIN baked into the build, then calls /api/staff with a bearer token. STAFF_WEB=1 re-enables a PIN-gated browser fallback.",
     flows: ["staff"], nodes: ["n-staff", "g-pin", "n-vercel"] },
 ];
 

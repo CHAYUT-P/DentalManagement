@@ -24,6 +24,9 @@ import type {
 const viteEnv = import.meta.env as unknown as Record<string, string | undefined>;
 export const API_BASE = viteEnv?.VITE_API_URL ?? "https://denta-kids-ten.vercel.app";
 
+/** clinic PIN baked into the build — the app signs itself in, no login screen */
+const EMBEDDED_PIN = viteEnv?.VITE_STAFF_PIN ?? "";
+
 const API = API_BASE;
 
 const TOKEN_KEY = "dk:staff-token";
@@ -31,6 +34,18 @@ let token = localStorage.getItem(TOKEN_KEY) ?? "";
 
 export function hasStaffToken(): boolean {
   return token.length > 0;
+}
+
+/**
+ * Silent sign-in for clinic builds: if there's no stored token but the build
+ * carries the embedded PIN, exchange it once. Returns false when the build
+ * has no PIN — the caller then shows the manual login screen.
+ */
+export async function ensureStaffToken(): Promise<boolean> {
+  if (token) return true;
+  if (!EMBEDDED_PIN) return false;
+  const res = await staffLogin(EMBEDDED_PIN);
+  return res.ok;
 }
 
 export function staffLogout(): void {
