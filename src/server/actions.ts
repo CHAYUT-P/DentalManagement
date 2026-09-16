@@ -3,6 +3,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import type { IconKey } from "@/data/icons";
 import { db } from "@/db/client";
@@ -42,10 +43,32 @@ import type { WaitlistDTO } from "@/server/queries";
  * here. Actions revalidate the pages whose data they change, so both UIs
  * refresh without a redeploy or a manual reload.
  *
- * NOTE ON AUTH: deliberately none. The staff console is a stand-in for the
- * future native desktop app (clinic computers only), and the patient site is
- * public by design until LINE login arrives. Revisit before any public deploy.
+ * NOTE ON AUTH: every `staff*` action checks the staff cookie first
+ * (`requireStaff` in staffAuth.ts) — server actions are plain POST endpoints,
+ * so the page gate alone would leave them callable. Patient-facing actions
+ * stay public by design (booking works without an account) but are throttled
+ * per IP via `limited()` below.
  */
+
+/** true = over the limit; the caller should refuse the action */
+async function limited(scope: string, limit: number, windowSec: number): Promise<boolean> {
+  let ip: string;
+  try {
+    const h = await headers();
+    ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  } catch {
+    return false; // no request scope — local script, never throttled
+  }
+  if (!ip) return false;
+  const { checkRate } = await import("@/server/queries");
+  return !(await checkRate(`${scope}:${ip}`, limit, windowSec));
+}
+
+/** gate every staff* action — see the NOTE ON AUTH above */
+async function guard() {
+  const { requireStaff } = await import("@/server/staffAuth");
+  await requireStaff();
+}
 
 /* ── paths whose data these actions touch ────────────────────────────────── */
 
@@ -178,6 +201,7 @@ export async function holdSlot(input: {
   /** dentist id, or null for "any dentist" — holds a chair */
   dentistId: number | null;
 }): Promise<{ ok: boolean; token?: string; expiresAt?: string }> {
+  if (await limited("hold", 30, 600)) return { ok: false };
   if (!input.date || !input.time || !input.treatmentKey) return { ok: false };
   if ((await slotVerdict(input.date, input.time, input.treatmentKey, input.dentistId)) !== "ok") {
     return { ok: false };
@@ -211,6 +235,7 @@ export async function bookAppointment(input: {
   lineIdToken?: string;
 }): Promise<BookResult> {
   // minimal validation — never trust the client, even ours
+  if (await limited("book", 20, 600)) return { ok: false, error: "invalid" };
   if (!input.date || !input.time || !input.treatmentKey || !input.phone || !input.guardianName) {
     return { ok: false, error: "invalid" };
   }
@@ -286,6 +311,7 @@ export async function assignPoolDentist(
   id: number,
   dentistId: number,
 ): Promise<{ ok: boolean; error?: "taken" | "invalid" }> {
+  await guard();
   const { freeCapableAtSlot, updateAppointment } = await import("@/server/queries");
   const all = await listAppointmentsBetween("1970-01-01", "9999-12-31");
   const target = all.find((a) => a.id === id);
@@ -303,6 +329,7 @@ export async function assignPoolDentist(
 
 /** the patient-site "my bookings" list — everything under one phone number */
 export async function myBookings(phone: string) {
+  if (await limited("lookup", 40, 600)) return [];
   return listAppointmentsBetween("1970-01-01", "9999-12-31").then((all) =>
     all
       .filter((a) => a.phone.replace(/\D/g, "") === phone.replace(/\D/g, ""))
@@ -317,6 +344,7 @@ export async function myBookings(phone: string) {
  * guardian linked yet.
  */
 export async function myBookingsByLine(lineIdToken: string) {
+  if (await limited("lookup", 40, 600)) return null;
   const { verifyLineIdToken } = await import("@/server/line");
   const { findGuardianByLineId } = await import("@/server/queries");
   const identity = await verifyLineIdToken(lineIdToken);
@@ -332,6 +360,7 @@ export async function myBookingsByLine(lineIdToken: string) {
 
 /** the booking flow's returning-family lookup (read-only action) */
 export async function familyByPhone(phone: string) {
+  if (await limited("lookup", 40, 600)) return [];
   // a lookup only means something once the phone looks complete; the caller
   // clears its own state otherwise
   if (phone.replace(/\D/g, "").length < 9) return [];
@@ -342,17 +371,44 @@ export async function familyByPhone(phone: string) {
   }));
 }
 
-/** the patient cancelled their own booking (by reference code) */
-export async function cancelBooking(ref: string) {
+/**
+ * The patient cancelled their own booking. The ref alone is guessable
+ * (DK-XXXX is ~9k values), so the caller must also know the booking's phone —
+ * the page only learns the ref after a verified LINE view or a phone match.
+ */
+export async function cancelBooking(ref: string, phone: string) {
+  if (await limited("cancel", 10, 600)) return;
+  if (!ref || !phone) return;
   const rows = await listAppointmentsBetween("1970-01-01", "9999-12-31");
   const target = rows.find((a) => a.ref === ref);
   if (!target) return;
+  if (target.phone.replace(/\D/g, "") !== phone.replace(/\D/g, "")) return;
   await updateAppointment(target.id, { status: "cancelled" });
   // a freed chair can home a pooled booking still waiting at that slot
   const { settlePool } = await import("@/server/queries");
   await settlePool(target.date, target.time);
   await dbInsertCancellationNotice(target.ref, target.childName, target.date, target.time);
   revalidateAll();
+}
+
+/* ═══════════════════════════ staff: login ═══════════════════════════════ */
+
+/**
+ * The PIN gate — throttled hard because the PIN is short. A good PIN sets the
+ * httpOnly cookie every staff action checks; the raw PIN never leaves this
+ * function.
+ */
+export async function staffLogin(pin: string): Promise<{ ok: boolean }> {
+  if (await limited("stafflogin", 5, 600)) return { ok: false };
+  const { staffPinOk, staffGrantCookie } = await import("@/server/staffAuth");
+  if (!staffPinOk(pin)) return { ok: false };
+  await staffGrantCookie();
+  return { ok: true };
+}
+
+export async function staffLogout(): Promise<void> {
+  const { staffClearCookie } = await import("@/server/staffAuth");
+  await staffClearCookie();
 }
 
 /* ═══════════════════════════ staff: appointments ════════════════════════ */
@@ -369,12 +425,14 @@ export async function staffCreateAppointment(input: {
   note?: string;
   price?: number | null;
 }) {
+  await guard();
   const created = await createAppointment({ ...input, source: input.source });
   revalidateAll();
   return created?.ref ?? null;
 }
 
 export async function staffUpdateAppointment(id: number, patch: AppointmentUpdate) {
+  await guard();
   const touchesSlot =
     patch.status !== undefined ||
     patch.date !== undefined ||
@@ -409,6 +467,7 @@ export async function staffSetQueueStatus(
   id: number,
   status: "arrived" | "in_chair" | "completed" | "no_show",
 ) {
+  await guard();
   await updateAppointment(id, {
     status,
     ...(status === "arrived" ? { checkedInAt: clinicNowHHMM() } : {}),
@@ -418,12 +477,14 @@ export async function staffSetQueueStatus(
 
 /** the booking-rules knob (chairs) the settings page owns */
 export async function staffUpdateChairs(chairs: number) {
+  await guard();
   const { setChairs } = await import("@/server/queries");
   await setChairs(chairs);
   revalidateAll();
 }
 
 export async function staffDeleteAppointment(id: number) {
+  await guard();
   const rows = await listAppointmentsBetween("1970-01-01", "9999-12-31");
   const target = rows.find((a) => a.id === id);
   await deleteAppointment(id);
@@ -437,11 +498,13 @@ export async function staffDeleteAppointment(id: number) {
 /* ═══════════════════════════ staff: dentists ════════════════════════════ */
 
 export async function staffUpdateDentist(slug: string, patch: DentistUpdate) {
+  await guard();
   await updateDentist(slug, patch);
   revalidateAll();
 }
 
 export async function staffCreateDentist(input: NewDentistInput) {
+  await guard();
   await createDentist(input);
   revalidateAll();
 }
@@ -454,16 +517,19 @@ export async function staffUpsertPatient(input: {
   address?: string;
   children?: { name: string }[];
 }) {
+  await guard();
   await upsertGuardian(input);
   revalidateAll();
 }
 
 export async function staffUpdatePatient(id: number, patch: { name?: string; phone?: string; address?: string }) {
+  await guard();
   await updatePatient(id, patch);
   revalidateAll();
 }
 
 export async function staffAddChild(patientId: number, name: string) {
+  await guard();
   await addChildToGuardian(patientId, name);
   revalidateAll();
 }
@@ -477,16 +543,19 @@ export async function staffAddWaitlist(input: {
   dentistId?: number | null;
   note?: string;
 }) {
+  await guard();
   await addWaitlist(input);
   revalidateAll();
 }
 
 export async function staffSetWaitlistStatus(id: number, status: WaitlistDTO["status"], dentistId?: number | null) {
+  await guard();
   await updateWaitlistStatus(id, status, dentistId);
   revalidateAll();
 }
 
 export async function staffRemoveWaitlist(id: number) {
+  await guard();
   await removeWaitlist(id);
   revalidateAll();
 }
@@ -494,11 +563,13 @@ export async function staffRemoveWaitlist(id: number) {
 /* ═══════════════════════════ staff: prices & schedule ═══════════════════ */
 
 export async function staffUpdatePrice(key: IconKey, price: number | null) {
+  await guard();
   await updateTreatmentPrice(key, price);
   revalidateAll();
 }
 
 export async function staffUpdateDay(day: string, patch: { isOpen?: boolean; start?: string; end?: string }) {
+  await guard();
   await updateClinicDay(day, patch);
   revalidateAll();
 }
@@ -516,16 +587,19 @@ export async function staffUpdateClinicInfo(patch: {
   landmarkTh?: string;
   landmarkEn?: string;
 }) {
+  await guard();
   await updateClinicInfo(patch);
   revalidateAll();
 }
 
 export async function staffAddHoliday(start: string, end: string, name: string) {
+  await guard();
   await addHolidayRange(start, end, name);
   revalidateAll();
 }
 
 export async function staffRemoveHoliday(id: number) {
+  await guard();
   await removeHoliday(id);
   revalidateAll();
 }
@@ -533,12 +607,14 @@ export async function staffRemoveHoliday(id: number) {
 /* ═══════════════════════════ staff: notifications ═══════════════════════ */
 
 export async function staffMarkNotificationsRead() {
+  await guard();
   await markNotificationsRead();
   revalidateStaff();
 }
 
 /** convenience read the staff console uses after mutations */
 export async function staffPrices() {
+  await guard();
   return priceMap();
 }
 
@@ -551,6 +627,7 @@ export async function staffPrices() {
  * rendering exactly what they rendered against the old localStorage mock.
  */
 export async function staffBootstrap() {
+  await guard();
   const { toUIAppointments, toUIEditableDentists, toUIPatients, toUIWaitlist, toUINotifications } =
     await import("@/lib/staffConvert");
   const {

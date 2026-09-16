@@ -379,6 +379,17 @@ export const staffNotification = pgTable("staff_notification", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Fixed-window throttle for public-facing actions, keyed by "scope:ip" (or a
+ * login counter). Serverless has no shared memory, so the bucket lives here —
+ * one upsert per call. Limits are generous; real users never see them.
+ */
+export const rateLimit = pgTable("rate_limit", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});
+
 /** walk-in queue board (waiting → in_chair → done) */
 export const waitlistEntry = pgTable("waitlist_entry", {
   id: serial("id").primaryKey(),

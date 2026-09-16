@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
+import { StaffLoginGate } from "@/components/staff/StaffLoginGate";
 import { StaffSidebar } from "@/components/staff/StaffSidebar";
 import { StaffTopbar } from "@/components/staff/StaffTopbar";
 import { staffBootstrap } from "@/server/actions";
+import { isStaffAuthed } from "@/server/staffAuth";
 import { StaffProvider } from "@/lib/staffStore";
 import "./staff.css";
 
@@ -24,6 +26,8 @@ export const metadata: Metadata = {
  */
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   await connection();
+  // the page gate — the cookie is set by staffLogin; actions guard themselves
+  if (!(await isStaffAuthed())) return <StaffLoginGate />;
   const initial = await staffBootstrap();
 
   return (

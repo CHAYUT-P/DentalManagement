@@ -5,7 +5,7 @@
  * only ever runs on the server in the app because only server code imports it.
  */
 
-import { and, asc, desc, eq, gt, gte, inArray, lt, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, ne, sql } from "drizzle-orm";
 
 import type { IconKey } from "@/data/icons";
 import { isIconKey } from "@/data/icons";
@@ -28,6 +28,7 @@ import {
   dentistTreat,
   guardian,
   holiday,
+  rateLimit,
   slotHold,
   staffNotification,
   treatment,
@@ -568,6 +569,27 @@ export async function createHold(input: {
 /** drop a hold — called at confirm time and when the family picks another slot */
 export async function releaseHold(token: string): Promise<void> {
   await db.delete(slotHold).where(eq(slotHold.token, token));
+}
+
+/**
+ * Fixed-window throttle shared by every public action: `true` while the key
+ * is under `limit` calls inside `windowSec`. One upsert — a lapsed window
+ * resets the counter, a live one increments it.
+ */
+export async function checkRate(key: string, limit: number, windowSec: number): Promise<boolean> {
+  const resetAt = new Date(Date.now() + windowSec * 1000);
+  const rows = await db
+    .insert(rateLimit)
+    .values({ key, count: 1, resetAt })
+    .onConflictDoUpdate({
+      target: rateLimit.key,
+      set: {
+        count: sql`CASE WHEN ${rateLimit.resetAt} < now() THEN 1 ELSE ${rateLimit.count} + 1 END`,
+        resetAt: sql`CASE WHEN ${rateLimit.resetAt} < now() THEN ${resetAt} ELSE ${rateLimit.resetAt} END`,
+      },
+    })
+    .returning({ count: rateLimit.count });
+  return rows[0].count <= limit;
 }
 
 /**

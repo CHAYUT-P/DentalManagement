@@ -7,7 +7,7 @@ import type { IconKey } from "@/data/icons";
 import { iconLibrary } from "@/data/icons";
 import { useLang } from "@/i18n/lang";
 import { fmtShort } from "@/lib/dates";
-import { cancelBooking, myBookingsByLine } from "@/server/actions";
+import { cancelBooking, myBookings, myBookingsByLine } from "@/server/actions";
 import { Check, Cross } from "./icons";
 import { EmptySlip, Eyebrow, Screen, Slip } from "./screen";
 import { BookingsSkeleton } from "./PageLoading";
@@ -15,8 +15,12 @@ import { ServiceIcon } from "./serviceIcons";
 
 /**
  * The patient's appointments: the next one as the slip itself, then the history
- * as ledger rows. Everything comes from Postgres through the `bookings`
- * prop — the server matched them to this phone number.
+ * as ledger rows.
+ *
+ * Identity has exactly two doors — inside LINE the verified userId picks the
+ * guardian's bookings; outside LINE the visitor types the booking phone. There
+ * is no third view: without one of those the page shows the phone gate, never
+ * somebody else's rows.
  *
  * Cancel marks the appointment cancelled in the DB (staff see it immediately);
  * reschedule simply deep-links into the booking flow pre-filled.
@@ -30,6 +34,8 @@ export interface BookingView {
   dentistSlug: string | null;
   status: "confirmed" | "arrived" | "in_chair" | "completed" | "cancelled" | "no_show";
   childName: string;
+  /** the booking's contact phone — cancelBooking requires it alongside the ref */
+  phone: string;
 }
 
 const TINT = new Map(iconLibrary.map((e) => [e.key, e.tint] as const));
@@ -70,15 +76,27 @@ function PastRow({ a }: { a: BookingView }) {
   );
 }
 
-export function BookingsPage({ today, bookings }: { today: string; bookings: BookingView[] }) {
+function toView(a: Awaited<ReturnType<typeof myBookings>>[number]): BookingView {
+  return {
+    ref: a.ref,
+    date: a.date,
+    time: a.time,
+    treatmentKey: a.treatmentKey,
+    dentistSlug: a.dentistSlug || null,
+    status: a.status,
+    childName: a.childName,
+    phone: a.phone,
+  };
+}
+
+export function BookingsPage({ today }: { today: string }) {
   const { t } = useLang();
   const [pending, start] = useTransition();
 
   /* inside LINE the signed ID token names the account — the verified userId
      picks the guardian's bookings and the profile names the header. Outside
-     LINE nothing changes: the phone-keyed `bookings` prop is the view. The
-     demo rows never render while LIFF is still resolving — a skeleton holds
-     the space so nobody sees bookings that aren't theirs. */
+     LINE the phone gate below is the only way in. While LIFF is still
+     resolving a skeleton holds the space so nothing unverified renders. */
   const [lineRows, setLineRows] = useState<BookingView[] | null>(null);
   const [lineName, setLineName] = useState<string | null>(null);
   // no LIFF configured → nothing to wait for; the env var is build-time inlined
@@ -97,17 +115,7 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
           token ? myBookingsByLine(token) : null,
         ]);
         if (cancelled || !rows) return;
-        setLineRows(
-          rows.map((a) => ({
-            ref: a.ref,
-            date: a.date,
-            time: a.time,
-            treatmentKey: a.treatmentKey,
-            dentistSlug: a.dentistSlug || null,
-            status: a.status,
-            childName: a.childName,
-          })),
-        );
+        setLineRows(rows.map(toView));
         if (profile) setLineName(profile.displayName);
       })
       .catch(() => {})
@@ -119,16 +127,38 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
     };
   }, []);
 
-  const shown = lineRows ?? bookings;
+  /* outside LINE: the phone gate — type the booking phone, get the rows */
+  const [phoneRows, setPhoneRows] = useState<BookingView[] | null>(null);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneErr, setPhoneErr] = useState(false);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+
+  function lookupPhone() {
+    const digits = phoneInput.replace(/\D/g, "");
+    if (digits.length < 9) {
+      setPhoneErr(true);
+      return;
+    }
+    setPhoneBusy(true);
+    myBookings(phoneInput)
+      .then((rows) => {
+        setPhoneRows(rows.map(toView));
+        if (rows.length === 0) setPhoneErr(true);
+      })
+      .finally(() => setPhoneBusy(false));
+  }
+
+  const shown = lineRows ?? phoneRows;
 
   // the next visit: a live booking from today onwards — confirmed, checked in,
   // or in the chair right now all still belong on the slip
   const live = (s: BookingView["status"]) =>
     s === "confirmed" || s === "arrived" || s === "in_chair";
-  const upcoming = shown
+  const rows = shown ?? [];
+  const upcoming = rows
     .filter((b) => live(b.status) && b.date >= today)
     .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1));
-  const history = shown
+  const history = rows
     .filter((b) => !live(b.status) || b.date < today)
     .sort((a, b) => (a.date + a.time > b.date + b.time ? -1 : 1));
 
@@ -136,10 +166,12 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const cancelling = cancelTarget !== null && pending;
 
-  function doCancel(ref: string) {
-    setCancelTarget(ref);
+  function doCancel(a: BookingView) {
+    setCancelTarget(a.ref);
     start(async () => {
-      await cancelBooking(ref);
+      await cancelBooking(a.ref, a.phone);
+      if (lineRows) setLineRows(lineRows.filter((r) => r.ref !== a.ref));
+      if (phoneRows) setPhoneRows(phoneRows.filter((r) => r.ref !== a.ref));
       setCancelTarget(null);
     });
   }
@@ -150,6 +182,39 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
     return (
       <Screen title={t.nav.bookings} back="/">
         <BookingsSkeleton />
+      </Screen>
+    );
+  }
+
+  /* no verified identity and no phone entered — the gate is the whole view */
+  if (shown === null) {
+    return (
+      <Screen title={t.nav.bookings} back="/">
+        <Eyebrow>{t.bookingsPage.lookupSub}</Eyebrow>
+        <div className="pick">
+          <label className="fld">
+            <span className="fk">{t.booking.contactTel}</span>
+            <input
+              className="fi"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder={t.booking.contactTelPh}
+              value={phoneInput}
+              onChange={(e) => {
+                setPhoneInput(e.target.value);
+                setPhoneErr(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") lookupPhone();
+              }}
+            />
+          </label>
+          {phoneErr ? <p className="err">{t.bookingsPage.notFound}</p> : null}
+          <button type="button" className="cta" disabled={phoneBusy} onClick={lookupPhone}>
+            {phoneBusy ? "…" : t.bookingsPage.lookupBtn}
+          </button>
+        </div>
       </Screen>
     );
   }
@@ -179,7 +244,7 @@ export function BookingsPage({ today, bookings }: { today: string; bookings: Boo
               type="button"
               className="softBtn danger"
               disabled={cancelling}
-              onClick={() => doCancel(next.ref)}
+              onClick={() => doCancel(next)}
             >
               {cancelling ? "…" : t.bookingsPage.cancelBooking}
             </button>

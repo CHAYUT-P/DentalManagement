@@ -106,7 +106,7 @@ async function main() {
   await actions.staffUpdatePrice("fluoride", 600); // restore
 
   console.log("\n— 8. Patient cancels —");
-  await actions.cancelBooking(result.ref!);
+  await actions.cancelBooking(result.ref!, "0912345678");
   const after = await actions.myBookings("0912345678");
   ok("booking now cancelled", after[0]?.status === "cancelled");
   const freed = (await queries.slotsForDate(date)).find(s => s.dentistSlug === dentistSlug && s.time === time);

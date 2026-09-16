@@ -247,6 +247,9 @@ const th = {
     reschedule: "เลื่อนนัด",
     cancelBooking: "ยกเลิกนัด",
     bookAgain: "จองอีกครั้ง",
+    lookupSub: "กรอกเบอร์โทรที่ใช้จอง เพื่อดูนัดหมายของคุณ",
+    lookupBtn: "ดูนัดหมาย",
+    notFound: "ไม่พบนัดหมายของเบอร์นี้ ลองตรวจสอบอีกครั้ง",
   },
   clinicPage: {
     about: "คลินิกทันตกรรมเด็ก Denta Kids ดูแลฟันน้ำนมจนถึงฟันแท้ ด้วยทีมทันตแพทย์ที่เข้าใจเด็กและห้องตรวจที่ออกแบบให้เด็กไม่กลัวหมอฟัน\nเราเชื่อว่าการมาหาหมอฟันครั้งแรกที่ดี จะทำให้เด็กดูแลฟันตัวเองได้ตลอดชีวิต",
@@ -521,6 +524,9 @@ const en: Dict = {
     reschedule: "Reschedule",
     cancelBooking: "Cancel",
     bookAgain: "Book again",
+    lookupSub: "Enter the phone number you booked with to see your appointments",
+    lookupBtn: "Find my bookings",
+    notFound: "No bookings under this number — please check and try again",
   },
   clinicPage: {
     about: "Denta Kids is a children's dental clinic, caring for first baby teeth through to adult teeth, with dentists who understand children and rooms designed so that nobody is afraid of the dentist.\nWe believe a good first visit is what makes a child look after their own teeth for life.",

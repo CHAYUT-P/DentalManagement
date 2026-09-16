@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DentaKids — System Architecture</title>
+<style>
+  :root {
+    --pink: #f2608c;
+    --pink-soft: #ff9eb8;
+    --teal: #38b6a8;
+    --teal-soft: #7ddcd2;
+    --violet: #8b7cf6;
+    --amber: #f2b544;
+    --ink: #0b1020;
+    --panel: rgba(255, 255, 255, 0.055);
+    --panel-border: rgba(255, 255, 255, 0.13);
+    --txt: #eef2ff;
+    --txt-dim: #9aa4c4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 15% -10%, rgba(242, 96, 140, 0.14), transparent 60%),
+      radial-gradient(900px 600px at 90% 110%, rgba(56, 182, 168, 0.12), transparent 60%),
+      var(--ink);
+    color: var(--txt);
+    font-family: -apple-system, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  /* ambient floating orbs */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(70px);
+    opacity: 0.35;
+    pointer-events: none;
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+  .orb.a { width: 300px; height: 300px; background: var(--pink); top: -80px; left: -60px; }
+  .orb.b { width: 260px; height: 260px; background: var(--teal); bottom: -60px; right: -40px; animation-delay: -6s; }
+  .orb.c { width: 180px; height: 180px; background: var(--violet); top: 45%; left: 60%; animation-delay: -12s; opacity: 0.18; }
+  @keyframes drift {
+    from { transform: translate(0, 0) scale(1); }
+    to   { transform: translate(50px, 40px) scale(1.15); }
+  }
+
+  header { text-align: center; margin-bottom: 28px; }
+  header .badge {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--pink-soft);
+    border: 1px solid rgba(242, 96, 140, 0.4);
+    border-radius: 999px;
+    padding: 5px 14px;
+    margin-bottom: 14px;
+    animation: badgeGlow 3s ease-in-out infinite;
+  }
+  @keyframes badgeGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(242, 96, 140, 0.25); }
+    50%      { box-shadow: 0 0 18px 3px rgba(242, 96, 140, 0.25); }
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 800;
+    background: linear-gradient(90deg, var(--pink-soft), #fff, var(--teal-soft));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header p { color: var(--txt-dim); margin-top: 8px; font-size: 14px; }
+
+  /* ── stage ── */
+  .stage {
+    position: relative;
+    width: 1120px;
+    height: 660px;
+    flex-shrink: 0;
+  }
+  svg.wires {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .wire {
+    fill: none;
+    stroke-width: 1.5;
+    stroke: rgba(255, 255, 255, 0.14);
+    transition: stroke 0.5s;
+  }
+  .wire.lit { stroke-width: 2.5; filter: drop-shadow(0 0 6px currentColor); }
+  .wire.dashed { stroke-dasharray: 6 8; animation: dashmove 1.2s linear infinite; }
+  @keyframes dashmove { to { stroke-dashoffset: -14; } }
+
+  /* travelling pulse dots */
+  .pulse { r: 4.5; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 0 8px currentColor); }
+  .pulse.lit { opacity: 1; }
+
+  /* nodes */
+  .node {
+    position: absolute;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    backdrop-filter: blur(14px);
+    transition: transform 0.5s, box-shadow 0.5s, border-color 0.5s;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .node.lit {
+    transform: translateY(-3px) scale(1.03);
+    border-color: currentColor;
+    box-shadow: 0 0 0 1px currentColor, 0 14px 44px rgba(0, 0, 0, 0.5);
+  }
+  .node .icon {
+    font-size: 22px;
+    display: inline-block;
+    animation: bob 3.5s ease-in-out infinite;
+  }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  .node h2 { font-size: 14px; font-weight: 700; display: inline; margin-left: 8px; }
+  .node .sub { font-size: 11px; color: var(--txt-dim); margin-top: 4px; line-height: 1.5; }
+  .node .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .chip {
+    font-size: 9.5px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--txt-dim);
+    white-space: nowrap;
+  }
+
+  /* positions */
+  #n-patient { top: 30px;  left: 30px;  width: 210px; color: var(--pink-soft); }
+  #n-line    { top: 30px;  left: 880px; width: 210px; color: #7ef0a2; }
+  #n-vercel  { top: 240px; left: 400px; width: 320px; color: #b8c4ff; }
+  #n-neon    { top: 510px; left: 400px; width: 320px; color: var(--teal-soft); }
+  #n-staff   { top: 240px; left: 880px; width: 210px; color: var(--amber); }
+  #n-queue   { top: 510px; left: 880px; width: 210px; color: var(--violet); }
+
+  /* story bar */
+  .story {
+    margin-top: 30px;
+    width: min(1120px, 94vw);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 18px 22px;
+    backdrop-filter: blur(14px);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .stepnum {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 22px;
+    font-weight: 700;
+    min-width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    transition: background 0.4s, color 0.4s;
+  }
+  .story h3 { font-size: 15px; margin-bottom: 3px; transition: color 0.4s; }
+  .story p { font-size: 12.5px; color: var(--txt-dim); line-height: 1.55; }
+  .progress {
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    transition: width 0.3s linear;
+  }
+  .story { position: relative; overflow: hidden; }
+
+  footer { margin-top: 22px; font-size: 11px; color: var(--txt-dim); text-align: center; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
+
+<header>
+  <div class="badge">DentaKids · Live Architecture</div>
+  <h1>ระบบจองคิวคลินิกทันตกรรมเด็ก</h1>
+  <p>Booking → LINE → Reminders — every request, animated</p>
+</header>
+
+<div class="stage" id="stage">
+  <svg class="wires" viewBox="0 0 1120 660" fill="none">
+    <!-- patient → vercel (booking via LIFF) -->
+    <path id="p-book"    class="wire" d="M 135 140 C 135 220, 400 190, 480 240" stroke="#f2608c"/>
+    <!-- vercel → neon -->
+    <path id="p-db"      class="wire" d="M 560 400 L 560 510" stroke="#38b6a8"/>
+    <!-- vercel → LINE push -->
+    <path id="p-push"    class="wire" d="M 720 270 C 800 250, 930 200, 980 140" stroke="#7ef0a2"/>
+    <!-- LINE → vercel webhook -->
+    <path id="p-hook"    class="wire dashed" d="M 985 140 C 950 210, 780 300, 720 310" stroke="#7ef0a2"/>
+    <!-- vercel cron internal loop (drawn as stub) -->
+    <path id="p-cron"    class="wire dashed" d="M 720 360 C 780 360, 800 420, 760 460 C 730 490, 660 500, 620 510" stroke="#f2b544"/>
+    <!-- cron → neon read -->
+    <path id="p-cron-db" class="wire" d="M 560 400 L 560 510" stroke="none"/>
+    <!-- staff → vercel -->
+    <path id="p-staff"   class="wire" d="M 930 320 C 860 330, 780 340, 720 350" stroke="#f2b544"/>
+    <!-- queue site → vercel api -->
+    <path id="p-queue"   class="wire dashed" d="M 930 540 C 830 530, 700 520, 640 470 C 600 435, 580 430, 570 400" stroke="#8b7cf6"/>
+    <!-- LINE → patient (push arrives on phone) -->
+    <path id="p-notify"  class="wire" d="M 880 60 C 500 30, 300 40, 235 55" stroke="#7ef0a2"/>
+
+    <!-- pulse dots (JS moves them along paths) -->
+    <circle id="d-book"  class="pulse" r="4.5" fill="#f2608c" color="#f2608c"/>
+    <circle id="d-db"    class="pulse" r="4.5" fill="#38b6a8" color="#38b6a8"/>
+    <circle id="d-push"  class="pulse" r="4.5" fill="#7ef0a2" color="#7ef0a2"/>
+    <circle id="d-hook"  class="pulse" r="4.5" fill="#7ef0a2" color="#7ef0a2"/>
+    <circle id="d-cron"  class="pulse" r="4.5" fill="#f2b544" color="#f2b544"/>
+    <circle id="d-staff" class="pulse" r="4.5" fill="#f2b544" color="#f2b544"/>
+    <circle id="d-queue" class="pulse" r="4.5" fill="#8b7cf6" color="#8b7cf6"/>
+    <circle id="d-notify"class="pulse" r="4.5" fill="#7ef0a2" color="#7ef0a2"/>
+  </svg>
+
+  <div class="node" id="n-patient">
+    <span class="icon">🧒</span><h2>ผู้ปกครอง / Patient</h2>
+    <div class="sub">เปิดผ่าน LINE rich menu<br />LIFF app → LIFF SDK → ID token</div>
+    <div class="chips"><span class="chip">LIFF 2011604408</span><span class="chip">/book · /bookings</span></div>
+  </div>
+
+  <div class="node" id="n-line">
+    <span class="icon">💚</span><h2>LINE Platform</h2>
+    <div class="sub">Messaging API · OA<br />push / reply / webhook events</div>
+    <div class="chips"><span class="chip">ch 2011604429</span><span class="chip">webhook →</span></div>
+  </div>
+
+  <div class="node" id="n-vercel">
+    <span class="icon">▲</span><h2>Vercel · Next.js 16</h2>
+    <div class="sub">Patient site + API + server actions<br />same deploy serves everything</div>
+    <div class="chips">
+      <span class="chip">/book /bookings /clinic</span>
+      <span class="chip">/api/line/webhook</span>
+      <span class="chip">/api/cron/reminders</span>
+      <span class="chip">/api/queue</span>
+      <span class="chip">cron 11:00 + 00:00 UTC</span>
+    </div>
+  </div>
+
+  <div class="node" id="n-neon">
+    <span class="icon">🐘</span><h2>Neon Postgres</h2>
+    <div class="sub">appointments · guardians · slot_holds<br />message_log · staff_notifications</div>
+    <div class="chips"><span class="chip">Drizzle ORM</span><span class="chip">us-east-1 ⚠</span></div>
+  </div>
+
+  <div class="node" id="n-staff">
+    <span class="icon">🦷</span><h2>Staff Console</h2>
+    <div class="sub">/staff dashboard<br />queue · check-in · schedule</div>
+    <div class="chips"><span class="chip">browser + Tauri</span><span class="chip">⚠ no auth</span></div>
+  </div>
+
+  <div class="node" id="n-queue">
+    <span class="icon">📺</span><h2>Queue Display</h2>
+    <div class="sub">static site (queue/)<br />public board + check page</div>
+    <div class="chips"><span class="chip">polls /api/queue</span></div>
+  </div>
+</div>
+
+<div class="story">
+  <div class="stepnum" id="stepnum">1</div>
+  <div>
+    <h3 id="story-title">Booking inside LINE</h3>
+    <p id="story-body">Parent taps the rich menu → LIFF opens /book → picks slot (10-min hold) → confirms → ID token verified server-side → appointment + guardian link in Neon.</p>
+  </div>
+  <div class="progress" id="progress"></div>
+</div>
+
+<footer>
+  DentaKids system map · pulses animate the active flow · <span style="color:var(--txt-dim)">press <b>space</b> to pause the story</span><br />
+  ⚠ = known production gap — see code review notes
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const paths = {}, dots = {};
+for (const k of ["book","db","push","hook","cron","staff","queue","notify"]) {
+  paths[k] = $("p-" + k);
+  dots[k]  = $("d-" + k);
+}
+
+// move a dot along its path — repeats while the flow is "lit"
+const animState = {};
+function flow(key, dur) {
+  const path = paths[key], dot = dots[key], len = path.getTotalLength();
+  path.classList.add("lit");
+  dot.classList.add("lit");
+  animState[key] = { on: true, t: Math.random() };
+  function tick() {
+    if (!animState[key].on) { path.classList.remove("lit"); dot.classList.remove("lit"); return; }
+    animState[key].t += dur;
+    const p = path.getPointAtLength((animState[key].t % 1) * len);
+    dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+function unflow(key) { if (animState[key]) animState[key].on = false; }
+
+const STORY = [
+  { t: "Booking inside LINE", c: "#f2608c",
+    b: "Parent taps the rich menu → LIFF opens /book → picks slot (10-min hold) → confirms → ID token verified server-side → appointment + guardian link in Neon.",
+    flows: ["book", "db"], nodes: ["n-patient", "n-vercel", "n-neon"] },
+  { t: "Confirmation push", c: "#7ef0a2",
+    b: "Server pushes a Thai confirmation (จองคิวสำเร็จ ✓ รหัสจอง DK-xxxx) through the Messaging API → lands in the OA chat in seconds.",
+    flows: ["push", "notify"], nodes: ["n-vercel", "n-line", "n-patient"] },
+  { t: "Webhook events", c: "#7ef0a2",
+    b: "LINE calls /api/line/webhook — HMAC signature verified against the channel secret → 'follow' events get a welcome reply.",
+    flows: ["hook"], nodes: ["n-line", "n-vercel"] },
+  { t: "Reminder crons", c: "#f2b544",
+    b: "Vercel cron fires 18:00 Bangkok (day-before) + 07:00 (morning-of) → scans Neon for confirmed appts with line_user_id → pushes reminder → message_log dedupes retries.",
+    flows: ["cron", "db", "push"], nodes: ["n-vercel", "n-neon", "n-line"] },
+  { t: "Staff console", c: "#f2b544",
+    b: "Reception works /staff — appointments, queue check-in (arrived → in_chair → completed), schedule, prices. Same Next.js deploy, same DB.",
+    flows: ["staff", "db"], nodes: ["n-staff", "n-vercel", "n-neon"] },
+  { t: "Queue display", c: "#8b7cf6",
+    b: "The lobby board + public check page poll /api/queue — first names only, read-only, no patient data leaks.",
+    flows: ["queue"], nodes: ["n-queue", "n-vercel", "n-neon"] },
+];
+
+let step = -1, paused = false, stepTimer = null;
+const DUR = 5200;
+
+function show(i) {
+  step = i % STORY.length;
+  const s = STORY[step];
+  // reset
+  for (const k in animState) unflow(k);
+  document.querySelectorAll(".node").forEach(n => n.classList.remove("lit"));
+  // light up
+  s.flows.forEach(k => flow(k, 0.0016));
+  s.nodes.forEach(id => { $(id).classList.add("lit"); $(id).style.color = s.c; });
+  document.querySelectorAll(".node").forEach(n => { if (!s.nodes.includes(n.id)) n.style.color = ""; });
+  $("stepnum").textContent = step + 1;
+  $("stepnum").style.background = s.c + "22";
+  $("stepnum").style.color = s.c;
+  $("story-title").textContent = s.t;
+  $("story-title").style.color = s.c;
+  $("story-body").textContent = s.b;
+  // progress bar
+  const pb = $("progress");
+  pb.style.background = s.c;
+  pb.style.transition = "none"; pb.style.width = "0";
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    pb.style.transition = `width ${DUR}ms linear`;
+    pb.style.width = "100%";
+  }));
+  clearTimeout(stepTimer);
+  stepTimer = setTimeout(() => show(step + 1), DUR);
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space") return;
+  e.preventDefault();
+  paused = !paused;
+  if (paused) { clearTimeout(stepTimer); $("progress").style.transition = "none"; }
+  else show(step);
+});
+
+show(0);
+</script>
+</body>
+</html>

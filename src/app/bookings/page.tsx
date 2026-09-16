@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
-import { BookingsPage, type BookingView } from "@/components/BookingsPage";
+import { BookingsPage } from "@/components/BookingsPage";
 import { todayISO } from "@/lib/dates";
-import { myBookings } from "@/server/actions";
 
 export const metadata: Metadata = {
   title: "Denta Kids · ประวัติการจอง",
@@ -11,23 +10,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * Outside LINE there is no patient identity, so the server view is the demo
- * family (the seed's คุณแม่มณฑิรา phone). Inside LIFF the client swaps this
- * prop for the verified account's bookings — see BookingsPage.
+ * Identity arrives on the client, not here — inside LIFF the verified LINE
+ * userId picks the guardian's bookings; anywhere else the visitor types the
+ * booking phone. No rows are preloaded: with nobody identified, the page has
+ * nothing of anybody's to show.
  */
-const DEMO_PHONE = "0812345678";
-
 export default async function Page() {
   await connection();
-  const rows = await myBookings(DEMO_PHONE);
-  const bookings: BookingView[] = rows.map((a) => ({
-    ref: a.ref,
-    date: a.date,
-    time: a.time,
-    treatmentKey: a.treatmentKey,
-    dentistSlug: a.dentistSlug || null,
-    status: a.status,
-    childName: a.childName,
-  }));
-  return <BookingsPage today={todayISO()} bookings={bookings} />;
+  return <BookingsPage today={todayISO()} />;
 }
