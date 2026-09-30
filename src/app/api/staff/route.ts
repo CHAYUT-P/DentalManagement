@@ -28,6 +28,8 @@ const OPS: Record<string, (...args: never[]) => Promise<unknown>> = {
   addWaitlist: actions.staffAddWaitlist,
   setWaitlistStatus: actions.staffSetWaitlistStatus,
   removeWaitlist: actions.staffRemoveWaitlist,
+  saveVisitRecord: actions.staffSaveVisitRecord,
+  finishVisit: actions.staffFinishVisit,
   updatePrice: actions.staffUpdatePrice,
   updateDay: actions.staffUpdateDay,
   updateClinicInfo: actions.staffUpdateClinicInfo,

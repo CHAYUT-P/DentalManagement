@@ -26,7 +26,7 @@ export function AppointmentDetailModal({
   appointment,
   onClose,
 }: AppointmentDetailModalProps) {
-  const { today, dentists, patients, updateStatus, setQueueStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast } = useStaff();
+  const { edition, today, dentists, patients, updateStatus, setQueueStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast } = useStaff();
   const dict = useT();
 
   const [isRescheduling, setIsRescheduling] = useState(false);
@@ -106,7 +106,7 @@ export function AppointmentDetailModal({
   };
 
   const copyReminderText = () => {
-    const text = `เรียน คุณ${appointment.guardianName} คลินิก Denta Kids ขอเตือนนัดหมายของน้อง${appointment.childName} ในวันที่ ${appointment.date} เวลา ${appointment.time} น. (${treatmentName}) กับ ${dentist?.text.th.name || "ทันตแพทย์"} กรุณามาถึงก่อนเวลา 10 นาที สอบถามโทร 02-123-4567`;
+    const text = `คลินิก Denta Kids ขอเตือนนัดหมายของ ${appointment.childName} ในวันที่ ${appointment.date} เวลา ${appointment.time} น. (${treatmentName}) กับ ${dentist?.text.th.name || "ทันตแพทย์"} กรุณามาถึงก่อนเวลา 10 นาที สอบถามโทร 02-123-4567`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -250,20 +250,6 @@ export function AppointmentDetailModal({
                     <span style={{ fontSize: "20px", fontWeight: "800", color: "var(--staff-ink)" }}>
                       {appointment.childName}
                     </span>
-                    {appointment.childAge && (
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "700",
-                          color: "var(--staff-primary)",
-                          background: "var(--staff-primary-light)",
-                          padding: "2px 8px",
-                          borderRadius: "6px",
-                        }}
-                      >
-                        {appointment.childAge} ขวบ
-                      </span>
-                    )}
                   </div>
                   <div
                     style={{
@@ -275,10 +261,14 @@ export function AppointmentDetailModal({
                       gap: "5px",
                     }}
                   >
-                    <IconUsers size={14} color="var(--staff-ink-muted)" />
-                    <span>
-                      ผู้ปกครอง: <strong>{appointment.guardianName}</strong>
-                    </span>
+                    <span>{appointment.phone}</span>
+                    {appointment.lineName ? (
+                      <span className="line-tag" title="จองผ่าน LINE">
+                        LINE · {appointment.lineName}
+                      </span>
+                    ) : appointment.source === "online" ? (
+                      <span style={{ color: "var(--staff-ink-muted)" }}>· จองผ่านเว็บ (ไม่ได้เข้าผ่าน LINE)</span>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -455,8 +445,8 @@ export function AppointmentDetailModal({
             </div>
           </div>
 
-          {/* Patient record: online bookings start as name + tel only */}
-          {linkedPatient ? (
+          {/* Patient record (full edition only): online bookings are name + tel only */}
+          {edition !== "full" ? null : linkedPatient ? (
             <div
               style={{
                 background: "#ebfbee",

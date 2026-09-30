@@ -4,6 +4,7 @@ import React from "react";
 import { useStaff } from "@/lib/staffStore";
 import {
   IconBell,
+  IconCalendar,
   IconCheck,
   IconZap,
   IconClock,
@@ -97,6 +98,7 @@ export default function StaffNotificationsPage() {
                 {n.type === "online_booking" && <IconSmartphone size={18} color="#fff" />}
                 {n.type === "check_in" && <IconWalkIn size={18} color="#fff" />}
                 {n.type === "reminder" && <IconBell size={16} />}
+                {n.type === "reschedule" && <IconCalendar size={16} />}
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>

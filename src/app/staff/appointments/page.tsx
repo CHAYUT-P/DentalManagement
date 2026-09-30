@@ -5,11 +5,9 @@ import { useStaff, type EditableDentist, type StaffAppointment } from "@/lib/sta
 import { canTreat } from "@/lib/convert";
 import { addDays } from "@/lib/dates";
 import { useT } from "@/i18n/lang";
-import { BookingModal } from "@/components/staff/BookingModal";
 import { AppointmentDetailModal } from "@/components/staff/AppointmentDetailModal";
 import {
   IconSearch,
-  IconPlus,
   IconCheck,
   IconX,
   IconClock,
@@ -32,7 +30,6 @@ export default function StaffAppointmentsPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [selectedAppt, setSelectedAppt] = useState<StaffAppointment | null>(null);
-  const [showBookingModal, setShowBookingModal] = useState(false);
 
   // Filter appointments
   const filtered = useMemo(() => {
@@ -61,7 +58,7 @@ export default function StaffAppointmentsPage() {
         const match =
           a.ref.toLowerCase().includes(q) ||
           a.childName.toLowerCase().includes(q) ||
-          a.guardianName.toLowerCase().includes(q) ||
+          (a.lineName ?? "").toLowerCase().includes(q) ||
           a.phone.toLowerCase().includes(q) ||
           docName.includes(q) ||
           svcName.includes(q);
@@ -98,18 +95,9 @@ export default function StaffAppointmentsPage() {
       {/* Page Header */}
       <div className="staff-page-header">
         <div>
-          <h2>จัดการรายการนัดหมาย (Appointments Directory)</h2>
-          <p>ค้นหา ตรวจสอบ และจัดการประวัติการนัดหมายทั้งหมดในระบบคลินิก</p>
+          <h2>รายการนัดทั้งหมด</h2>
+          <p>ค้นหา กรอง และจัดการนัดทุกวัน · รับนัดใหม่จากปุ่ม “นัดใหม่” ด้านบน</p>
         </div>
-
-        <button
-          type="button"
-          className="btn-primary-staff"
-          onClick={() => setShowBookingModal(true)}
-        >
-          <IconPlus size={16} />
-          <span>+ รับนัดหมายใหม่</span>
-        </button>
       </div>
 
       {/* Toolbar & Filters */}
@@ -208,8 +196,8 @@ export default function StaffAppointmentsPage() {
             <tr>
               <th style={{ width: "160px" }}>วัน & เวลา</th>
               <th style={{ width: "100px" }}>รหัสนัด</th>
-              <th>คนไข้ (เด็ก)</th>
-              <th>ผู้ปกครอง & เบอร์ติดต่อ</th>
+              <th>ชื่อที่จอง</th>
+              <th>เบอร์โทร / LINE</th>
               <th>ทันตแพทย์</th>
               <th>การรักษา</th>
               <th>ช่องทาง</th>
@@ -252,37 +240,18 @@ export default function StaffAppointmentsPage() {
                     </td>
 
                     <td>
-                      <div style={{ fontWeight: "600" }}>
-                        {appt.childName}
-                        {appt.forSelf ? (
-                          <span
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: 700,
-                              color: "var(--staff-primary)",
-                              background: "var(--staff-primary-light)",
-                              padding: "1px 7px",
-                              borderRadius: "999px",
-                              marginLeft: "6px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            ตนเอง
-                          </span>
-                        ) : null}
-                      </div>
-                      {appt.childAge && (
-                        <div style={{ fontSize: "11px", color: "var(--staff-ink-muted)" }}>
-                          อายุ {appt.childAge} ขวบ
-                        </div>
-                      )}
+                      <div style={{ fontWeight: "600" }}>{appt.childName}</div>
                     </td>
 
                     <td>
-                      <div>{appt.guardianName}</div>
-                      <div style={{ fontSize: "11px", color: "var(--staff-ink-muted)", display: "flex", alignItems: "center", gap: "3px" }}>
-                        <IconPhone size={11} /> {appt.phone}
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <IconPhone size={12} /> {appt.phone}
                       </div>
+                      {appt.lineName ? (
+                        <span className="line-tag" title="จองผ่าน LINE">
+                          LINE · {appt.lineName}
+                        </span>
+                      ) : null}
                     </td>
 
                     <td>
@@ -391,9 +360,7 @@ export default function StaffAppointmentsPage() {
         />
       )}
 
-      {showBookingModal && (
-        <BookingModal onClose={() => setShowBookingModal(false)} />
-      )}
+
     </div>
   );
 }
@@ -489,7 +456,8 @@ function PoolPanel({
             <div style={{ flex: "1 1 160px", minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: "13.5px" }}>{a.childName}</div>
               <div style={{ fontSize: "11.5px", color: "var(--staff-ink-muted)" }}>
-                {dictService[a.treatmentKey] || a.treatmentKey} · {a.guardianName} · {a.phone} · {a.ref}
+                {dictService[a.treatmentKey] || a.treatmentKey} · {a.phone}
+                {a.lineName ? ` · LINE ${a.lineName}` : ""} · {a.ref}
               </div>
             </div>
             <select

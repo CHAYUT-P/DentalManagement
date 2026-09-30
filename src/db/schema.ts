@@ -156,6 +156,14 @@ export const guardian = pgTable(
     /** digits only, e.g. "0812345678" — the booking-flow lookup key */
     phone: text("phone").notNull(),
     lineUserId: text("line_user_id"),
+    /**
+     * the human-facing LINE id the desk types ("@mon_mom") — deliberately NOT
+     * line_user_id: that column is the verified push target written only by
+     * the LIFF link flow, and must never be overwritten by a form field.
+     */
+    lineContact: text("line_contact").notNull().default(""),
+    /** how the guardian relates to the child — "แม่", "พ่อ", "ตนเอง" (self) */
+    relation: text("relation").notNull().default(""),
     address: text("address").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -245,11 +253,20 @@ export const appointment = pgTable(
     price: integer("price"),
     /** visitFor = "self" → the booker is the patient (adult), no child */
     forSelf: boolean("for_self").notNull().default(false),
+    /**
+     * The LINE account that made this booking (verified LIFF `sub`), and its
+     * display name at booking time. Online bookings collect only a nickname +
+     * phone, so this — not a guardian row — is what lists "my bookings" inside
+     * LINE, where reminders go, and what the desk sees as "booked by".
+     */
+    lineUserId: text("line_user_id"),
+    lineName: text("line_name").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex("appointment_ref_idx").on(t.ref),
+    index("appointment_line_idx").on(t.lineUserId),
     /** the double-booking guard: one dentist, one wall-clock slot — but only
      *  while the booking is live; a cancelled one frees the slot for rebooking
      *  (partial index, same predicate as the ON CONFLICT clause in queries) */
@@ -370,7 +387,7 @@ export const clinicSetting = pgTable("clinic_setting", {
 /** staff-side bell: online bookings, cancellations, check-ins, reminders */
 export const staffNotification = pgTable("staff_notification", {
   id: serial("id").primaryKey(),
-  /** "online_booking" | "cancellation" | "check_in" | "reminder" */
+  /** "online_booking" | "cancellation" | "reschedule" | "check_in" | "reminder" */
   type: text("type").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull().default(""),
@@ -405,3 +422,40 @@ export const waitlistEntry = pgTable("waitlist_entry", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * What the dentist did during a visit — written on the room page (full
+ * edition). One row per visit; the visit is an appointment row OR a walk-in
+ * waitlist row, never both, and never neither — the partial unique indexes
+ * keep it one-record-per-visit.
+ */
+export const visitRecord = pgTable(
+  "visit_record",
+  {
+    id: serial("id").primaryKey(),
+    appointmentId: integer("appointment_id").references(() => appointment.id, {
+      onDelete: "cascade",
+    }),
+    waitlistId: integer("waitlist_id").references(() => waitlistEntry.id, {
+      onDelete: "cascade",
+    }),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    /** IconKey[] — treatments actually performed; may differ from what was booked */
+    treatments: jsonb("treatments").notNull().default([]),
+    /** clinical note the dentist writes — tooth, behaviour, next steps */
+    detail: text("detail").notNull().default(""),
+    /** baht actually charged; null = not recorded */
+    price: integer("price"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("visit_record_appt_idx")
+      .on(t.appointmentId)
+      .where(sql`appointment_id IS NOT NULL`),
+    uniqueIndex("visit_record_waitlist_idx")
+      .on(t.waitlistId)
+      .where(sql`waitlist_id IS NOT NULL`),
+    index("visit_record_dentist_idx").on(t.dentistId),
+  ],
+);

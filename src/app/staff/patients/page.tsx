@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useStaff, type PatientChild, type PatientRecord } from "@/lib/staffStore";
 import { normalizeName } from "@/lib/clinicSettings";
 import { BookingModal } from "@/components/staff/BookingModal";
+import { EditionNotice } from "@/components/staff/DeviceGate";
 import {
   IconSearch,
   IconPlus,
@@ -467,7 +468,7 @@ function PatientForm({
 
 /* ------------------------------------------------------------------ */
 
-export default function StaffPatientsPage() {
+function StaffPatientsPageInner() {
   const { today, patients, createPatient, updatePatient, appointments, showToast } = useStaff();
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -994,4 +995,14 @@ export default function StaffPatientsPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Patient records are a full-edition feature — the lean "queue" install keeps
+ * the route mounted (old links don't 404) but shows the upgrade note.
+ */
+export default function StaffPatientsPage() {
+  const { edition } = useStaff();
+  if (edition !== "full") return <EditionNotice feature="ประวัติคนไข้" />;
+  return <StaffPatientsPageInner />;
 }

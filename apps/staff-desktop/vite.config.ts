@@ -13,8 +13,13 @@ const mainSrc = path.resolve(here, "../../src");
  * react-router sidebar instead of next/link). Everything else — pages,
  * modals, store, i18n — is literally the same file the web console builds.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  define: {
+    // `--mode full` stamps the full-edition feature set into the bundle;
+    // every other mode builds the lean queue console
+    __STAFF_EDITION__: JSON.stringify(mode === "full" ? "full" : "queue"),
+  },
   resolve: {
     alias: [
       { find: "@/server/actions", replacement: path.resolve(here, "src/api.ts") },
@@ -30,4 +35,4 @@ export default defineConfig({
   },
   server: { port: 5173, strictPort: true },
   build: { outDir: "dist", target: "es2021" },
-});
+}));

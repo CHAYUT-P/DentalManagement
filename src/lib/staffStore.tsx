@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import type { IconKey } from "@/data/icons";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
@@ -13,9 +20,11 @@ import {
   staffCreateAppointment,
   staffCreateDentist,
   staffDeleteAppointment,
+  staffFinishVisit,
   staffMarkNotificationsRead,
   staffRemoveHoliday,
   staffRemoveWaitlist,
+  staffSaveVisitRecord,
   staffSetQueueStatus,
   staffSetWaitlistStatus,
   staffUpdateAppointment,
@@ -28,13 +37,18 @@ import {
   staffBootstrap,
   staffUpsertPatient,
   type StaffBootstrap,
+  type VisitRecordInput,
 } from "@/server/actions";
 import type {
   AppointmentStatus,
   EditableDentist,
+  PatientChildInput,
   PatientRecord,
+  PatientUpsertInput,
   StaffAppointment,
+  StaffEdition,
   StaffNotification,
+  VisitRecord,
   WaitlistEntry,
 } from "@/lib/staffTypes";
 
@@ -54,20 +68,39 @@ export type {
   AppointmentStatus,
   BookingSource,
   StaffAppointment,
+  StaffEdition,
   EditableDentist,
   PatientRecord,
   PatientChild,
+  PatientChildInput,
+  PatientUpsertInput,
   WaitlistEntry,
+  VisitRecord,
   StaffNotification,
   ShiftHour,
 } from "@/lib/staffTypes";
 
-interface StaffContextType {
+/** what this PC is for — a per-device setting (localStorage), full edition only */
+export type DeviceMode = "frontdesk" | "room";
+
+const DEVICE_MODE_KEY = "dentakids.deviceMode";
+const ROOM_DENTIST_KEY = "dentakids.roomDentist";
+
+export interface StaffContextType {
+  /** which build this is — "queue" hides patient records + room pages */
+  edition: StaffEdition;
+  /** this PC's role — "room" locks it onto one dentist's room page */
+  deviceMode: DeviceMode;
+  setDeviceMode: (mode: DeviceMode) => void;
+  /** the dentist whose room this PC hosts (deviceMode "room") */
+  roomDentistSlug: string | null;
+  setRoomDentistSlug: (slug: string | null) => void;
   today: string;
   appointments: StaffAppointment[];
   dentists: EditableDentist[];
   patients: PatientRecord[];
   waitlist: WaitlistEntry[];
+  visitRecords: VisitRecord[];
   notifications: StaffNotification[];
   servicePrices: Record<IconKey, number | null>;
   schedule: ClinicDaySetting[];
@@ -92,7 +125,13 @@ interface StaffContextType {
   addPatientChild: (patientId: string, name: string) => void;
   addWaitlist: (entry: Omit<WaitlistEntry, "id" | "arrivedAt" | "status">) => void;
   updateWaitlistStatus: (id: string, status: WaitlistEntry["status"], dentistSlug?: string) => void;
+  /** assign (or re-assign) a dentist while a walk-in still waits */
+  assignWaitingDentist: (waitlistId: string, dentistSlug: string | null) => void;
   removeWaitlist: (id: string) => void;
+  /* visit records — the room page's save/finish (full edition) */
+  saveVisitRecord: (rec: Omit<VisitRecord, "id" | "updatedAt">) => void;
+  finishVisit: (rec: Omit<VisitRecord, "id" | "updatedAt">) => void;
+  refresh: () => void;
   updateServicePrice: (key: IconKey, price: number | null) => void;
   updateDayOpen: (day: ClinicDaySetting["day"], isOpen: boolean) => void;
   updateDayTime: (day: ClinicDaySetting["day"], field: "start" | "end", val: string) => void;
@@ -119,14 +158,28 @@ function asClinicSchedule(rows: StaffBootstrap["schedule"]): ClinicDaySetting[] 
 export function StaffProvider({
   children,
   initial,
+  edition = "queue",
 }: {
   children: React.ReactNode;
   initial: StaffBootstrap;
+  /** "queue" is the lean install; "full" adds patients + room pages */
+  edition?: StaffEdition;
 }) {
   const [state, setState] = useState<StaffBootstrap>(initial);
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [walkinOpen, setWalkinOpen] = useState(false);
+  // per-PC role: this device either runs the desk console or sits in a
+  // treatment room on one dentist's page. Persisted locally — it's about
+  // THIS machine, not clinic state
+  const [deviceMode, setDeviceModeState] = useState<DeviceMode>(() =>
+    typeof window !== "undefined" && localStorage.getItem(DEVICE_MODE_KEY) === "room"
+      ? "room"
+      : "frontdesk",
+  );
+  const [roomDentistSlug, setRoomDentistSlugState] = useState<string | null>(() =>
+    typeof window !== "undefined" ? localStorage.getItem(ROOM_DENTIST_KEY) : null,
+  );
 
   const today = state.today || todayISO();
 
@@ -155,6 +208,42 @@ export function StaffProvider({
     },
     [showToast],
   );
+
+  /** silent re-fetch — the poll and manual refresh share this */
+  const refresh = useCallback(() => {
+    staffBootstrap()
+      .then(setState)
+      .catch(() => {});
+  }, []);
+
+  /**
+   * Several machines hold the console open at once (front desk + room PCs).
+   * Polling keeps them convergent — a check-in on one desk shows up on the
+   * dentist's screen within POLL_MS without anyone reloading.
+   */
+  useEffect(() => {
+    const POLL_MS = 20_000;
+    const t = setInterval(() => {
+      // a mutation round-trip already re-reads the world; skip the overlap
+      if (!syncing) refresh();
+    }, POLL_MS);
+    return () => clearInterval(t);
+  }, [syncing, refresh]);
+
+  const setDeviceMode = useCallback((mode: DeviceMode) => {
+    setDeviceModeState(mode);
+    try {
+      localStorage.setItem(DEVICE_MODE_KEY, mode);
+    } catch {}
+  }, []);
+
+  const setRoomDentistSlug = useCallback((slug: string | null) => {
+    setRoomDentistSlugState(slug);
+    try {
+      if (slug) localStorage.setItem(ROOM_DENTIST_KEY, slug);
+      else localStorage.removeItem(ROOM_DENTIST_KEY);
+    } catch {}
+  }, []);
 
   const slugToId = useMemo(() => {
     const m = new Map<string, number>();
@@ -280,18 +369,45 @@ export function StaffProvider({
 
   /* ── patients ──────────────────────────────────────────────────────────── */
 
+  /**
+   * PatientRecord (the form's shape) → PatientUpsertInput (the wire shape):
+   * the child form's string id only survives the trip when it's a real DB id —
+   * optimistic keys like "c-…" mean "insert me".
+   */
+  const toUpsertInput = useCallback(
+    (data: Omit<PatientRecord, "id" | "registeredAt">): PatientUpsertInput => ({
+      name: data.guardianName,
+      fullName: data.guardianFullName,
+      relation: data.guardianRelation,
+      phone: data.phone,
+      lineId: data.lineId,
+      address: data.address,
+      children: data.children.map(
+        (c): PatientChildInput => ({
+          id: c.id && /^\d+$/.test(c.id) ? Number(c.id) : undefined,
+          name: c.name,
+          fullName: c.fullName,
+          nickname: c.nickname,
+          birthdate: c.birthdate,
+          age: c.age ?? null,
+          gender: c.gender,
+          hn: c.hn,
+          bloodType: c.bloodType,
+          conditions: c.conditions,
+          medications: c.medications,
+          allergies: c.allergies,
+          notes: c.notes,
+        }),
+      ),
+    }),
+    [],
+  );
+
   const createPatient = useCallback(
     (data: Omit<PatientRecord, "id" | "registeredAt">) => {
-      void mutate("เพิ่มผู้ปกครอง", () =>
-        staffUpsertPatient({
-          name: data.guardianName,
-          phone: data.phone,
-          address: data.address,
-          children: data.children.map((c) => ({ name: c.name })),
-        }),
-      );
+      void mutate("เพิ่มผู้ปกครอง", () => staffUpsertPatient(toUpsertInput(data)));
     },
-    [mutate],
+    [mutate, toUpsertInput],
   );
 
   const updatePatient = useCallback(
@@ -299,12 +415,23 @@ export function StaffProvider({
       void mutate("บันทึกข้อมูลผู้ปกครอง", () =>
         staffUpdatePatient(Number(id), {
           name: updates.guardianName,
+          fullName: updates.guardianFullName,
+          relation: updates.guardianRelation,
           phone: updates.phone,
+          lineId: updates.lineId,
           address: updates.address,
+          // only sync children when the form actually sent them
+          children: updates.children
+            ? toUpsertInput({
+                guardianName: updates.guardianName ?? "",
+                phone: updates.phone ?? "",
+                children: updates.children,
+              }).children
+            : undefined,
         }),
       );
     },
-    [mutate],
+    [mutate, toUpsertInput],
   );
 
   const addPatientChild = useCallback(
@@ -345,6 +472,50 @@ export function StaffProvider({
       void mutate("ลบคิว", () => staffRemoveWaitlist(Number(id)));
     },
     [mutate],
+  );
+
+  /** queue card picker: park a walk-in under a dentist while it waits */
+  const assignWaitingDentist = useCallback(
+    (waitlistId: string, dentistSlug: string | null) => {
+      const numeric = Number(waitlistId);
+      if (!Number.isFinite(numeric)) return;
+      void mutate("จัดแพทย์", () =>
+        staffSetWaitlistStatus(
+          numeric,
+          "waiting",
+          dentistSlug ? slugToId.get(dentistSlug) ?? null : null,
+        ),
+      );
+    },
+    [mutate, slugToId],
+  );
+
+  /* ── visit records (room page, full edition) ─────────────────────────── */
+
+  const toVisitInput = useCallback(
+    (rec: Omit<VisitRecord, "id" | "updatedAt">): VisitRecordInput => ({
+      appointmentId: rec.appointmentId ? Number(rec.appointmentId) : null,
+      waitlistId: rec.waitlistId ? Number(rec.waitlistId) : null,
+      dentistId: rec.dentistSlug ? slugToId.get(rec.dentistSlug) ?? null : null,
+      treatments: rec.treatments,
+      detail: rec.detail,
+      price: rec.price ?? null,
+    }),
+    [slugToId],
+  );
+
+  const saveVisitRecord = useCallback(
+    (rec: Omit<VisitRecord, "id" | "updatedAt">) => {
+      void mutate("บันทึกการรักษา", () => staffSaveVisitRecord(toVisitInput(rec)));
+    },
+    [mutate, toVisitInput],
+  );
+
+  const finishVisit = useCallback(
+    (rec: Omit<VisitRecord, "id" | "updatedAt">) => {
+      void mutate("ปิดการรักษา", () => staffFinishVisit(toVisitInput(rec)));
+    },
+    [mutate, toVisitInput],
   );
 
   /* ── pool ("any dentist") assignment ─────────────────────────────────── */
@@ -451,11 +622,17 @@ export function StaffProvider({
 
   const value = useMemo<StaffContextType>(
     () => ({
+      edition,
+      deviceMode,
+      setDeviceMode,
+      roomDentistSlug,
+      setRoomDentistSlug,
       today,
       appointments: state.appointments,
       dentists: state.dentists,
       patients: state.patients,
       waitlist: state.waitlist,
+      visitRecords: state.visitRecords ?? [],
       notifications: state.notifications,
       servicePrices: state.servicePrices,
       schedule: asClinicSchedule(state.schedule),
@@ -476,7 +653,11 @@ export function StaffProvider({
       addPatientChild,
       addWaitlist,
       updateWaitlistStatus,
+      assignWaitingDentist,
       removeWaitlist,
+      saveVisitRecord,
+      finishVisit,
+      refresh,
       updateServicePrice,
       updateDayOpen,
       updateDayTime,
@@ -492,10 +673,12 @@ export function StaffProvider({
       syncing,
     }),
     [
+      edition, deviceMode, setDeviceMode, roomDentistSlug, setRoomDentistSlug,
       today, state, toast, showToast, walkinOpen, syncing,
       createAppointment, updateAppointment, updateStatus, setQueueStatus, rescheduleAppointment,
       deleteAppointment, updateDentist, createDentist, createPatient, updatePatient, addPatientChild,
-      addWaitlist, updateWaitlistStatus, removeWaitlist, updateServicePrice,
+      addWaitlist, updateWaitlistStatus, assignWaitingDentist, removeWaitlist, updateServicePrice,
+      saveVisitRecord, finishVisit, refresh,
       updateDayOpen, updateDayTime, addHoliday, removeHoliday, updateChairs, assignDentist,
       markAllNotificationsRead, simulateOnlineBooking, resetAllData,
     ],

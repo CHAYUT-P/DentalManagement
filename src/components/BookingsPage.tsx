@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { dentistBySlug } from "@/data/dentists";
 import type { IconKey } from "@/data/icons";
@@ -8,6 +9,7 @@ import { iconLibrary } from "@/data/icons";
 import { useLang } from "@/i18n/lang";
 import { fmtShort } from "@/lib/dates";
 import { cancelBooking, myBookings, myBookingsByLine } from "@/server/actions";
+import { RESCHEDULE_KEY, type RescheduleHandoff } from "./BookingFlow";
 import { Check, Cross } from "./icons";
 import { EmptySlip, Eyebrow, Screen, Slip } from "./screen";
 import { BookingsSkeleton } from "./PageLoading";
@@ -22,8 +24,9 @@ import { ServiceIcon } from "./serviceIcons";
  * is no third view: without one of those the page shows the phone gate, never
  * somebody else's rows.
  *
- * Cancel marks the appointment cancelled in the DB (staff see it immediately);
- * reschedule simply deep-links into the booking flow pre-filled.
+ * Cancel marks the appointment cancelled in the DB (staff see it immediately).
+ * Postpone hands the booking to the flow at `/book?r=` — same row, same ref,
+ * new date/time — so the family never ends up holding two bookings.
  */
 
 export interface BookingView {
@@ -46,7 +49,7 @@ function PastRow({ a }: { a: BookingView }) {
   return (
     <div className={`histRow ${a.status}`}>
       <span className={`disc t-${TINT.get(a.treatmentKey) ?? "lav"}`}>
-        <ServiceIcon k={a.treatmentKey} size={20} />
+        <ServiceIcon k={a.treatmentKey} size={25} />
       </span>
       <span className="hText">
         <span className="hn">{t.service[a.treatmentKey]}</span>
@@ -105,9 +108,12 @@ export function BookingsPage({ today }: { today: string }) {
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
     if (!liffId) return;
     let cancelled = false;
+    // outside LINE liff.init() has been seen to never settle — give up after a
+    // few seconds so the phone gate appears instead of an endless skeleton
+    const giveUp = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("liff timeout")), 4000));
     import("@line/liff")
       .then(async ({ default: liff }) => {
-        await liff.init({ liffId });
+        await Promise.race([liff.init({ liffId }), giveUp]);
         if (!liff.isLoggedIn()) return;
         const token = liff.getIDToken();
         const [profile, rows] = await Promise.all([
@@ -162,9 +168,28 @@ export function BookingsPage({ today }: { today: string }) {
     .filter((b) => !live(b.status) || b.date < today)
     .sort((a, b) => (a.date + a.time > b.date + b.time ? -1 : 1));
 
-  const next = upcoming[0];
+  const router = useRouter();
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const cancelling = cancelTarget !== null && pending;
+
+  /** the phone proves ownership, so it rides in sessionStorage, not the URL */
+  function doPostpone(a: BookingView) {
+    const handoff: RescheduleHandoff = {
+      ref: a.ref,
+      phone: a.phone,
+      date: a.date,
+      time: a.time,
+      childName: a.childName,
+    };
+    try {
+      sessionStorage.setItem(RESCHEDULE_KEY, JSON.stringify(handoff));
+    } catch {
+      // storage blocked — the flow asks for the phone instead
+    }
+    const q = new URLSearchParams({ r: a.ref, t: a.treatmentKey });
+    if (a.dentistSlug) q.set("d", a.dentistSlug);
+    router.push(`/book?${q.toString()}`);
+  }
 
   function doCancel(a: BookingView) {
     setCancelTarget(a.ref);
@@ -223,33 +248,38 @@ export function BookingsPage({ today }: { today: string }) {
     <Screen title={t.nav.bookings} back="/">
       {lineName ? <p className="hint" style={{ padding: "0 4px 8px" }}>LINE · {lineName}</p> : null}
       <Eyebrow>{t.bookingsPage.upcoming}</Eyebrow>
-      {next ? (
-        <>
-          <Slip
-            appt={{
-              ref: next.ref,
-              dateISO: next.date,
-              time: next.time,
-              treatment: next.treatmentKey,
-              dentist: next.dentistSlug,
-              status: "confirmed",
-            }}
-            patient={next.childName}
-          />
-          <div className="twoBtn">
-            <a href={`/book?t=${next.treatmentKey}${next.dentistSlug ? `&d=${next.dentistSlug}` : ""}`} className="softBtn">
-              {t.bookingsPage.reschedule}
-            </a>
-            <button
-              type="button"
-              className="softBtn danger"
-              disabled={cancelling}
-              onClick={() => doCancel(next)}
-            >
-              {cancelling ? "…" : t.bookingsPage.cancelBooking}
-            </button>
+      {upcoming.length > 0 ? (
+        upcoming.map((a) => (
+          <div key={a.ref} className="upNext">
+            <Slip
+              appt={{
+                ref: a.ref,
+                dateISO: a.date,
+                time: a.time,
+                treatment: a.treatmentKey,
+                dentist: a.dentistSlug,
+                status: "confirmed",
+              }}
+              patient={a.childName}
+            />
+            {/* only a booking nobody has checked in yet can move or be cancelled */}
+            {a.status === "confirmed" ? (
+              <div className="twoBtn">
+                <button type="button" className="softBtn" onClick={() => doPostpone(a)}>
+                  {t.bookingsPage.reschedule}
+                </button>
+                <button
+                  type="button"
+                  className="softBtn danger"
+                  disabled={cancelling && cancelTarget === a.ref}
+                  onClick={() => doCancel(a)}
+                >
+                  {cancelling && cancelTarget === a.ref ? "…" : t.bookingsPage.cancelBooking}
+                </button>
+              </div>
+            ) : null}
           </div>
-        </>
+        ))
       ) : (
         <EmptySlip />
       )}

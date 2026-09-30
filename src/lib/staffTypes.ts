@@ -15,6 +15,14 @@ export type AppointmentStatus =
   | "no_show";
 export type BookingSource = "online" | "phone" | "walkin";
 
+/**
+ * Which feature set this staff build carries. "queue" is the default install:
+ * queue + bookings + website content. "full" adds patient records, per-dentist
+ * room pages and the per-PC device mode — same codebase, bigger bundle
+ * (vite build --mode full / STAFF_EDITION=full on the web).
+ */
+export type StaffEdition = "queue" | "full";
+
 export interface StaffAppointment {
   id: string;
   ref: string;
@@ -22,6 +30,9 @@ export interface StaffAppointment {
   time: string; // HH:MM
   durationMin: number;
   childName: string;
+  /** DB child row id when the booking matched a patient record — the room
+   *  page uses it to surface allergies/conditions */
+  childId?: string | null;
   childAge?: number;
   guardianName: string;
   phone: string;
@@ -38,6 +49,8 @@ export interface StaffAppointment {
   createdAt: string;
   /** true when the patient booked for themselves (adult, no child involved) */
   forSelf?: boolean;
+  /** LINE display name of the account that booked online ("" or absent = not via LINE) */
+  lineName?: string;
 }
 
 export interface ShiftHour {
@@ -107,9 +120,69 @@ export interface WaitlistEntry {
   notes?: string;
 }
 
+/** one child row in a patient form payload — what the server writes */
+export interface PatientChildInput {
+  /** DB id when editing an existing child row; absent = new child */
+  id?: number;
+  name: string;
+  fullName?: string;
+  nickname?: string;
+  birthdate?: string;
+  age?: number | null;
+  gender?: string;
+  hn?: string;
+  bloodType?: string;
+  conditions?: string;
+  medications?: string;
+  allergies?: string;
+  notes?: string;
+}
+
+/** the full guardian form — absent fields are left untouched server-side */
+export interface PatientUpsertInput {
+  name: string;
+  fullName?: string;
+  /** "แม่" | "พ่อ" | "ตนเอง" … */
+  relation?: string;
+  phone: string;
+  /** the typed-in LINE id — stored as line_contact, never the push id */
+  lineId?: string;
+  address?: string;
+  children?: PatientChildInput[];
+}
+
+/** the wire shape for saving a visit record — what the actions/API accept */
+export interface VisitRecordInput {
+  /** the booking this visit came from — XOR waitlistId */
+  appointmentId?: number | null;
+  /** the walk-in queue row — XOR appointmentId */
+  waitlistId?: number | null;
+  dentistId?: number | null;
+  /** IconKey[] — treatments actually performed */
+  treatments: string[];
+  detail: string;
+  price?: number | null;
+}
+
+/**
+ * The dentist's record of one visit (full edition — room page). Exactly one
+ * of appointmentId / waitlistId is set: the visit it belongs to.
+ */
+export interface VisitRecord {
+  id: string;
+  appointmentId?: string;
+  waitlistId?: string;
+  dentistSlug?: string;
+  /** IconKey[] — treatments actually performed */
+  treatments: IconKey[];
+  detail: string;
+  price?: number;
+  updatedAt: string;
+}
+
 export interface StaffNotification {
   id: string;
-  type: "online_booking" | "cancellation" | "check_in" | "reminder";
+  type: "online_booking" | "cancellation" | "reschedule" | "check_in" | "reminder";
   title: string;
   body: string;
   time: string;

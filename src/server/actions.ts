@@ -31,10 +31,15 @@ import {
   upsertGuardian,
   clinicNowHHMM,
   type AppointmentUpdate,
+  type ChildInput,
+  type CreatePatientInput,
   type DentistUpdate,
   type NewDentistInput,
 } from "@/server/queries";
 import type { WaitlistDTO } from "@/server/queries";
+import type { VisitRecordInput } from "@/lib/staffTypes";
+
+export type { VisitRecordInput } from "@/lib/staffTypes";
 
 /**
  * Server Actions — the mutation API for both UIs.
@@ -225,10 +230,12 @@ export async function bookAppointment(input: {
   treatmentKey: IconKey;
   /** dentist id, or null for "any dentist" */
   dentistId: number | null;
+  /** the name the family gives at the desk — a nickname is enough */
   childName: string;
-  guardianName: string;
+  /** legacy: older clients sent a separate contact name; the booking name is used when absent */
+  guardianName?: string;
   phone: string;
-  forSelf: boolean;
+  forSelf?: boolean;
   /** token from holdSlot — the slot reservation being confirmed */
   holdToken?: string;
   /** LIFF ID token when the page runs inside LINE — verified server-side */
@@ -236,7 +243,8 @@ export async function bookAppointment(input: {
 }): Promise<BookResult> {
   // minimal validation — never trust the client, even ours
   if (await limited("book", 20, 600)) return { ok: false, error: "invalid" };
-  if (!input.date || !input.time || !input.treatmentKey || !input.phone || !input.guardianName) {
+  const name = input.childName?.trim() ?? "";
+  if (!input.date || !input.time || !input.treatmentKey || !input.phone || !name) {
     return { ok: false, error: "invalid" };
   }
   if (!/^[0-9]{9,10}$/.test(input.phone.replace(/\D/g, ""))) {
@@ -252,8 +260,9 @@ export async function bookAppointment(input: {
     await releaseHold(input.holdToken);
   }
 
-  // verify LINE identity up front — a linked account decides which guardian
-  // row the booking lands on, and it gets the push confirmation after
+  // verify LINE identity up front — the booking is stamped with the account
+  // (that is how "my bookings" finds it inside LINE) and it gets the push
+  // confirmation after
   const { verifyLineIdToken } = await import("@/server/line");
   const identity = input.lineIdToken ? await verifyLineIdToken(input.lineIdToken) : null;
 
@@ -273,13 +282,16 @@ export async function bookAppointment(input: {
     time: input.time,
     treatmentKey: input.treatmentKey,
     dentistId,
-    childName: input.childName || input.guardianName,
-    guardianName: input.guardianName,
+    childName: name,
+    guardianName: input.guardianName?.trim() || name,
     phone: input.phone,
-    forSelf: input.forSelf,
+    forSelf: input.forSelf ?? false,
     source: "online",
     price: null,
     lineUserId: identity?.userId,
+    lineName: identity?.displayName,
+    // nickname + phone only — no guardian/child records from the patient site
+    register: false,
   });
 
   if (!created) return { ok: false, error: "slot_taken" };
@@ -287,11 +299,10 @@ export async function bookAppointment(input: {
   const { settlePool } = await import("@/server/queries");
   await settlePool(input.date, input.time);
 
-  // link the account to the guardian row, then confirm in their chat — any
-  // LINE failure degrades to a normal booking, never a failed one
-  if (identity && created.guardianId) {
-    const { linkGuardianLine, pushLineText } = await import("@/server/line");
-    await linkGuardianLine(created.guardianId, identity);
+  // confirm in their chat — any LINE failure degrades to a normal booking,
+  // never a failed one
+  if (identity) {
+    const { pushLineText } = await import("@/server/line");
     await pushLineText(
       identity.userId,
       `จองคิวสำเร็จ ✓\nรหัสจอง: ${created.ref}\nวันที่ ${input.date} เวลา ${input.time}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
@@ -339,23 +350,17 @@ export async function myBookings(phone: string) {
 
 /**
  * The LINE path for the same page — the LIFF ID token is verified server-side
- * and the linked guardian's bookings come back. null = token rejected or LINE
- * not configured (caller falls back to the phone view); [] = verified but no
- * guardian linked yet.
+ * and every booking that account made comes back. null = token rejected or
+ * LINE not configured (caller falls back to the phone view); [] = verified but
+ * nothing booked from this account yet.
  */
 export async function myBookingsByLine(lineIdToken: string) {
   if (await limited("lookup", 40, 600)) return null;
   const { verifyLineIdToken } = await import("@/server/line");
-  const { findGuardianByLineId } = await import("@/server/queries");
+  const { listAppointmentsForLine } = await import("@/server/queries");
   const identity = await verifyLineIdToken(lineIdToken);
   if (!identity) return null;
-  const g = await findGuardianByLineId(identity.userId);
-  if (!g) return [];
-  return listAppointmentsBetween("1970-01-01", "9999-12-31").then((all) =>
-    all
-      .filter((a) => a.guardianId === g.id)
-      .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1)),
-  );
+  return listAppointmentsForLine(identity.userId);
 }
 
 /** the booking flow's returning-family lookup (read-only action) */
@@ -389,6 +394,83 @@ export async function cancelBooking(ref: string, phone: string) {
   await settlePool(target.date, target.time);
   await dbInsertCancellationNotice(target.ref, target.childName, target.date, target.time);
   revalidateAll();
+}
+
+/**
+ * The patient postponed their own booking: the same appointment row moves to
+ * a new date/time — same ref, treatment, dentist and child — so the old slot
+ * frees up and the family never ends up holding two bookings. Same proof as
+ * `cancelBooking` (ref + the booking's phone), same slot rules as a new
+ * booking (`slotVerdict`), and the unique slot index still guards the race.
+ */
+export async function rescheduleBooking(input: {
+  ref: string;
+  phone: string;
+  date: string;
+  time: string;
+  /** token from holdSlot — the new slot's reservation being confirmed */
+  holdToken?: string;
+}): Promise<BookResult> {
+  if (await limited("reschedule", 10, 600)) return { ok: false, error: "invalid" };
+  if (!input.ref || !input.phone || !input.date || !input.time) return { ok: false, error: "invalid" };
+
+  const rows = await listAppointmentsBetween("1970-01-01", "9999-12-31");
+  const target = rows.find((a) => a.ref === input.ref);
+  if (!target) return { ok: false, error: "invalid" };
+  if (target.phone.replace(/\D/g, "") !== input.phone.replace(/\D/g, "")) return { ok: false, error: "invalid" };
+  // only a booking still waiting to happen can move — not one already checked
+  // in, finished, cancelled or in the past
+  const { todayISO } = await import("@/lib/dates");
+  if (target.status !== "confirmed" || target.date < todayISO()) return { ok: false, error: "invalid" };
+  if (target.date === input.date && target.time === input.time) return { ok: true, ref: target.ref };
+
+  if (input.holdToken) {
+    const { releaseHold } = await import("@/server/queries");
+    await releaseHold(input.holdToken);
+  }
+
+  const verdict = await slotVerdict(input.date, input.time, target.treatmentKey, target.dentistId);
+  if (verdict !== "ok") return { ok: false, error: verdict };
+
+  try {
+    await updateAppointment(target.id, { date: input.date, time: input.time });
+  } catch {
+    // the unique slot index fired — someone took that dentist's slot mid-flight
+    return { ok: false, error: "slot_taken" };
+  }
+
+  const { settlePool } = await import("@/server/queries");
+  await settlePool(target.date, target.time); // the old slot may home a pooled booking
+  await settlePool(input.date, input.time);
+
+  // a reminder already sent for the old date must not stop the new date's one
+  const { messageLog } = await import("@/db/schema");
+  const { and, eq, like } = await import("drizzle-orm");
+  await db
+    .delete(messageLog)
+    .where(and(eq(messageLog.appointmentId, target.id), like(messageLog.kind, "reminder_%")));
+
+  await db.insert(staffNotification).values({
+    type: "reschedule",
+    title: "ผู้ปกครองเลื่อนนัดหมาย",
+    body: `${target.childName} เลื่อนนัดจาก ${target.date} ${target.time} น. เป็น ${input.date} ${input.time} น. (${target.ref})`,
+    refCode: target.ref,
+  });
+
+  {
+    const { lineTargetForAppointment } = await import("@/server/queries");
+    const { pushLineText } = await import("@/server/line");
+    const to = await lineTargetForAppointment(target.id);
+    if (to) {
+      await pushLineText(
+        to,
+        `เลื่อนนัดสำเร็จ ✓\nรหัสจอง: ${target.ref}\nนัดใหม่ วันที่ ${input.date} เวลา ${input.time}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
+      );
+    }
+  }
+
+  revalidateAll();
+  return { ok: true, ref: target.ref };
 }
 
 /* ═══════════════════════════ staff: login ═══════════════════════════════ */
@@ -511,26 +593,21 @@ export async function staffCreateDentist(input: NewDentistInput) {
 
 /* ═══════════════════════════ staff: patients ════════════════════════════ */
 
-export async function staffUpsertPatient(input: {
-  name: string;
-  phone: string;
-  address?: string;
-  children?: { name: string }[];
-}) {
+export async function staffUpsertPatient(input: CreatePatientInput) {
   await guard();
   await upsertGuardian(input);
   revalidateAll();
 }
 
-export async function staffUpdatePatient(id: number, patch: { name?: string; phone?: string; address?: string }) {
+export async function staffUpdatePatient(id: number, patch: Partial<CreatePatientInput>) {
   await guard();
   await updatePatient(id, patch);
   revalidateAll();
 }
 
-export async function staffAddChild(patientId: number, name: string) {
+export async function staffAddChild(patientId: number, child: string | ChildInput) {
   await guard();
-  await addChildToGuardian(patientId, name);
+  await addChildToGuardian(patientId, child);
   revalidateAll();
 }
 
@@ -545,6 +622,32 @@ export async function staffAddWaitlist(input: {
 }) {
   await guard();
   await addWaitlist(input);
+  revalidateAll();
+}
+
+/* ═══════════════════ staff: visit records (room page) ═══════════════════ */
+
+/** save the dentist's record without closing the visit (mid-treatment edits) */
+export async function staffSaveVisitRecord(input: VisitRecordInput) {
+  await guard();
+  const { upsertVisitRecord } = await import("@/server/queries");
+  await upsertVisitRecord(input);
+  revalidateAll();
+}
+
+/**
+ * One tap on the room page: save the record AND close the visit — booking →
+ * "completed", walk-in → "done". One round-trip so the chair frees at once.
+ */
+export async function staffFinishVisit(input: VisitRecordInput) {
+  await guard();
+  const { upsertVisitRecord, updateWaitlistStatus } = await import("@/server/queries");
+  await upsertVisitRecord(input);
+  if (input.appointmentId != null) {
+    await updateAppointment(input.appointmentId, { status: "completed" });
+  } else if (input.waitlistId != null) {
+    await updateWaitlistStatus(input.waitlistId, "done");
+  }
   revalidateAll();
 }
 
@@ -628,13 +731,20 @@ export async function staffPrices() {
  */
 export async function staffBootstrap() {
   await guard();
-  const { toUIAppointments, toUIEditableDentists, toUIPatients, toUIWaitlist, toUINotifications } =
-    await import("@/lib/staffConvert");
+  const {
+    toUIAppointments,
+    toUIEditableDentists,
+    toUIPatients,
+    toUIVisitRecords,
+    toUIWaitlist,
+    toUINotifications,
+  } = await import("@/lib/staffConvert");
   const {
     listAppointmentsBetween,
     listDentists,
     listPatients,
     listWaitlist,
+    listVisitRecordsForDate,
     listNotifications,
     listClinicDays,
     listHolidays,
@@ -642,12 +752,15 @@ export async function staffBootstrap() {
     getChairs,
   } = await import("@/server/queries");
 
-  const [appts, dentists, patients, waitlist, notifications, days, holidays, prices, chairs] =
+  const today = (await import("@/lib/dates")).todayISO();
+
+  const [appts, dentists, patients, waitlist, visitRecords, notifications, days, holidays, prices, chairs] =
     await Promise.all([
       listAppointmentsBetween("1970-01-01", "9999-12-31"),
       listDentists(),
       listPatients(),
       listWaitlist(),
+      listVisitRecordsForDate(today),
       listNotifications(),
       listClinicDays(),
       listHolidays(),
@@ -656,11 +769,12 @@ export async function staffBootstrap() {
     ]);
 
   return {
-    today: (await import("@/lib/dates")).todayISO(),
+    today,
     appointments: toUIAppointments(appts),
     dentists: toUIEditableDentists(dentists),
     patients: toUIPatients(patients),
     waitlist: toUIWaitlist(waitlist),
+    visitRecords: toUIVisitRecords(visitRecords),
     notifications: toUINotifications(notifications),
     schedule: days,
     holidays,
@@ -673,6 +787,7 @@ export type StaffBootstrap = Awaited<ReturnType<typeof staffBootstrap>>;
 
 /** wipe and re-seed the demo data (the staff console's reset button) */
 export async function staffResetDemoData() {
+  await guard();
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const run = promisify(execFile);

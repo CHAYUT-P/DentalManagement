@@ -34,7 +34,7 @@ Design goal: a parent holding a phone with one hand and a child with the other m
 - **Login**: LINE (LIFF). We get the LINE `userId`, display name and picture — that is the account. No password, no separate signup.
 - **Book**: choose treatment → choose dentist → choose date & time → confirm. Slot is reserved immediately.
 - **My appointments**: upcoming + history, with the booking reference. Cancel/reschedule rules TBD.
-- **Children**: one LINE account (the guardian) can hold several child profiles; a booking is *for* a named child.
+- **Booking identity (changed 2026-10-01)**: a booking collects only a **nickname + phone** — the name the family says at the desk. No guardian/child details. Inside LINE the booking is also stamped with the LINE account (`appointment.line_user_id` + `line_name`): that is what lists "my bookings" in LINE, where reminders go, and what staff see as "LINE · <name>". Patient-site bookings create no guardian/child rows; patient records are the full edition's job.
 - **Dentists**: profile pages — photo, name, specialty, description. Content comes from the staff app.
 - **Treatments & prices**: list with icons and prices, maintained in the staff app.
 - **Promotions / announcements**: content slots inside the booking web, so the clinic can advertise there.
@@ -85,6 +85,45 @@ Mock appointments are stored as an offset in days from today, so they never rot;
 - **Patients (lighter scope)**: guardian + child records, contact, notes. Not a medical record system.
 - **Settings**: opening hours, holidays, slot rules, staff accounts and roles.
 - **Out of scope now**: billing, clinical charting, X-ray/imaging, stock. The existing clinic application keeps those.
+
+### Editions — same codebase, two builds
+
+| | **Queue** (first install) | **Full** |
+| --- | --- | --- |
+| Scope | queue, bookings, dentist + treatment + clinic content | everything in Queue, plus patient records and per-dentist room pages |
+| Desktop build | `pnpm --dir apps/staff-desktop build:app` | `pnpm --dir apps/staff-desktop build:app:full` (merges `src-tauri/tauri.full.conf.json`) |
+| Web console | default | `STAFF_EDITION=full` on the deploy |
+
+- The flag travels as `edition` on `StaffProvider`: desktop stamps it via
+  `vite --mode full` → `__STAFF_EDITION__` → `src/edition.ts`; the web layout
+  reads `STAFF_EDITION`. Components check `edition` from `useStaff()`.
+- **Room mode** is a per-device localStorage switch (Settings → หน้าจอเครื่องนี้,
+  full only): a treatment-room PC locks onto one dentist's page
+  (`/staff/rooms/[slug]` web, `#/rooms/:slug` desktop) — its waiting line plus
+  the visit-record form. The gear floating button exits back to the desk.
+- Visit records (`visit_record` table) attach to an appointment OR a walk-in,
+  one per visit: treatments done, detail note, price. "เสร็จสิ้น & บันทึก"
+  saves the record and frees the chair in one action.
+- All screens poll `staffBootstrap` every 20s — a check-in at the desk shows
+  up on the room PC without a reload.
+
+### Navigation (redesigned 2026-09-30)
+
+Three rail entries instead of eight (full edition adds คนไข้ and ห้องตรวจ);
+entries come from `railItems()` in `src/components/staff/staffRail.tsx`, shared
+by the web sidebar and the desktop one.
+
+| Entry | Route (web / desktop) | What it holds |
+|---|---|---|
+| วันนี้ | `/staff` · `#/` | the queue board (`app/staff/queue/page.tsx`): ยังไม่มา → รอเรียก → บนเก้าอี้, walk-ins merged in |
+| ตารางนัด | `/staff/schedule` · `#/schedule` | `ScheduleView`: วัน = per-dentist calendar (`ScheduleDay`), รายการ = the booking directory (`app/staff/appointments/page.tsx`) |
+| ตั้งค่า | `/staff/settings` · `#/settings` | `SetupView`: roster, prices, and each `ClinicSettings` group as a sub-menu item |
+
+The top bar (`StaffTopbar`) is the only place for search, + Walk-in, + นัดใหม่
+and the bell (notifications moved there from their own page). Old addresses
+redirect to the entry that absorbed them. Look: clinic palette in `staff.css`
+tokens, plum ink for primary buttons; the desktop app bundles Prompt + Mitr via
+`@fontsource` because its CSP blocks Google Fonts.
 
 ## 3. Backend
 

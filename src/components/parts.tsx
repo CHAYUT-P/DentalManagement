@@ -78,7 +78,7 @@ export function ServiceGrid({ items, cols = 5 }: { items: Service[]; cols?: 3 | 
           className="tile"
         >
           <span className={`disc t-${s.tint}`}>
-            <ServiceIcon k={s.key} size={cols === 3 ? 30 : 28} />
+            <ServiceIcon k={s.key} size={cols === 3 ? 35 : 31} />
           </span>
           <span className="label">{t.service[s.key]}</span>
         </Link>

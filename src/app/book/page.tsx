@@ -18,7 +18,8 @@ const WINDOW_DAYS = 14;
 
 /**
  * `?t=` preselects a treatment (the home tiles and the services list link in
- * that way) and `?d=` a dentist (from a dentist's profile).
+ * that way) and `?d=` a dentist (from a dentist's profile). `?r=` turns the
+ * flow into "postpone this booking" (from /bookings).
  *
  * All booking decisions come from Postgres: the roster, the open days, the
  * holidays, and per-date slot occupancy for the whole window. `connection()`
@@ -30,6 +31,9 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
   const q = await searchParams;
   const rawT = typeof q.t === "string" ? q.t : undefined;
   const rawD = typeof q.d === "string" ? q.d : undefined;
+  // `?r=` is a booking ref to postpone — only the code travels in the URL; the
+  // phone that proves ownership comes from sessionStorage on the client
+  const rawR = typeof q.r === "string" && /^[A-Za-z0-9-]{4,20}$/.test(q.r) ? q.r : undefined;
 
   const today = todayISO();
   const [dentistRows, clinicDays, holidays] = await Promise.all([
@@ -72,6 +76,7 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
       popular={popular}
       preTreatment={rawT && isIconKey(rawT) ? rawT : undefined}
       preDentist={rawD && dentistRows.some((d) => d.slug === rawD) ? rawD : undefined}
+      rescheduleRef={rawR}
     />
   );
 }

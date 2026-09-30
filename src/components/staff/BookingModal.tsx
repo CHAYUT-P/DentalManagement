@@ -39,14 +39,9 @@ export function BookingModal({
   const [time, setTime] = useState(initialTime || "10:00");
   const [dentistSlug, setDentistSlug] = useState(initialDentistSlug || dentists[0]?.slug || "naree");
   const [treatmentKey, setTreatmentKey] = useState<IconKey>("checkup");
+  /** the name the family gives at the desk — a nickname is enough */
   const [childName, setChildName] = useState(initialChildName || "");
-  const [childAge, setChildAge] = useState<string>(
-    initialChildAge !== undefined ? String(initialChildAge) : "5",
-  );
-  const [guardianName, setGuardianName] = useState(initialGuardianName || "");
   const [phone, setPhone] = useState(initialPhone || "");
-  /** adult booking for themselves — no child, guardian fields become the patient */
-  const [forSelf, setForSelf] = useState(initialForSelf || false);
   const [source, setSource] = useState<BookingSource>("phone");
   const [notes, setNotes] = useState("");
 
@@ -54,12 +49,12 @@ export function BookingModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forSelf && !childName.trim()) {
-      alert("กรุณากรอกชื่อคนไข้ (น้อง)");
+    if (!childName.trim()) {
+      alert("กรุณากรอกชื่อที่ใช้จอง");
       return;
     }
     if (!phone.trim()) {
-      alert(forSelf ? "กรุณากรอกเบอร์ติดต่อคนไข้" : "กรุณากรอกเบอร์ติดต่อผู้ปกครอง");
+      alert("กรุณากรอกเบอร์โทร");
       return;
     }
 
@@ -67,9 +62,11 @@ export function BookingModal({
       date,
       time,
       durationMin: 30,
-      childName: forSelf ? guardianName.trim() || "ผู้จอง" : childName.trim(),
-      childAge: forSelf ? undefined : childAge ? parseInt(childAge, 10) : undefined,
-      guardianName: guardianName.trim() || (forSelf ? "ตนเอง" : "ผู้ปกครอง"),
+      childName: childName.trim(),
+      // booking from a patient record (full edition) keeps that record's
+      // details; a plain desk booking is just the name + phone
+      childAge: initialChildAge,
+      guardianName: initialGuardianName?.trim() || childName.trim(),
       phone: phone.trim(),
       dentistSlug,
       treatmentKey,
@@ -77,7 +74,7 @@ export function BookingModal({
       status: "confirmed",
       notes: notes.trim(),
       price: servicePrices[treatmentKey] ?? 0,
-      forSelf,
+      forSelf: initialForSelf ?? false,
     });
 
     if (onCreated) onCreated();
@@ -94,7 +91,7 @@ export function BookingModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>รับนัดหมายใหม่ (New Booking)</h3>
+          <h3>นัดใหม่</h3>
           <button type="button" className="btn-action-icon" onClick={onClose}>
             <IconX size={16} />
           </button>
@@ -133,63 +130,24 @@ export function BookingModal({
               </div>
             </div>
 
-            {/* Who is visiting */}
-            <div className="form-group">
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={forSelf}
-                  onChange={(e) => setForSelf(e.target.checked)}
-                />
-                <span>จองให้ตัวเอง (คนไข้ผู้ใหญ่ ไม่มีเด็ก)</span>
-              </label>
-            </div>
-
-            {/* Child Info */}
-            {!forSelf ? (
-              <div className="form-row-2">
-                <div className="form-group">
-                  <label>ชื่อคนไข้ (เด็ก) *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="เช่น น้องเจได"
-                    value={childName}
-                    onChange={(e) => setChildName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>อายุ (ปี)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="เช่น 5"
-                    value={childAge}
-                    onChange={(e) => setChildAge(e.target.value)}
-                    min={1}
-                    max={18}
-                  />
-                </div>
-              </div>
-            ) : null}
-
-            {/* Guardian Info */}
+            {/* Who is coming: the name they will give at the desk + a phone */}
             <div className="form-row-2">
               <div className="form-group">
-                <label>{forSelf ? "ชื่อคนไข้ (ผู้ใหญ่) *" : "ชื่อผู้ปกครอง"}</label>
+                <label htmlFor="bk-name">ชื่อที่จอง *</label>
                 <input
+                  id="bk-name"
                   type="text"
                   className="form-control"
-                  placeholder={forSelf ? "เช่น คุณมณฑิรา" : "เช่น คุณแม่มณฑิรา"}
-                  value={guardianName}
-                  onChange={(e) => setGuardianName(e.target.value)}
-                  required={forSelf}
+                  placeholder="เช่น น้องเจได"
+                  value={childName}
+                  onChange={(e) => setChildName(e.target.value)}
+                  required
                 />
               </div>
               <div className="form-group">
-                <label>เบอร์โทรศัพท์ติดต่อ *</label>
+                <label htmlFor="bk-phone">เบอร์โทร *</label>
                 <input
+                  id="bk-phone"
                   type="tel"
                   className="form-control"
                   placeholder="08X-XXX-XXXX"

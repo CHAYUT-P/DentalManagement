@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 
+import { DeviceGate } from "@/components/staff/DeviceGate";
 import { StaffLoginGate } from "@/components/staff/StaffLoginGate";
 import { StaffSidebar } from "@/components/staff/StaffSidebar";
 import { StaffTopbar } from "@/components/staff/StaffTopbar";
@@ -37,15 +38,24 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   if (process.env.STAFF_WEB === "1" && !(await isStaffAuthed())) return <StaffLoginGate />;
   const initial = await staffBootstrap();
 
+  /**
+   * The web console ships the same edition split as the desktop builds:
+   * STAFF_EDITION=full exposes patients + room pages (the "full" install);
+   * anything else is the lean queue console.
+   */
+  const edition = process.env.STAFF_EDITION === "full" ? "full" : "queue";
+
   return (
-    <StaffProvider initial={initial}>
-      <div className="staff-root">
-        <StaffSidebar />
-        <div className="staff-main">
-          <StaffTopbar />
-          {children}
+    <StaffProvider initial={initial} edition={edition}>
+      <DeviceGate>
+        <div className="staff-root">
+          <StaffSidebar />
+          <div className="staff-main">
+            <StaffTopbar />
+            {children}
+          </div>
         </div>
-      </div>
+      </DeviceGate>
     </StaffProvider>
   );
 }

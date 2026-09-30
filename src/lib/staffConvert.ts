@@ -1,11 +1,21 @@
-import type { StaffAppointment, EditableDentist, PatientRecord, WaitlistEntry, StaffNotification, ShiftHour } from "@/lib/staffStore";
+import type {
+  StaffAppointment,
+  EditableDentist,
+  PatientRecord,
+  VisitRecord,
+  WaitlistEntry,
+  StaffNotification,
+  ShiftHour,
+} from "@/lib/staffStore";
 import type {
   AppointmentDTO,
   DentistDTO,
   GuardianDTO,
   NotificationDTO,
+  VisitRecordDTO,
   WaitlistDTO,
 } from "@/server/queries";
+import type { IconKey } from "@/data/icons";
 
 /**
  * DB → staff-UI adapters. The staff console's components render the shapes from
@@ -23,6 +33,7 @@ export function toUIAppointment(a: AppointmentDTO): StaffAppointment {
     time: a.time,
     durationMin: a.durationMin,
     childName: a.childName,
+    childId: a.childId != null ? String(a.childId) : null,
     guardianName: a.guardianName,
     phone: a.phone,
     dentistSlug: a.dentistSlug,
@@ -34,6 +45,7 @@ export function toUIAppointment(a: AppointmentDTO): StaffAppointment {
     notes: a.note,
     price: a.price ?? undefined,
     forSelf: a.forSelf,
+    lineName: a.lineName,
     createdAt: a.date,
   };
 }
@@ -74,15 +86,25 @@ export function toUIPatient(g: GuardianDTO): PatientRecord {
   return {
     id: String(g.id),
     guardianName: g.name,
+    guardianFullName: g.fullName || undefined,
+    guardianRelation: g.relation || undefined,
     phone: g.phone.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3"),
-    lineId: g.lineUserId ?? undefined,
+    lineId: g.lineContact || undefined,
+    address: g.address || undefined,
     children: g.children.map((c) => ({
       id: String(c.id),
       name: c.name,
+      fullName: c.fullName || undefined,
+      nickname: c.nickname ?? undefined,
       age: c.age ?? undefined,
       birthdate: c.birthdate ?? undefined,
-      allergies: c.allergies,
-      notes: c.notes,
+      gender: (c.gender || undefined) as PatientRecord["children"][number]["gender"],
+      hn: c.hn ?? undefined,
+      bloodType: (c.bloodType || undefined) as PatientRecord["children"][number]["bloodType"],
+      conditions: c.conditions || undefined,
+      medications: c.medications || undefined,
+      allergies: c.allergies || undefined,
+      notes: c.notes || undefined,
     })),
     registeredAt: g.registeredAt,
   };
@@ -123,4 +145,21 @@ export function toUINotification(n: NotificationDTO): StaffNotification {
 
 export function toUINotifications(list: NotificationDTO[]): StaffNotification[] {
   return list.map(toUINotification);
+}
+
+export function toUIVisitRecord(v: VisitRecordDTO): VisitRecord {
+  return {
+    id: String(v.id),
+    appointmentId: v.appointmentId != null ? String(v.appointmentId) : undefined,
+    waitlistId: v.waitlistId != null ? String(v.waitlistId) : undefined,
+    dentistSlug: v.dentistSlug ?? undefined,
+    treatments: v.treatments as IconKey[],
+    detail: v.detail,
+    price: v.price ?? undefined,
+    updatedAt: v.updatedAt,
+  };
+}
+
+export function toUIVisitRecords(list: VisitRecordDTO[]): VisitRecord[] {
+  return list.map(toUIVisitRecord);
 }

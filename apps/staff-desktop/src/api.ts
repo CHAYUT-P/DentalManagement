@@ -2,11 +2,17 @@ import type { IconKey } from "@/data/icons";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type {
   EditableDentist,
+  PatientChildInput,
   PatientRecord,
+  PatientUpsertInput,
   StaffAppointment,
   StaffNotification,
+  VisitRecord,
+  VisitRecordInput,
   WaitlistEntry,
 } from "@/lib/staffTypes";
+
+export type { VisitRecordInput } from "@/lib/staffTypes";
 
 /**
  * The desktop app's data layer — the same names the web console's server
@@ -97,6 +103,7 @@ export interface StaffBootstrap {
   dentists: EditableDentist[];
   patients: PatientRecord[];
   waitlist: WaitlistEntry[];
+  visitRecords: VisitRecord[];
   notifications: StaffNotification[];
   schedule: ClinicDaySetting[];
   holidays: { id: number; start: string; end: string; name: string }[];
@@ -163,12 +170,7 @@ export function staffCreateDentist<T extends object>(input: T) {
   return call<void>("createDentist", [input]);
 }
 
-export function staffUpsertPatient(input: {
-  name: string;
-  phone: string;
-  address?: string;
-  children?: { name: string }[];
-}) {
+export function staffUpsertPatient(input: PatientUpsertInput) {
   return call<void>("upsertPatient", [input]);
 }
 
@@ -176,8 +178,8 @@ export function staffUpdatePatient<T extends object>(id: number, patch: T) {
   return call<void>("updatePatient", [id, patch]);
 }
 
-export function staffAddChild(patientId: number, name: string) {
-  return call<void>("addChild", [patientId, name]);
+export function staffAddChild(patientId: number, child: string | PatientChildInput) {
+  return call<void>("addChild", [patientId, child]);
 }
 
 export function staffAddWaitlist<T extends object>(input: T) {
@@ -194,6 +196,16 @@ export function staffSetWaitlistStatus(
 
 export function staffRemoveWaitlist(id: number) {
   return call<void>("removeWaitlist", [id]);
+}
+
+/* ── visit records (room page — full edition) ───────────────────────────── */
+
+export function staffSaveVisitRecord(input: VisitRecordInput) {
+  return call<void>("saveVisitRecord", [input]);
+}
+
+export function staffFinishVisit(input: VisitRecordInput) {
+  return call<void>("finishVisit", [input]);
 }
 
 /* ── prices / schedule / holidays / notifications ───────────────────────── */

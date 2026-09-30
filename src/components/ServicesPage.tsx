@@ -38,7 +38,7 @@ export function ServicesPage({ prices }: { prices: Partial<Record<IconKey, numbe
               {items.map((e) => (
                 <Link key={e.key} href={`/book?t=${e.key}`} className="pickRow">
                   <span className={`disc t-${e.tint}`}>
-                    <ServiceIcon k={e.key} size={21} />
+                    <ServiceIcon k={e.key} size={26} />
                   </span>
                   <span className="pt">
                     <span className="pn">{t.service[e.key]}</span>

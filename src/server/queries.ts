@@ -5,11 +5,12 @@
  * only ever runs on the server in the app because only server code imports it.
  */
 
-import { and, asc, desc, eq, gt, gte, inArray, lt, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, lte, ne, or, sql } from "drizzle-orm";
 
 import type { IconKey } from "@/data/icons";
 import { isIconKey } from "@/data/icons";
 import { minutesOf, todayISO, weekday, weekdayIndex } from "@/lib/dates";
+import type { PatientChildInput, PatientUpsertInput } from "@/lib/staffTypes";
 /**
  * The client instance is imported directly (not via "@/db", whose `server-only`
  * guard would also block the seed/verification scripts that legitimately reuse
@@ -32,6 +33,7 @@ import {
   slotHold,
   staffNotification,
   treatment,
+  visitRecord,
   waitlistEntry,
   type AppointmentSource,
   type AppointmentStatus,
@@ -116,16 +118,26 @@ export interface AppointmentDTO {
   note: string;
   price: number | null;
   forSelf: boolean;
+  /** LINE display name of the account that booked ("" = not booked in LINE) */
+  lineName: string;
 }
 
 export interface GuardianDTO {
   id: number;
   name: string;
+  fullName: string;
+  /** "แม่" | "พ่อ" | "ตนเอง" … — who the guardian is to the child */
+  relation: string;
   phone: string;
   lineUserId: string | null;
+  /** the typed-in LINE id — display only; the push id is lineUserId */
+  lineContact: string;
+  address: string;
   children: {
     id: number;
     name: string;
+    fullName: string;
+    nickname: string | null;
     birthdate: string | null;
     age: number | null;
     allergies: string;
@@ -134,8 +146,24 @@ export interface GuardianDTO {
     medications: string;
     hn: string | null;
     gender: string | null;
+    bloodType: string;
   }[];
   registeredAt: string;
+}
+
+export interface VisitRecordDTO {
+  id: number;
+  /** the booking this visit came from — XOR waitlistId */
+  appointmentId: number | null;
+  /** the walk-in queue row this visit came from — XOR appointmentId */
+  waitlistId: number | null;
+  dentistId: number | null;
+  dentistSlug: string | null;
+  /** IconKey[] — treatments actually performed */
+  treatments: string[];
+  detail: string;
+  price: number | null;
+  updatedAt: string;
 }
 
 export interface WaitlistDTO {
@@ -671,8 +699,16 @@ export interface CreateAppointmentInput {
   source?: AppointmentSource;
   note?: string;
   price?: number | null;
-  /** verified LINE userId — a linked guardian wins over phone matching */
+  /** verified LINE userId — stored on the booking; a linked guardian wins over phone matching */
   lineUserId?: string;
+  /** that account's display name, shown to the desk as "booked by" */
+  lineName?: string;
+  /**
+   * register the family (guardian + child rows) from this booking. Staff and
+   * scripts default to yes; patient-site bookings pass false — they collect a
+   * nickname and phone only, and patient records are the full edition's job.
+   */
+  register?: boolean;
 }
 
 /** make a booking reference: DK- plus four digits, retrying on collision */
@@ -699,23 +735,27 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
   // account wins over the phone match: every booking stays on one guardian
   // even when the family types a different contact number.
   const digits = input.phone.replace(/\D/g, "");
-  const fam = await findFamilyByPhone(digits);
-  const lineGuardian = input.lineUserId ? await findGuardianByLineId(input.lineUserId) : null;
-  let guardianId = lineGuardian?.id ?? fam[0]?.id ?? null;
-
-  if (!guardianId) {
-    guardianId = await upsertGuardian({ name: input.guardianName, phone: digits });
-  }
-
+  let guardianId: number | null = null;
   let childId: number | null = null;
-  if (input.childName && !input.forSelf) {
-    const name = input.childName.trim();
-    const kids = await db.select().from(child).where(eq(child.guardianId, guardianId));
-    childId = kids.find((c) => c.name === name)?.id ?? null;
-    if (!childId) {
-      await addChildToGuardian(guardianId, name);
-      const again = await db.select().from(child).where(eq(child.guardianId, guardianId));
-      childId = again.find((c) => c.name === name)?.id ?? null;
+
+  if (input.register !== false) {
+    const fam = await findFamilyByPhone(digits);
+    const lineGuardian = input.lineUserId ? await findGuardianByLineId(input.lineUserId) : null;
+    guardianId = lineGuardian?.id ?? fam[0]?.id ?? null;
+
+    if (!guardianId) {
+      guardianId = await upsertGuardian({ name: input.guardianName, phone: digits });
+    }
+
+    if (input.childName && !input.forSelf) {
+      const name = input.childName.trim();
+      const kids = await db.select().from(child).where(eq(child.guardianId, guardianId));
+      childId = kids.find((c) => c.name === name)?.id ?? null;
+      if (!childId) {
+        await addChildToGuardian(guardianId, name);
+        const again = await db.select().from(child).where(eq(child.guardianId, guardianId));
+        childId = again.find((c) => c.name === name)?.id ?? null;
+      }
     }
   }
 
@@ -738,6 +778,8 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
       note: input.note ?? "",
       price: input.price ?? null,
       forSelf: input.forSelf ?? false,
+      lineUserId: input.lineUserId ?? null,
+      lineName: input.lineName ?? "",
     })
     // the arbiter matches the partial unique index (status <> 'cancelled'):
     // a live booking keeps its slot exclusive; cancelled ones free it
@@ -791,6 +833,7 @@ function toAppointmentDTO(
     note: row.note,
     price: row.price,
     forSelf: row.forSelf,
+    lineName: row.lineName,
   };
 }
 
@@ -858,6 +901,40 @@ export async function deleteAppointment(id: number): Promise<void> {
 
 /* ═══════════════════════════════ patients ═══════════════════════════════ */
 
+function toGuardianDTO(
+  g: typeof guardian.$inferSelect,
+  cs: (typeof child.$inferSelect)[],
+): GuardianDTO {
+  return {
+    id: g.id,
+    name: g.name,
+    fullName: g.fullName,
+    relation: g.relation,
+    phone: g.phone,
+    lineUserId: g.lineUserId,
+    lineContact: g.lineContact,
+    address: g.address,
+    children: cs
+      .filter((c) => c.guardianId === g.id)
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        fullName: c.fullName,
+        nickname: c.nickname,
+        birthdate: c.birthdate,
+        age: c.age,
+        allergies: c.allergies,
+        notes: c.notes,
+        conditions: c.conditions,
+        medications: c.medications,
+        hn: c.hn,
+        gender: c.gender,
+        bloodType: c.bloodType,
+      })),
+    registeredAt: g.createdAt.toISOString().slice(0, 10),
+  };
+}
+
 export async function findFamilyByPhone(phone: string): Promise<GuardianDTO[]> {
   const digits = phone.replace(/\D/g, "");
   if (!digits) return [];
@@ -870,27 +947,7 @@ export async function findFamilyByPhone(phone: string): Promise<GuardianDTO[]> {
     .from(child)
     .where(inArray(child.guardianId, gs.map((g) => g.id)));
 
-  return gs.map((g) => ({
-    id: g.id,
-    name: g.name,
-    phone: g.phone,
-    lineUserId: g.lineUserId,
-    children: cs
-      .filter((c) => c.guardianId === g.id)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        birthdate: c.birthdate,
-        age: c.age,
-        allergies: c.allergies,
-        notes: c.notes,
-        conditions: c.conditions,
-        medications: c.medications,
-        hn: c.hn,
-        gender: c.gender,
-      })),
-    registeredAt: g.createdAt.toISOString().slice(0, 10),
-  }));
+  return gs.map((g) => toGuardianDTO(g, cs));
 }
 
 /** the LINE side of the phone lookup — one verified userId, one guardian */
@@ -899,91 +956,181 @@ export async function findGuardianByLineId(lineUserId: string) {
   return rows[0] ?? null;
 }
 
+/**
+ * Everything one LINE account booked: bookings stamped with its userId, plus
+ * older ones that reached it through a LINE-linked guardian row.
+ */
+export async function listAppointmentsForLine(lineUserId: string): Promise<AppointmentDTO[]> {
+  const g = await findGuardianByLineId(lineUserId);
+  const all = await listAppointmentsBetween("1970-01-01", "9999-12-31");
+  const mine = new Set(
+    (
+      await db
+        .select({ id: appointment.id })
+        .from(appointment)
+        .where(
+          g
+            ? or(eq(appointment.lineUserId, lineUserId), eq(appointment.guardianId, g.id))
+            : eq(appointment.lineUserId, lineUserId),
+        )
+    ).map((r) => r.id),
+  );
+  return all.filter((a) => mine.has(a.id)).sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1));
+}
+
+/** where a booking's LINE messages go: its own account, else its linked guardian's */
+export async function lineTargetForAppointment(id: number): Promise<string | null> {
+  const rows = await db
+    .select({ own: appointment.lineUserId, viaGuardian: guardian.lineUserId })
+    .from(appointment)
+    .leftJoin(guardian, eq(appointment.guardianId, guardian.id))
+    .where(eq(appointment.id, id));
+  return rows[0]?.own ?? rows[0]?.viaGuardian ?? null;
+}
+
 export async function listPatients(): Promise<GuardianDTO[]> {
   const [gs, cs] = await Promise.all([
     db.select().from(guardian).orderBy(asc(guardian.id)),
     db.select().from(child),
   ]);
-  return gs.map((g) => ({
-    id: g.id,
-    name: g.name,
-    phone: g.phone,
-    lineUserId: g.lineUserId,
-    children: cs
-      .filter((c) => c.guardianId === g.id)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        birthdate: c.birthdate,
-        age: c.age,
-        allergies: c.allergies,
-        notes: c.notes,
-        conditions: c.conditions,
-        medications: c.medications,
-        hn: c.hn,
-        gender: c.gender,
-      })),
-    registeredAt: g.createdAt.toISOString().slice(0, 10),
-  }));
+  return gs.map((g) => toGuardianDTO(g, cs));
 }
 
-export interface CreatePatientInput {
-  name: string;
-  phone: string;
-  address?: string;
-  children?: { name: string }[];
+/** the full patient form — also re-exported under its old names */
+export type CreatePatientInput = PatientUpsertInput;
+export type ChildInput = PatientChildInput;
+
+/**
+ * Field-patch rule for patient writes: an absent key means "the caller didn't
+ * send it" (the booking flow only ever passes name+phone — it must NOT erase
+ * the record the desk filled in), while an empty string IS written (the desk
+ * cleared the field on purpose).
+ */
+function guardianPatch(input: Partial<PatientUpsertInput>): Record<string, unknown> {
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (input.name !== undefined) set.name = input.name;
+  if (input.fullName !== undefined) set.fullName = input.fullName;
+  if (input.relation !== undefined) set.relation = input.relation;
+  if (input.address !== undefined) set.address = input.address;
+  // the typed LINE id goes to line_contact — line_user_id stays owned by the
+  // verified LIFF link flow
+  if (input.lineId !== undefined) set.lineContact = input.lineId;
+  return set;
+}
+
+/**
+ * Reconcile a guardian's children with the submitted list: rows carrying their
+ * DB id (or matching by name) are updated, the rest are inserted, and rows
+ * the form dropped are deleted. Only runs when the caller actually sent a
+ * `children` list — booking writes pass none and leave records alone.
+ */
+async function syncChildren(guardianId: number, children: PatientChildInput[]): Promise<void> {
+  const existing = await db.select().from(child).where(eq(child.guardianId, guardianId));
+  const keep = new Set<number>();
+  for (const c of children) {
+    const clean = c.name.trim();
+    if (!clean) continue;
+    const values = {
+      guardianId,
+      name: clean,
+      fullName: c.fullName ?? "",
+      nickname: c.nickname || null,
+      birthdate: c.birthdate || null,
+      age: c.age ?? null,
+      gender: c.gender || null,
+      hn: c.hn || null,
+      bloodType: c.bloodType ?? "",
+      conditions: c.conditions ?? "",
+      medications: c.medications ?? "",
+      allergies: c.allergies ?? "",
+      notes: c.notes ?? "",
+      updatedAt: new Date(),
+    };
+    const hit =
+      (typeof c.id === "number" ? existing.find((x) => x.id === c.id) : undefined) ??
+      existing.find((x) => x.name === clean);
+    if (hit) {
+      keep.add(hit.id);
+      await db.update(child).set(values).where(eq(child.id, hit.id));
+    } else {
+      const [row] = await db.insert(child).values(values).returning({ id: child.id });
+      keep.add(row.id);
+    }
+  }
+  for (const x of existing) {
+    if (!keep.has(x.id)) await db.delete(child).where(eq(child.id, x.id));
+  }
 }
 
 /** upsert on phone: a returning caller updates the name instead of doubling */
-export async function upsertGuardian(input: CreatePatientInput): Promise<number> {
+export async function upsertGuardian(input: PatientUpsertInput): Promise<number> {
   const digits = input.phone.replace(/\D/g, "");
   const existing = await db.select().from(guardian).where(eq(guardian.phone, digits));
   let guardianId: number;
 
   if (existing.length > 0) {
     guardianId = existing[0].id;
-    await db
-      .update(guardian)
-      .set({ name: input.name, address: input.address ?? "", updatedAt: new Date() })
-      .where(eq(guardian.id, guardianId));
+    await db.update(guardian).set(guardianPatch(input)).where(eq(guardian.id, guardianId));
   } else {
     const [row] = await db
       .insert(guardian)
-      .values({ name: input.name, phone: digits, address: input.address ?? "" })
+      .values({
+        name: input.name,
+        phone: digits,
+        fullName: input.fullName ?? "",
+        relation: input.relation ?? "",
+        lineContact: input.lineId ?? "",
+        address: input.address ?? "",
+      })
       .returning({ id: guardian.id });
     guardianId = row.id;
   }
 
-  for (const c of input.children ?? []) {
-    const clean = c.name.trim();
-    if (!clean) continue;
-    const dup = await db
-      .select({ id: child.id })
-      .from(child)
-      .where(and(eq(child.guardianId, guardianId), eq(child.name, clean)));
-    if (dup.length === 0) {
-      await db.insert(child).values({ guardianId, name: clean });
-    }
-  }
+  if (input.children) await syncChildren(guardianId, input.children);
   return guardianId;
 }
 
-export async function updatePatient(id: number, patch: Partial<CreatePatientInput>): Promise<void> {
-  await db
-    .update(guardian)
-    .set({ ...patch, updatedAt: new Date() })
-    .where(eq(guardian.id, id));
+export async function updatePatient(
+  id: number,
+  patch: Partial<PatientUpsertInput>,
+): Promise<void> {
+  if (patch.phone !== undefined) {
+    await db
+      .update(guardian)
+      .set({ phone: patch.phone.replace(/\D/g, "") })
+      .where(eq(guardian.id, id));
+  }
+  await db.update(guardian).set(guardianPatch(patch)).where(eq(guardian.id, id));
+  if (patch.children) await syncChildren(id, patch.children);
 }
 
-export async function addChildToGuardian(guardianId: number, name: string): Promise<void> {
-  const clean = name.trim();
+export async function addChildToGuardian(
+  guardianId: number,
+  input: string | PatientChildInput,
+): Promise<void> {
+  const c: PatientChildInput = typeof input === "string" ? { name: input } : input;
+  const clean = c.name.trim();
   if (!clean) return;
   const dup = await db
     .select({ id: child.id })
     .from(child)
     .where(and(eq(child.guardianId, guardianId), eq(child.name, clean)));
   if (dup.length === 0) {
-    await db.insert(child).values({ guardianId, name: clean });
+    await db.insert(child).values({
+      guardianId,
+      name: clean,
+      fullName: c.fullName ?? "",
+      nickname: c.nickname || null,
+      birthdate: c.birthdate || null,
+      age: c.age ?? null,
+      gender: c.gender || null,
+      hn: c.hn || null,
+      bloodType: c.bloodType ?? "",
+      conditions: c.conditions ?? "",
+      medications: c.medications ?? "",
+      allergies: c.allergies ?? "",
+      notes: c.notes ?? "",
+    });
   }
 }
 
@@ -1045,12 +1192,81 @@ export async function updateWaitlistStatus(
 ): Promise<void> {
   await db
     .update(waitlistEntry)
-    .set({ status, ...(dentistId ? { dentistId } : {}), updatedAt: new Date() })
+    // undefined = leave the assignment alone; null = deliberately un-assign
+    .set({ status, ...(dentistId !== undefined ? { dentistId } : {}), updatedAt: new Date() })
     .where(eq(waitlistEntry.id, id));
 }
 
 export async function removeWaitlist(id: number): Promise<void> {
   await db.delete(waitlistEntry).where(eq(waitlistEntry.id, id));
+}
+
+/* ═══════════════════════ visit records (room page) ══════════════════════ */
+
+/**
+ * Records attached to a day: everything linked to an appointment on `date`,
+ * plus every record linked to a walk-in (the waitlist only ever holds
+ * "today" — it has no date column).
+ */
+export async function listVisitRecordsForDate(date: string): Promise<VisitRecordDTO[]> {
+  const rows = await db
+    .select({ v: visitRecord, dslug: dentist.slug })
+    .from(visitRecord)
+    .leftJoin(appointment, eq(appointment.id, visitRecord.appointmentId))
+    .leftJoin(dentist, eq(dentist.id, visitRecord.dentistId))
+    .where(or(eq(appointment.date, date), isNotNull(visitRecord.waitlistId)));
+
+  return rows.map((r) => ({
+    id: r.v.id,
+    appointmentId: r.v.appointmentId,
+    waitlistId: r.v.waitlistId,
+    dentistId: r.v.dentistId,
+    dentistSlug: r.dslug,
+    treatments: Array.isArray(r.v.treatments) ? (r.v.treatments as string[]) : [],
+    detail: r.v.detail,
+    price: r.v.price,
+    updatedAt: r.v.updatedAt.toISOString(),
+  }));
+}
+
+/**
+ * Write (or overwrite) the dentist's record of one visit — what was done,
+ * the note, the charge. Exactly one of appointmentId/waitlistId must be set;
+ * the partial unique indexes on visit_record are the real guard, the lookup
+ * here just makes a repeat save an update instead of a 500.
+ */
+export async function upsertVisitRecord(input: {
+  appointmentId?: number | null;
+  waitlistId?: number | null;
+  dentistId?: number | null;
+  treatments: string[];
+  detail: string;
+  price?: number | null;
+}): Promise<void> {
+  const appointmentId = input.appointmentId ?? null;
+  const waitlistId = input.waitlistId ?? null;
+  if ((appointmentId === null) === (waitlistId === null)) return; // need exactly one
+
+  const values = {
+    appointmentId,
+    waitlistId,
+    dentistId: input.dentistId ?? null,
+    treatments: input.treatments,
+    detail: input.detail,
+    price: input.price ?? null,
+    updatedAt: new Date(),
+  };
+
+  const where =
+    appointmentId !== null
+      ? eq(visitRecord.appointmentId, appointmentId)
+      : eq(visitRecord.waitlistId, waitlistId!);
+  const existing = await db.select({ id: visitRecord.id }).from(visitRecord).where(where).limit(1);
+  if (existing[0]) {
+    await db.update(visitRecord).set(values).where(eq(visitRecord.id, existing[0].id));
+  } else {
+    await db.insert(visitRecord).values(values);
+  }
 }
 
 /* ═══════════════════════ queue board (public read) ══════════════════════ */

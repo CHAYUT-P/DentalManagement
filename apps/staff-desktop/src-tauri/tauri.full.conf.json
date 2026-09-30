@@ -1,0 +1,16 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Denta Kids Staff — Full",
+  "identifier": "com.dentakids.staff.full",
+  "build": {
+    "beforeDevCommand": "pnpm dev:full",
+    "beforeBuildCommand": "pnpm build:full"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Denta Kids — Staff (Full)"
+      }
+    ]
+  }
+}

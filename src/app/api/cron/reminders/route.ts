@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { appointment, guardian, messageLog } from "@/db/schema";
@@ -30,8 +30,8 @@ const KINDS: Record<string, Kind> = {
 
 function text(kind: Kind, a: { ref: string; childName: string; date: string; time: string }) {
   return kind === "reminder_day_before"
-    ? `เตือนนัดหมายค่ะ 🦷\nพรุ่งนี้ (${a.date}) เวลา ${a.time} น้อง${a.childName} มีนัดกับเรานะคะ\nรหัสจอง: ${a.ref}`
-    : `วันนี้มีนัดนะคะ ⏰\nน้อง${a.childName} นัดเวลา ${a.time} — แวะมาสักเล็กน้อยก่อนเวลาได้เลยค่ะ\nรหัสจอง: ${a.ref}`;
+    ? `เตือนนัดหมายค่ะ 🦷\nพรุ่งนี้ (${a.date}) เวลา ${a.time} มีนัดของ ${a.childName} นะคะ\nแจ้งชื่อนี้ที่เคาน์เตอร์เมื่อมาถึงได้เลย\nรหัสจอง: ${a.ref}`
+    : `วันนี้มีนัดนะคะ ⏰\nนัดของ ${a.childName} เวลา ${a.time} — แวะมาสักเล็กน้อยก่อนเวลาได้เลยค่ะ\nรหัสจอง: ${a.ref}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
 
   const target = kind === "reminder_day_before" ? addDays(todayISO(), 1) : todayISO();
 
-  // confirmed bookings on the target day whose guardian has a LINE account
+  // confirmed bookings on the target day that can be reached in LINE — the
+  // account that booked, or (older bookings) a LINE-linked guardian
   const rows = await db
     .select({
       id: appointment.id,
@@ -53,15 +54,15 @@ export async function GET(request: NextRequest) {
       childName: appointment.childName,
       date: appointment.date,
       time: appointment.time,
-      lineUserId: guardian.lineUserId,
+      lineUserId: sql<string | null>`coalesce(${appointment.lineUserId}, ${guardian.lineUserId})`,
     })
     .from(appointment)
-    .innerJoin(guardian, eq(appointment.guardianId, guardian.id))
+    .leftJoin(guardian, eq(appointment.guardianId, guardian.id))
     .where(
       and(
         eq(appointment.date, target),
         eq(appointment.status, "confirmed"),
-        isNotNull(guardian.lineUserId),
+        or(isNotNull(appointment.lineUserId), isNotNull(guardian.lineUserId)),
       ),
     );
 

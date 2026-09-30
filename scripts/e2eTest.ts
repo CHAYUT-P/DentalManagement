@@ -30,8 +30,9 @@ async function main() {
   const result = await actions.bookAppointment({
     date, time, treatmentKey: "fluoride",
     dentistId: null, // "any dentist" — the UI's default choice
-    childName: "น้องเทสเตอร์", guardianName: "คุณยิ้ม ทดสอบ",
-    phone: "0912345678", forSelf: false,
+    // the patient site sends only the name to give at the desk + a phone
+    childName: "น้องเทสเตอร์",
+    phone: "0912345678",
   });
   ok(`booking confirmed with ref ${result.ref}`, result.ok && !!result.ref, JSON.stringify(result));
   if (!result.ok) process.exit(1);
@@ -75,9 +76,9 @@ async function main() {
   });
   ok("second booking at same slot rejected", !clash.ok && clash.error === "slot_taken");
 
-  console.log("\n— 5. Returning family recognized —");
-  const fam = await actions.familyByPhone("0912345678");
-  ok("phone lookup finds guardian + child", fam.length === 1 && fam[0].children.some(c => c.name === "น้องเทสเตอร์"));
+  console.log("\n— 5. Online booking is name + phone only —");
+  ok("booking keeps the name given", onStaff?.childName === "น้องเทสเตอร์");
+  ok("no guardian/child record created from the patient site", onStaff?.guardianId === null && onStaff?.childId === null);
 
   console.log("\n— 6. Staff manages the queue —");
   await actions.staffAddWaitlist({ childName: "น้องวอคอิน", guardianPhone: "0912345678", treatmentKey: "checkup" });

@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
-import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import { LoginScreen } from "./components/LoginScreen";
 import { StaffSidebar } from "./components/StaffSidebar";
-import { ensureStaffToken, hasStaffToken, staffBootstrap, type StaffBootstrap } from "./api";
+import { API_BASE, ensureStaffToken, hasStaffToken, staffBootstrap, type StaffBootstrap } from "./api";
+import { STAFF_EDITION } from "./edition";
 
+import { DeviceGate } from "@/components/staff/DeviceGate";
+import { RoomPage } from "@/components/staff/RoomPage";
+import { ScheduleView } from "@/components/staff/ScheduleView";
+import { SetupView } from "@/components/staff/SetupView";
 import { StaffTopbar } from "@/components/staff/StaffTopbar";
 import { StaffProvider } from "@/lib/staffStore";
 import { LangProvider } from "@/i18n/lang";
 
-import AppointmentsPage from "@/app/staff/appointments/page";
-import DentistsPage from "@/app/staff/dentists/page";
-import NotificationsPage from "@/app/staff/notifications/page";
 import PatientsPage from "@/app/staff/patients/page";
-import QueuePage from "@/app/staff/queue/page";
-import ServicesPage from "@/app/staff/services/page";
-import SettingsPage from "@/app/staff/settings/page";
-import SchedulePage from "@/app/staff/page";
+import TodayPage from "@/app/staff/queue/page";
 
 import "@/app/staff/staff.css";
 
@@ -77,27 +76,62 @@ export default function App() {
 
   return (
     <LangProvider>
-      <StaffProvider initial={initial}>
+      <StaffProvider initial={initial} edition={STAFF_EDITION}>
         <HashRouter>
-          <div className="staff-root">
-            <StaffSidebar />
-            <div className="staff-main">
-              <StaffTopbar />
-              <Routes>
-                <Route path="/" element={<SchedulePage />} />
-                <Route path="/queue" element={<QueuePage />} />
-                <Route path="/appointments" element={<AppointmentsPage />} />
-                <Route path="/dentists" element={<DentistsPage />} />
-                <Route path="/patients" element={<PatientsPage />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+          <DeviceGate>
+            <div className="staff-root">
+              <StaffSidebar />
+              <div className="staff-main">
+                <StaffTopbar />
+                <Routes>
+                  <Route path="/" element={<TodayPage />} />
+                  <Route path="/schedule" element={<ScheduleView />} />
+                  <Route path="/settings" element={<SetupView patientWebUrl={API_BASE} />} />
+                  {STAFF_EDITION === "full" ? (
+                    <>
+                      <Route path="/patients" element={<PatientsPage />} />
+                      <Route path="/rooms" element={<RoomsRoute />} />
+                      <Route path="/rooms/:slug" element={<RoomRoute />} />
+                    </>
+                  ) : null}
+                  {/* addresses from the old eight-item menu land where their content moved */}
+                  <Route path="/queue" element={<Navigate to="/" replace />} />
+                  <Route path="/appointments" element={<Navigate to="/schedule" replace />} />
+                  <Route path="/dentists" element={<Navigate to="/settings" replace />} />
+                  <Route path="/services" element={<Navigate to="/settings" replace />} />
+                  <Route path="/notifications" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </div>
             </div>
-          </div>
+          </DeviceGate>
         </HashRouter>
       </StaffProvider>
     </LangProvider>
+  );
+}
+
+/** /rooms — pick which dentist's room this screen shows */
+function RoomsRoute() {
+  const navigate = useNavigate();
+  return (
+    <RoomPage
+      slug={null}
+      onPickRoom={(s) => {
+        if (s) navigate(`/rooms/${s}`);
+      }}
+    />
+  );
+}
+
+/** /rooms/:slug — one dentist's room page */
+function RoomRoute() {
+  const { slug } = useParams();
+  const navigate = useNavigate();
+  return (
+    <RoomPage
+      slug={slug ?? null}
+      onPickRoom={(s) => navigate(s ? `/rooms/${s}` : "/rooms")}
+    />
   );
 }

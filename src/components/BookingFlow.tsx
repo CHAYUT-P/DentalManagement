@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 
 import type { Dentist } from "@/data/dentists";
 import { iconGroups, iconLibrary, type IconKey } from "@/data/icons";
@@ -20,7 +20,7 @@ import {
   yearOf,
 } from "@/lib/dates";
 import { dentistsForUI } from "@/lib/convert";
-import { bookAppointment, familyByPhone, holdSlot, releaseSlotHold } from "@/server/actions";
+import { bookAppointment, holdSlot, releaseSlotHold, rescheduleBooking } from "@/server/actions";
 import type { SlotRow } from "@/server/queries";
 import { Check, Chevron, ChevronLeft } from "./icons";
 import { Mascot } from "./Mascot";
@@ -29,7 +29,11 @@ import { Cta, Eyebrow, Ghost, Screen, Slip } from "./screen";
 import { ServiceIcon } from "./serviceIcons";
 
 /**
- * Treatment → dentist → day and time → contact → who is coming → booked.
+ * Treatment → dentist → day and time → name + phone → booked.
+ *
+ * The family gives only a name to say at the desk (a nickname is enough) and a
+ * phone number — no guardian/child details. Inside LINE the booking is also
+ * stamped with the LINE account, which is how "my bookings" finds it there.
  *
  * Everything the flow shows is decided by the database: the dentist roster, the
  * weekly open days, holidays and — the part that makes it real — which slots
@@ -42,13 +46,36 @@ import { ServiceIcon } from "./serviceIcons";
  * (pinned to Bangkok), so the server render and the hydrated render agree.
  */
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Step = 1 | 2 | 3 | 4;
 
 /** how far ahead the calendar lets a family pick */
 const WINDOW_DAYS = 14;
 
 /** the clinic wants an hour's notice, so today's next slot is an hour out */
 const LEAD = 60;
+
+/**
+ * What "เลื่อนนัด" on /bookings hands to this flow. It travels in
+ * sessionStorage, never the URL: the phone is the proof `rescheduleBooking`
+ * checks, and the old date/time/child are only for the banner and the slip.
+ */
+export const RESCHEDULE_KEY = "dk:reschedule";
+export interface RescheduleHandoff {
+  ref: string;
+  phone: string;
+  date: string;
+  time: string;
+  childName: string;
+}
+
+const noSubscribe = () => () => {};
+function readHandoff(): string | null {
+  try {
+    return sessionStorage.getItem(RESCHEDULE_KEY);
+  } catch {
+    return null;
+  }
+}
 
 /** the calendar's columns, Sunday-first like a wall calendar */
 const WEEK_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -82,13 +109,15 @@ export interface BookingFlowProps {
   popular: IconKey[];
   preTreatment?: IconKey;
   preDentist?: string;
+  /** `?r=` — move this existing booking instead of making a new one */
+  rescheduleRef?: string;
 }
 
 /* ═══════════════════════════ small shared rows ═══════════════════════════ */
 
 function Stepper({ step, onBack }: { step: Step; onBack: (s: Step) => void }) {
   const t = useT();
-  const labels = [t.booking.step1, t.booking.step2, t.booking.step3];
+  const labels = [t.booking.step1, t.booking.step2, t.booking.step3, t.booking.contact];
   return (
     <ol className="steps">
       {labels.map((label, i) => {
@@ -112,7 +141,7 @@ function TreatRow({ k, tint, onPick }: { k: IconKey; tint: string; onPick: (k: I
   return (
     <button type="button" className="pickRow" onClick={() => onPick(k)}>
       <span className={`disc t-${tint}`}>
-        <ServiceIcon k={k} size={21} />
+        <ServiceIcon k={k} size={26} />
       </span>
       <span className="pt">
         <span className="pn">{t.service[k]}</span>
@@ -291,10 +320,30 @@ export function BookingFlow(props: BookingFlowProps) {
   const { today, nowMin, dentists, openDays, holidays, slots, load, chairs, prices, popular } = props;
   const { t, lang } = useLang();
 
-  const [step, setStep] = useState<Step>(props.preTreatment ? 2 : 1);
+  /* postpone mode: same treatment and dentist, straight to the calendar, and
+     the last step moves the booking rather than creating one */
+  const resched = Boolean(props.rescheduleRef && props.preTreatment);
+  const handoffRaw = useSyncExternalStore(noSubscribe, readHandoff, () => null);
+  const handoff = useMemo(() => {
+    if (!resched || !handoffRaw) return null;
+    try {
+      const h = JSON.parse(handoffRaw) as RescheduleHandoff;
+      return h.ref === props.rescheduleRef ? h : null;
+    } catch {
+      return null;
+    }
+  }, [resched, handoffRaw, props.rescheduleRef]);
+  const [reschedTel, setReschedTel] = useState("");
+  /** the child on the moved booking — kept here because the handoff is
+   *  cleared from storage the moment the move succeeds */
+  const [movedChild, setMovedChild] = useState<string | null>(null);
+
+  const [step, setStep] = useState<Step>(resched ? 3 : props.preTreatment ? 2 : 1);
   const [treatment, setTreatment] = useState<IconKey | null>(props.preTreatment ?? null);
   /** null is a real choice here — "any dentist" — so undefined means "not yet" */
-  const [dentist, setDentist] = useState<string | null | undefined>(props.preDentist ?? undefined);
+  const [dentist, setDentist] = useState<string | null | undefined>(
+    props.preDentist ?? (resched ? null : undefined),
+  );
   const [date, setDate] = useState<string | null>(null);
   const [time, setTime] = useState<string | null>(null);
   /** token for the picked slot's temporary reservation (hold-then-confirm) */
@@ -302,34 +351,13 @@ export function BookingFlow(props: BookingFlowProps) {
   /** LINE-signed ID token — only present when the page runs inside LIFF */
   const [lineIdToken, setLineIdToken] = useState<string | null>(null);
 
-  const [contactName, setContactName] = useState("");
+  const [bookName, setBookName] = useState("");
   const [contactTel, setContactTel] = useState("");
   const [contactErr, setContactErr] = useState<string | null>(null);
-
-  const [visitFor, setVisitFor] = useState<"child" | "self">("child");
-  const [childPick, setChildPick] = useState<string | null>(null);
-  const [newChildName, setNewChildName] = useState("");
-  const [childErr, setChildErr] = useState<string | null>(null);
 
   const [pending, startBooking] = useTransition();
   const [bookErr, setBookErr] = useState<string | null>(null);
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null);
-
-  /* returning family? matched in the database the moment a phone is typed */
-  const [family, setFamily] = useState<{ name: string; children: { id: number; name: string }[] }[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    familyByPhone(contactTel).then((rows) => {
-      if (!cancelled) setFamily(rows);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [contactTel]);
-  const knownKids = useMemo(
-    () => family.flatMap((p) => p.children.map((c) => ({ ...c, guardian: p.name }))),
-    [family],
-  );
 
   /* inside LINE the LIFF context is already logged in — grab the signed ID
      token so the server can learn who booked; a normal browser visit just
@@ -448,12 +476,12 @@ export function BookingFlow(props: BookingFlowProps) {
     step === 1 ? t.booking.step1
     : step === 2 ? t.booking.step2
     : step === 3 ? t.booking.step3
-    : step === 4 ? t.booking.contact
-    : step === 5 ? t.booking.child
-    : t.book;
+    : t.booking.contact;
 
-  function confirmContact() {
-    if (!contactName.trim()) {
+  /** the final write — name + phone checked here, then the server action inserts */
+  function confirmBooking() {
+    if (!treatment || !date || !time) return;
+    if (!bookName.trim()) {
       setContactErr(t.booking.errName);
       return;
     }
@@ -462,47 +490,6 @@ export function BookingFlow(props: BookingFlowProps) {
       return;
     }
     setContactErr(null);
-    setStep(5);
-  }
-
-  /** the name that goes on the slip: self → contact name, else the picked/new child */
-  function chosenChildName(): string {
-    if (visitFor === "self") return contactName.trim();
-    const picked = knownKids.find((k) => String(k.id) === childPick);
-    if (picked) return picked.name;
-    return newChildName.trim();
-  }
-
-  function confirmChild() {
-    if (visitFor === "self") {
-      setChildErr(null);
-      setStep(6);
-      return;
-    }
-    if (childPick && childPick !== "new") {
-      setChildErr(null);
-      setStep(6);
-      return;
-    }
-    const nm = newChildName.trim();
-    if (!nm) {
-      setChildErr(t.booking.errChild);
-      return;
-    }
-    // same name already among the family's children? select it instead of doubling
-    const dup = knownKids.find((k) => k.name === nm);
-    if (dup) {
-      setChildPick(String(dup.id));
-      setChildErr(t.booking.dupChild);
-      return;
-    }
-    setChildErr(null);
-    setStep(6);
-  }
-
-  /** the final write — inserts through the server action */
-  function confirmBooking() {
-    if (!treatment || !date || !time) return;
     setBookErr(null);
     startBooking(async () => {
       const result = await bookAppointment({
@@ -510,10 +497,8 @@ export function BookingFlow(props: BookingFlowProps) {
         time,
         treatmentKey: treatment,
         dentistId: dentist ? (dentists.find((d) => d.slug === dentist)?.id ?? null) : null,
-        childName: visitFor === "self" ? contactName.trim() : chosenChildName(),
-        guardianName: contactName.trim(),
+        childName: bookName.trim(),
         phone: contactTel,
-        forSelf: visitFor === "self",
         holdToken: holdToken ?? undefined,
         lineIdToken: lineIdToken ?? undefined,
       });
@@ -526,10 +511,42 @@ export function BookingFlow(props: BookingFlowProps) {
     });
   }
 
+  /** postpone mode's final write — moves the existing row, keeps its ref */
+  function confirmReschedule() {
+    if (!props.rescheduleRef || !date || !time) return;
+    const phone = handoff?.phone ?? reschedTel;
+    if (!/^[0-9]{9,10}$/.test(phone.replace(/\D/g, ""))) {
+      setBookErr(t.booking.reschedPhone);
+      return;
+    }
+    setBookErr(null);
+    startBooking(async () => {
+      const result = await rescheduleBooking({
+        ref: props.rescheduleRef!,
+        phone,
+        date,
+        time,
+        holdToken: holdToken ?? undefined,
+      });
+      if (result.ok && result.ref) {
+        setHoldToken(null);
+        setMovedChild(handoff?.childName ?? null);
+        try {
+          sessionStorage.removeItem(RESCHEDULE_KEY);
+        } catch {
+          // storage blocked — the stale handoff just goes unused
+        }
+        setConfirmedRef(result.ref);
+      } else {
+        setBookErr(result.error === "slot_taken" ? t.booking.slotTaken : t.booking.reschedError);
+      }
+    });
+  }
+
   const booked = confirmedRef !== null;
 
   return (
-    <Screen title={step === 6 ? t.book : `${t.book} · ${title}`} back="/">
+    <Screen title={`${t.book} · ${title}`} back="/">
       {booked && treatment && date && time ? (
         <div className="doneWrap">
           <div className="doneArt">
@@ -538,8 +555,8 @@ export function BookingFlow(props: BookingFlowProps) {
               <Check size={18} />
             </span>
           </div>
-          <h2 className="doneTitle">{t.booking.doneTitle}</h2>
-          <p className="doneSub">{t.booking.doneSub}</p>
+          <h2 className="doneTitle">{resched ? t.booking.reschedDone : t.booking.doneTitle}</h2>
+          <p className="doneSub">{resched ? t.booking.reschedDoneSub : t.booking.doneSub}</p>
 
           <Slip
             appt={{
@@ -550,7 +567,7 @@ export function BookingFlow(props: BookingFlowProps) {
               dentist: dentist ?? null,
               status: "confirmed",
             }}
-            patient={chosenChildName() || patient[lang]}
+            patient={(resched ? movedChild : bookName.trim()) || patient[lang]}
           />
 
           <div className="doneLinks">
@@ -560,20 +577,33 @@ export function BookingFlow(props: BookingFlowProps) {
         </div>
       ) : (
         <>
-          <Stepper step={step} onBack={setStep} />
+          {resched ? (
+            <div className="reschedNote">
+              <span className="rk">{t.booking.reschedFrom}</span>
+              <span className="rv">
+                {handoff ? `${fmtRelative(t, today, handoff.date)} · ${handoff.time} · ` : ""}
+                {props.rescheduleRef}
+              </span>
+              <span className="rh">{t.booking.reschedHint}</span>
+            </div>
+          ) : (
+            <Stepper step={step} onBack={setStep} />
+          )}
 
           {step > 1 && treatment ? (
             <div className="pickedBar">
               <span className={`disc t-${tintOf(treatment)}`}>
-                <ServiceIcon k={treatment} size={20} />
+                <ServiceIcon k={treatment} size={23} />
               </span>
               <span className="pt">
                 <span className="pn">{t.service[treatment]}</span>
                 <span className="pp">{priceShort(treatment)}</span>
               </span>
-              <button type="button" className="changeBtn" onClick={() => setStep(1)}>
-                {t.common.change}
-              </button>
+              {resched ? null : (
+                <button type="button" className="changeBtn" onClick={() => setStep(1)}>
+                  {t.common.change}
+                </button>
+              )}
             </div>
           ) : null}
 
@@ -583,16 +613,18 @@ export function BookingFlow(props: BookingFlowProps) {
                 <DentistAvatar d={chosen} alt={chosen.text[lang].name} size={36} />
               ) : (
                 <span className="disc t-lav">
-                  <ServiceIcon k="kids" size={20} />
+                  <ServiceIcon k="kids" size={23} />
                 </span>
               )}
               <span className="pt">
                 <span className="pn">{chosen ? chosen.text[lang].name : t.booking.anyone}</span>
                 <span className="pp">{chosen ? chosen.text[lang].title : t.booking.anyoneSub}</span>
               </span>
-              <button type="button" className="changeBtn" onClick={() => setStep(2)}>
-                {t.common.change}
-              </button>
+              {resched ? null : (
+                <button type="button" className="changeBtn" onClick={() => setStep(2)}>
+                  {t.common.change}
+                </button>
+              )}
             </div>
           ) : null}
 
@@ -603,7 +635,7 @@ export function BookingFlow(props: BookingFlowProps) {
                 {popular.map((k) => (
                   <button key={k} type="button" className="tile" onClick={() => pickTreatment(k)}>
                     <span className={`disc t-${tintOf(k)}`}>
-                      <ServiceIcon k={k} size={22} />
+                      <ServiceIcon k={k} size={27} />
                     </span>
                     <span className="label">{t.service[k]}</span>
                   </button>
@@ -634,7 +666,7 @@ export function BookingFlow(props: BookingFlowProps) {
               <div className="pick">
                 <button type="button" className="pickRow" onClick={() => pickDentist(null)}>
                   <span className="disc t-lav">
-                    <ServiceIcon k="kids" size={21} />
+                    <ServiceIcon k="kids" size={26} />
                   </span>
                   <span className="pt">
                     <span className="pn">{t.booking.anyone}</span>
@@ -688,6 +720,27 @@ export function BookingFlow(props: BookingFlowProps) {
                 </>
               ) : null}
 
+              {resched && !handoff ? (
+                <div className="pick">
+                  <label className="fld">
+                    <span className="fk">{t.booking.reschedPhone}</span>
+                    <input
+                      className="fi"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder={t.booking.contactTelPh}
+                      value={reschedTel}
+                      onChange={(e) => {
+                        setReschedTel(e.target.value);
+                        setBookErr(null);
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : null}
+              {resched && bookErr ? <p className="err">{bookErr}</p> : null}
+
               <div className="stickyBar">
                 <div className="sbText">
                   <span className="sbK">{t.common.selected}</span>
@@ -696,9 +749,15 @@ export function BookingFlow(props: BookingFlowProps) {
                     {time ? ` · ${time}` : ""}
                   </span>
                 </div>
-                <button type="button" className="cta" disabled={!date || !time} onClick={() => setStep(4)}>
-                  {t.booking.contact}
-                </button>
+                {resched ? (
+                  <button type="button" className="cta" disabled={!date || !time || pending} onClick={confirmReschedule}>
+                    {pending ? t.booking.bookingNow : t.booking.reschedConfirm}
+                  </button>
+                ) : (
+                  <button type="button" className="cta" disabled={!date || !time} onClick={() => setStep(4)}>
+                    {t.booking.contact}
+                  </button>
+                )}
               </div>
             </>
           ) : null}
@@ -712,11 +771,11 @@ export function BookingFlow(props: BookingFlowProps) {
                   <input
                     className="fi"
                     type="text"
-                    autoComplete="name"
+                    autoComplete="nickname"
                     placeholder={t.booking.contactNamePh}
-                    value={contactName}
+                    value={bookName}
                     onChange={(e) => {
-                      setContactName(e.target.value);
+                      setBookName(e.target.value);
                       setContactErr(null);
                     }}
                   />
@@ -725,7 +784,7 @@ export function BookingFlow(props: BookingFlowProps) {
                   <span className="fk">{t.booking.contactTel}</span>
                   <input
                     className="fi"
-                    type="text"
+                    type="tel"
                     inputMode="tel"
                     autoComplete="tel"
                     placeholder={t.booking.contactTelPh}
@@ -737,6 +796,7 @@ export function BookingFlow(props: BookingFlowProps) {
                   />
                 </label>
                 {contactErr ? <p className="err">{contactErr}</p> : null}
+                {bookErr ? <p className="err">{bookErr}</p> : null}
                 <p className="hint">{t.booking.contactHint}</p>
               </div>
 
@@ -751,143 +811,7 @@ export function BookingFlow(props: BookingFlowProps) {
                 <button type="button" className="ghostBtn" onClick={() => setStep(3)}>
                   {t.booking.backToTime}
                 </button>
-                <button type="button" className="cta" onClick={confirmContact}>
-                  {t.booking.next}
-                </button>
-              </div>
-            </>
-          ) : null}
-
-          {step === 5 ? (
-            <>
-              <Eyebrow>
-                {family.length > 0 ? `${t.booking.welcomeBack} ${family[0].name}` : t.booking.childSubFirst}
-              </Eyebrow>
-              <div className="pick">
-                <button
-                  type="button"
-                  className="pickRow"
-                  onClick={() => {
-                    setVisitFor("child");
-                    setChildErr(null);
-                  }}
-                >
-                  <span className="disc t-lav">
-                    <ServiceIcon k="kids" size={21} />
-                  </span>
-                  <span className="pt">
-                    <span className="pn">{t.booking.forChild}</span>
-                    {family.length > 0 ? <span className="pp">{t.booking.childSubBack}</span> : null}
-                  </span>
-                  {visitFor === "child" ? <Check size={14} /> : null}
-                </button>
-                <button
-                  type="button"
-                  className="pickRow"
-                  onClick={() => {
-                    setVisitFor("self");
-                    setChildErr(null);
-                  }}
-                >
-                  <span className="disc t-gold">
-                    <ServiceIcon k="checkup" size={21} />
-                  </span>
-                  <span className="pt">
-                    <span className="pn">{t.booking.forSelf}</span>
-                    <span className="pp">{t.booking.selfHint}</span>
-                  </span>
-                  {visitFor === "self" ? <Check size={14} /> : null}
-                </button>
-
-                {visitFor === "child" ? (
-                  <>
-                    {knownKids.map((k) => (
-                      <button
-                        key={k.id}
-                        type="button"
-                        className="pickRow"
-                        onClick={() => {
-                          setChildPick(String(k.id));
-                          setChildErr(null);
-                        }}
-                      >
-                        <span className="disc t-blue">
-                          <ServiceIcon k="kids" size={21} />
-                        </span>
-                        <span className="pt">
-                          <span className="pn">{k.name}</span>
-                          {family.length > 1 ? <span className="pp">{k.guardian}</span> : null}
-                        </span>
-                        {childPick === String(k.id) ? <Check size={14} /> : null}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="pickRow"
-                      onClick={() => {
-                        setChildPick("new");
-                        setChildErr(null);
-                      }}
-                    >
-                      <span className="pt">
-                        <span className="pn">{t.booking.newChild}</span>
-                      </span>
-                      {childPick === "new" ? <Check size={14} /> : null}
-                    </button>
-                    {childPick === "new" || knownKids.length === 0 ? (
-                      <label className="fld">
-                        <span className="fk">{t.booking.childName}</span>
-                        <input
-                          className="fi"
-                          type="text"
-                          placeholder={t.booking.childNamePh}
-                          value={newChildName}
-                          onChange={(e) => {
-                            setNewChildName(e.target.value);
-                            setChildErr(null);
-                          }}
-                        />
-                      </label>
-                    ) : null}
-                  </>
-                ) : null}
-                {childErr ? <p className="err">{childErr}</p> : null}
-              </div>
-
-              <div className="stickyBar">
-                <div className="sbText">
-                  <span className="sbK">{t.common.selected}</span>
-                  <span className="sbV">
-                    {date ? fmtRelative(t, today, date) : t.booking.pickDate}
-                    {time ? ` · ${time}` : ""}
-                    {visitFor === "self" && contactName.trim() ? ` · ${contactName.trim()}` : ""}
-                  </span>
-                </div>
-                <button type="button" className="ghostBtn" onClick={() => setStep(4)}>
-                  {t.booking.backToContact}
-                </button>
-                <button type="button" className="cta" onClick={confirmChild}>
-                  {t.booking.confirm}
-                </button>
-              </div>
-            </>
-          ) : null}
-
-          {step === 6 ? (
-            <>
-              <Eyebrow>{t.booking.step3}</Eyebrow>
-              <div className="pick">
-                <p className="hint" style={{ padding: "12px 12px 0" }}>
-                  {t.booking.reviewHint}
-                </p>
-                {bookErr ? <p className="err">{bookErr}</p> : null}
-                <button
-                  type="button"
-                  className="cta"
-                  style={{ margin: "12px" }}
-                  onClick={confirmBooking}
-                  disabled={pending}
-                >
+                <button type="button" className="cta" onClick={confirmBooking} disabled={pending}>
                   {pending ? t.booking.bookingNow : t.booking.confirmBooking}
                 </button>
               </div>

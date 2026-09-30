@@ -1,25 +1,23 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { IconKey } from "@/data/icons";
 import { useStaff, type StaffAppointment, type WaitlistEntry } from "@/lib/staffStore";
 import { useT } from "@/i18n/lang";
-import { AddWaitlistModal } from "@/components/staff/AddWaitlistModal";
+import { fmtLong } from "@/lib/dates";
 import {
   IconCheck,
-  IconClock,
   IconDentist,
   IconPhone,
-  IconPlus,
   IconSmartphone,
   IconWalkIn,
   IconX,
 } from "@/components/staff/staffIcons";
 
 /**
- * คิววันนี้ — the front-desk queue board. Three lanes, one tap each:
+ * วันนี้ — the front-desk queue board and the app's home. Three lanes, one tap each:
  *
- *   รอเช็คอิน          รอเรียก              กำลังตรวจ
+ *   ยังไม่มา           รอเรียก              บนเก้าอี้
  *   today's confirmed   checked-in bookings  in the chair now
  *   bookings by slot    + walk-ins, merged   (both kinds)
  *   ── เช็คอิน ──▶      by arrival time      ── เสร็จสิ้น ──▶
@@ -28,6 +26,20 @@ import {
  * The merged middle lane is exactly what /api/queue serves the public
  * queue-check site — the board and the parents' phones agree.
  */
+
+/** HH:MM → minutes since midnight */
+const mins = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
+/** a wait or a lateness, readable at a glance: "12 นาที", "2 ชม. 5 นาที" */
+const fmtMinutes = (m: number) => {
+  if (m < 60) return `${m} นาที`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${h} ชม. ${rest} นาที` : `${h} ชม.`;
+};
 
 type QueueRow =
   | { kind: "booking"; appt: StaffAppointment; at: string }
@@ -41,10 +53,24 @@ export default function StaffQueuePage() {
     dentists,
     setQueueStatus,
     updateWaitlistStatus,
+    assignWaitingDentist,
+    assignDentist,
     showToast,
+    settings,
   } = useStaff();
   const dict = useT();
-  const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+
+  /* the wall clock, for "รอ 12 นาที" / "อีก 38 นาที" — client-only and coarse */
+  const [clock, setClock] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () =>
+      setClock(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }));
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const nowMin = clock ? mins(clock) : null;
+  const waitedFor = (at: string) => (nowMin === null ? null : Math.max(0, nowMin - mins(at)));
 
   const dentistName = (slug: string) =>
     dentists.find((d) => d.slug === slug)?.text.th.name ?? "";
@@ -84,6 +110,14 @@ export default function StaffQueuePage() {
     return rows.sort((a, b) => (a.at < b.at ? -1 : 1));
   }, [appointments, waitlist, today]);
 
+  const bookedToday = appointments.filter((a) => a.date === today && a.status !== "cancelled").length;
+  const walkinsToday = waitlist.length;
+  const doneToday =
+    appointments.filter((a) => a.date === today && a.status === "completed").length +
+    waitlist.filter((w) => w.status === "done").length;
+  const chairs = settings.chairs;
+  const freeChairs = Math.max(0, chairs - serving.length);
+
   const noShow = (a: StaffAppointment) => {
     if (window.confirm(`${a.childName} ไม่มาตามนัด (${a.time} น.) — บันทึกเป็นไม่มา?`)) {
       setQueueStatus(a.id, "no_show");
@@ -102,41 +136,53 @@ export default function StaffQueuePage() {
   };
 
   return (
-    <div className="staff-container">
-      <div className="staff-page-header">
+    <div className="staff-container today-view">
+      <div className="today-head">
         <div>
-          <h2>คิววันนี้ (Today&rsquo;s Queue)</h2>
-          <p>
-            เช็คอิน → เรียกเข้าตรวจ → เสร็จสิ้น — บอร์ดนี้ตรงกับหน้าเช็คคิวบนมือถือของผู้ปกครอง
-          </p>
+          <div className="today-kicker">วันนี้</div>
+          <h1>
+            {fmtLong(dict, today, "th")}
+            {clock ? <span className="today-clock"> · {clock}</span> : null}
+          </h1>
         </div>
-        <button
-          type="button"
-          className="btn-primary-staff"
-          onClick={() => setShowWaitlistModal(true)}
-        >
-          <IconPlus size={16} />
-          <span>+ เพิ่ม Walk-in</span>
-        </button>
+        <div className="today-stats">
+          <span>
+            <b>{bookedToday}</b> นัดวันนี้
+          </span>
+          <span>
+            <b>{walkinsToday}</b> Walk-in
+          </span>
+          <span>
+            <b>{doneToday}</b> เสร็จแล้ว
+          </span>
+          <span className="today-chairs">
+            เก้าอี้ว่าง <b>{freeChairs} จาก {chairs}</b>
+          </span>
+        </div>
       </div>
 
       <div className="queue-board">
         {/* ── lane 1: expected, not checked in ─────────────────────────── */}
         <section className="queue-lane">
-          <header className="queue-lane-head">
-            <h3>รอเช็คอิน</h3>
+          <header className="queue-lane-head expected">
+            <h3>ยังไม่มา</h3>
             <span className="queue-lane-count">{expected.length}</span>
           </header>
           <div className="queue-lane-body">
             {expected.length === 0 ? (
               <div className="queue-empty">ไม่มีนัดที่รอเช็คอินแล้ว</div>
             ) : (
-              expected.map((a) => (
+              expected.map((a) => {
+                const gap = nowMin === null ? null : mins(a.time) - nowMin;
+                return (
                 <div key={a.id} className="queue-card">
                   <div className="queue-card-top">
-                    <span className="queue-slot">
-                      <IconClock size={13} /> {a.time} น.
-                    </span>
+                    <span className="queue-time">{a.time}</span>
+                    {gap !== null && gap > 0 && gap <= 120 ? (
+                      <span className="queue-soon">อีก {fmtMinutes(gap)}</span>
+                    ) : gap !== null && gap < 0 ? (
+                      <span className="queue-late">เลยเวลา {fmtMinutes(-gap)}</span>
+                    ) : null}
                     <span className="queue-ref">{a.ref}</span>
                   </div>
                   <strong className="queue-name">{a.childName}</strong>
@@ -145,12 +191,13 @@ export default function StaffQueuePage() {
                     {a.dentistSlug ? ` · ${dentistName(a.dentistSlug)}` : " · รอจัดแพทย์"}
                   </div>
                   <div className="queue-sub muted">
-                    <IconPhone size={11} /> {a.phone} · {a.guardianName}
+                    <IconPhone size={11} /> {a.phone}
+                    <LineTag name={a.lineName} />
                   </div>
                   <div className="queue-actions">
                     <button
                       type="button"
-                      className="btn-primary-staff queue-btn"
+                      className="btn-secondary-staff queue-btn"
                       onClick={() => setQueueStatus(a.id, "arrived")}
                     >
                       <IconCheck size={15} />
@@ -160,22 +207,25 @@ export default function StaffQueuePage() {
                       type="button"
                       className="btn-action-icon danger"
                       title="ไม่มาตามนัด"
+                      aria-label="ไม่มาตามนัด"
                       onClick={() => noShow(a)}
                     >
                       <IconX size={14} />
                     </button>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </section>
 
         {/* ── lane 2: waiting (merged, in arrival order) ───────────────── */}
         <section className="queue-lane">
-          <header className="queue-lane-head">
+          <header className="queue-lane-head waiting">
             <h3>รอเรียก</h3>
             <span className="queue-lane-count">{waiting.length}</span>
+            <span className="queue-lane-note">เรียงตามเวลามาถึง</span>
           </header>
           <div className="queue-lane-body">
             {waiting.length === 0 ? (
@@ -186,8 +236,38 @@ export default function StaffQueuePage() {
                   key={row.kind === "booking" ? row.appt.id : `w-${row.entry.id}`}
                   row={row}
                   position={i + 1}
+                  waited={waitedFor(row.at)}
                   dentistName={dentistName}
                   serviceName={(k) => dict.service[k] || k}
+                  assign={
+                    // walk-ins are freely (re)assignable while they wait; a
+                    // pooled booking goes through assignPoolDentist — it proves
+                    // the slot is actually free before the dentist owns it
+                    row.kind === "walkin" || row.appt.dentistId === null ? (
+                      <select
+                        className="form-control"
+                        style={{ padding: "4px 8px", fontSize: "12px", width: "100%" }}
+                        value={
+                          row.kind === "booking" ? row.appt.dentistSlug : (row.entry.dentistSlug ?? "")
+                        }
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const slug = e.target.value || null;
+                          if (row.kind === "walkin") assignWaitingDentist(row.entry.id, slug);
+                          else if (slug) assignDentist(row.appt.id, slug);
+                        }}
+                      >
+                        <option value="">— ยังไม่จัดหมอ —</option>
+                        {dentists
+                          .filter((d) => d.isActive)
+                          .map((d) => (
+                            <option key={d.slug} value={d.slug}>
+                              {d.text.th.name}
+                            </option>
+                          ))}
+                      </select>
+                    ) : undefined
+                  }
                   action={
                     <button
                       type="button"
@@ -195,7 +275,7 @@ export default function StaffQueuePage() {
                       onClick={() => callRow(row)}
                     >
                       <IconDentist size={15} />
-                      <span>เรียกเข้าตรวจ</span>
+                      <span>{freeChairs > 0 ? "เรียกเข้าเก้าอี้" : "เรียกเข้าตรวจ (เก้าอี้เต็ม)"}</span>
                     </button>
                   }
                 />
@@ -207,14 +287,13 @@ export default function StaffQueuePage() {
         {/* ── lane 3: in the chair ─────────────────────────────────────── */}
         <section className="queue-lane">
           <header className="queue-lane-head serving">
-            <h3>กำลังตรวจ</h3>
-            <span className="queue-lane-count">{serving.length}</span>
+            <h3>บนเก้าอี้</h3>
+            <span className="queue-lane-count">
+              {serving.length} / {chairs}
+            </span>
           </header>
           <div className="queue-lane-body">
-            {serving.length === 0 ? (
-              <div className="queue-empty">เก้าอี้ว่าง — เรียกคิวถัดไปได้เลย</div>
-            ) : (
-              serving.map((row) => (
+            {serving.map((row) => (
                 <QueueCard
                   key={row.kind === "booking" ? row.appt.id : `w-${row.entry.id}`}
                   row={row}
@@ -228,17 +307,24 @@ export default function StaffQueuePage() {
                       onClick={() => doneRow(row)}
                     >
                       <IconCheck size={15} />
-                      <span>เสร็จสิ้น</span>
+                      <span>เสร็จสิ้น · ว่างเก้าอี้</span>
                     </button>
                   }
                 />
-              ))
-            )}
+            ))}
+            {Array.from({ length: freeChairs }, (_, i) => (
+              <div key={`free-${i}`} className="queue-chair-free">
+                เก้าอี้ว่าง
+              </div>
+            ))}
+            <div className="queue-done-row">
+              <IconCheck size={16} />
+              <span>เสร็จแล้ววันนี้</span>
+              <b>{doneToday}</b>
+            </div>
           </div>
         </section>
       </div>
-
-      {showWaitlistModal && <AddWaitlistModal onClose={() => setShowWaitlistModal(false)} />}
     </div>
   );
 }
@@ -247,16 +333,22 @@ export default function StaffQueuePage() {
 function QueueCard({
   row,
   position,
+  waited,
   dentistName,
   serviceName,
   serving,
+  assign,
   action,
 }: {
   row: QueueRow;
   position?: number;
+  /** minutes since arrival, while waiting */
+  waited?: number | null;
   dentistName: (slug: string) => string;
   serviceName: (key: IconKey) => string;
   serving?: boolean;
+  /** dentist picker rendered under the name while a row waits unassigned */
+  assign?: React.ReactNode;
   action: React.ReactNode;
 }) {
   const isBooking = row.kind === "booking";
@@ -273,6 +365,7 @@ function QueueCard({
         ) : (
           <span className="queue-pos serving">กำลังตรวจ</span>
         )}
+        {waited !== undefined && waited !== null ? <span className="queue-waited">รอ {fmtMinutes(waited)}</span> : null}
         <span className="queue-ref">
           {isBooking ? <IconSmartphone size={11} /> : <IconWalkIn size={11} />} {ref}
         </span>
@@ -286,8 +379,20 @@ function QueueCard({
         {isBooking
           ? `นัด ${row.appt.time} น.${row.appt.checkedInAt ? ` · เช็คอิน ${row.appt.checkedInAt} น.` : ""}`
           : `มาถึง ${row.at} น.`}
+        {isBooking ? <LineTag name={row.appt.lineName} /> : null}
       </div>
+      {assign ? <div style={{ margin: "6px 0" }}>{assign}</div> : null}
       <div className="queue-actions">{action}</div>
     </div>
+  );
+}
+
+/** "booked in LINE by <display name>" — the desk's clue to who is coming */
+function LineTag({ name }: { name?: string }) {
+  if (!name) return null;
+  return (
+    <span className="line-tag" title="จองผ่าน LINE">
+      LINE · {name}
+    </span>
   );
 }

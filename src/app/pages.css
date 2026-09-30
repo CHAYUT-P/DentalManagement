@@ -271,6 +271,26 @@
   margin-top: -4px;
 }
 
+/* one upcoming booking: its slip with the postpone / cancel pair under it */
+.upNext {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* postpone mode: which booking is moving, in place of the step pills */
+.reschedNote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(214, 155, 190, 0.6);
+  border-radius: var(--r-tile);
+}
+.reschedNote .rk { font-size: 11px; color: var(--muted); }
+.reschedNote .rv { font-family: var(--font-display-stack); font-size: 15px; color: var(--ink); }
+.reschedNote .rh { font-size: 11.5px; color: var(--ink-3); }
+
 /* ==========================================================================
    The appointment slip — the one raised surface in the app.
    White paper, a torn edge with a notch punched out of each side, and the

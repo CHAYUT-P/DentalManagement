@@ -51,7 +51,7 @@ export function AddWaitlistModal({ onClose }: AddWaitlistModalProps) {
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-group">
-              <label>ชื่อคนไข้ (เด็ก) *</label>
+              <label>ชื่อที่จอง *</label>
               <input
                 type="text"
                 className="form-control"
@@ -63,7 +63,7 @@ export function AddWaitlistModal({ onClose }: AddWaitlistModalProps) {
             </div>
 
             <div className="form-group">
-              <label>เบอร์โทรศัพท์ผู้ปกครอง *</label>
+              <label>เบอร์โทร *</label>
               <input
                 type="tel"
                 className="form-control"

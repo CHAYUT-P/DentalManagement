@@ -7,12 +7,19 @@ import type { IconKey } from "@/data/icons";
  * silhouette — a tool, a wire, an arrow breaking the outline — rather than a tiny
  * mark inside an identical tooth, which is what made the first set mush together.
  *
+ * Bodies are white paper under the coloured outline (`BODY`) — a little white
+ * tooth on a pastel disc, the same read as the mascot — so each icon sits in its
+ * disc as a solid object rather than a thin wire drawing.
+ *
  * `--halo` is the disc colour behind the icon (set by the `.t-*` tint classes in
  * globals.css). Badges and overlaps stroke themselves in it to punch a clean gap
  * out of whatever they sit on, which is what keeps the small stuff readable.
  */
 
 const HALO = "var(--halo, #fff)";
+
+/** the white body every tooth and object is filled with */
+const BODY = "#fff";
 
 /** incisor: x 3.8–20.2, y 3.25–20.55 — centre (12, 11.9) */
 const TOOTH =
@@ -48,8 +55,9 @@ function Tooth({
       <path
         d={d}
         strokeWidth={w / s}
-        fill={fillOpacity ? "currentColor" : "none"}
-        fillOpacity={fillOpacity}
+        /* undefined → white body; 0 → outline only; a number → a tint wash */
+        fill={fillOpacity === undefined ? BODY : fillOpacity ? "currentColor" : "none"}
+        fillOpacity={fillOpacity || undefined}
       />
     </g>
   );
@@ -99,7 +107,7 @@ const check = {
   ),
   consult: (
     <>
-      <path d="M6.6 4.2h10.8a3.2 3.2 0 0 1 3.2 3.2v5.6a3.2 3.2 0 0 1-3.2 3.2h-5.2l-4 3.3a.6.6 0 0 1-1-.5v-2.8H6.6A3.2 3.2 0 0 1 3.4 13V7.4a3.2 3.2 0 0 1 3.2-3.2Z" />
+      <path d="M6.6 4.2h10.8a3.2 3.2 0 0 1 3.2 3.2v5.6a3.2 3.2 0 0 1-3.2 3.2h-5.2l-4 3.3a.6.6 0 0 1-1-.5v-2.8H6.6A3.2 3.2 0 0 1 3.4 13V7.4a3.2 3.2 0 0 1 3.2-3.2Z" fill={BODY} />
       <g transform="translate(6.72 3.86) scale(0.44)" fill="currentColor" stroke="none">
         <path d={TOOTH} />
       </g>
@@ -107,7 +115,7 @@ const check = {
   ),
   followup: (
     <>
-      <rect x="3.4" y="5.2" width="17.2" height="15.4" rx="3.4" />
+      <rect x="3.4" y="5.2" width="17.2" height="15.4" rx="3.4" fill={BODY} />
       <path d="M8.2 3.2v3.6M15.8 3.2v3.6" strokeWidth={1.8} />
       <path d="M3.4 10.1h17.2" strokeWidth={1.35} />
       <circle cx="16.8" cy="16.8" r="4.9" fill="currentColor" stroke={HALO} strokeWidth={2.2} paintOrder="stroke" />
@@ -197,7 +205,7 @@ const clean = {
   ),
   fluoride: (
     <>
-      <path d="M12 3.2l7.2 2.6v5.8c0 4.4-3 7.6-7.2 9.2-4.2-1.6-7.2-4.8-7.2-9.2V5.8Z" />
+      <path d="M12 3.2l7.2 2.6v5.8c0 4.4-3 7.6-7.2 9.2-4.2-1.6-7.2-4.8-7.2-9.2V5.8Z" fill={BODY} />
       <path
         d="M12 8.2c1.9 2.1 3 3.5 3 5a3 3 0 0 1-6 0c0-1.5 1.1-2.9 3-5Z"
         fill="currentColor"
@@ -216,7 +224,7 @@ const clean = {
   brushing: (
     <>
       <g transform="rotate(-38 12 12)">
-        <rect x="6.4" y="10.2" width="12.4" height="3.6" rx="1.8" />
+        <rect x="6.4" y="10.2" width="12.4" height="3.6" rx="1.8" fill={BODY} />
         <rect x="3.2" y="9.2" width="4.6" height="5.6" rx="1.5" fill="currentColor" stroke="none" />
         <path d="M3.8 9.2V6.6M5.5 9.2V6.6M7.2 9.2V6.6" strokeWidth={1.45} />
       </g>
@@ -237,7 +245,7 @@ const clean = {
   ),
   mouthwash: (
     <>
-      <path d="M9 3.4h6v2.6c0 .8.4 1.2 1 1.8 1.1 1 1.6 2.1 1.6 3.6v6.4a3 3 0 0 1-3 3H9.4a3 3 0 0 1-3-3v-6.4c0-1.5.5-2.6 1.6-3.6.6-.6 1-1 1-1.8Z" />
+      <path d="M9 3.4h6v2.6c0 .8.4 1.2 1 1.8 1.1 1 1.6 2.1 1.6 3.6v6.4a3 3 0 0 1-3 3H9.4a3 3 0 0 1-3-3v-6.4c0-1.5.5-2.6 1.6-3.6.6-.6 1-1 1-1.8Z" fill={BODY} />
       <path d="M9 3.4h6" strokeWidth={2.2} />
       <path d="M8.2 15.4c1.2-1 2.4-1 3.6 0 1.2 1 2.4 1 3.6 0" strokeWidth={1.45} />
       <Star x={19.6} y={5.2} r={2.1} o={0.9} />
@@ -330,7 +338,7 @@ const restore = {
   ),
   implant: (
     <>
-      <path d="M7.6 3.6h8.8c.9 0 1.6.8 1.5 1.7l-.6 4.1H6.7l-.6-4.1c-.1-.9.6-1.7 1.5-1.7Z" />
+      <path d="M7.6 3.6h8.8c.9 0 1.6.8 1.5 1.7l-.6 4.1H6.7l-.6-4.1c-.1-.9.6-1.7 1.5-1.7Z" fill={BODY} />
       <path d="M3.4 11.4h17.2" strokeWidth={1.35} opacity={0.5} />
       <path
         d="M10.2 11.6h3.6l-.55 7.6c-.06 1-.5 1.6-1.25 1.6s-1.19-.6-1.25-1.6Z"
@@ -380,11 +388,11 @@ const surgery = {
       {/* the gum line, the row of crowns standing on it, and the extra tooth
           lying tipped under the gum where it is stuck */}
       <path d="M2.6 12.6h18.8" strokeWidth={1.7} />
-      <path d="M4.4 7.7a1.9 1.9 0 0 1 1.9-1.9h.4a1.9 1.9 0 0 1 1.9 1.9v4.9H4.4Z" />
-      <path d="M9.8 7.7a1.9 1.9 0 0 1 1.9-1.9h.4a1.9 1.9 0 0 1 1.9 1.9v4.9H9.8Z" />
-      <path d="M15.2 7.7a1.9 1.9 0 0 1 1.9-1.9h.4a1.9 1.9 0 0 1 1.9 1.9v4.9h-4.2Z" />
+      <path d="M4.4 7.7a1.9 1.9 0 0 1 1.9-1.9h.4a1.9 1.9 0 0 1 1.9 1.9v4.9H4.4Z" fill={BODY} />
+      <path d="M9.8 7.7a1.9 1.9 0 0 1 1.9-1.9h.4a1.9 1.9 0 0 1 1.9 1.9v4.9H9.8Z" fill={BODY} />
+      <path d="M15.2 7.7a1.9 1.9 0 0 1 1.9-1.9h.4a1.9 1.9 0 0 1 1.9 1.9v4.9h-4.2Z" fill={BODY} />
       <g transform="rotate(-46 17.3 20.2)">
-        <path d="M15 15.6a2 2 0 0 1 2-2h.6a2 2 0 0 1 2 2v4.6H15Z" fill="currentColor" fillOpacity={0.14} />
+        <path d="M15 15.6a2 2 0 0 1 2-2h.6a2 2 0 0 1 2 2v4.6H15Z" fill="currentColor" fillOpacity={0.3} />
       </g>
     </>
   ),
@@ -404,7 +412,7 @@ const surgery = {
   anesthesia: (
     <>
       <g transform="rotate(-40 12 12)">
-        <rect x="7.2" y="8.6" width="8.6" height="5.6" rx="1.5" />
+        <rect x="7.2" y="8.6" width="8.6" height="5.6" rx="1.5" fill={BODY} />
         <path d="M3.6 11.4h3.6" strokeWidth={1.6} />
         <path d="M3.4 9.4v4" strokeWidth={1.8} />
         <rect x="15.4" y="9.8" width="1.8" height="3.2" rx="0.6" fill="currentColor" stroke="none" />
@@ -465,7 +473,7 @@ const ortho = {
   aligner: (
     <>
       <Tooth s={0.74} cy={12.4} />
-      <Tooth s={1.02} cy={12} w={2.4} />
+      <Tooth s={1.02} cy={12} w={2.4} fillOpacity={0} />
     </>
   ),
   retainer: (
@@ -508,7 +516,7 @@ const ortho = {
     <>
       {/* the jawbone in profile: the condyle riding at the top of the ramus, the
           body sweeping forward to the chin, teeth standing on the ridge */}
-      <path d="M17.9 7v5.2c0 2.8-1.9 4.8-5.7 5.9-2.5.7-4.9.9-6.9.6-1.2-.3-1.6-1.2-1.2-2.6.3-1.1.3-2.2 0-3.2h11.5c.9-.2 1.4-1.8 1.7-4.2.1-1 .3-1.7.5-1.7Z" />
+      <path d="M17.9 7v5.2c0 2.8-1.9 4.8-5.7 5.9-2.5.7-4.9.9-6.9.6-1.2-.3-1.6-1.2-1.2-2.6.3-1.1.3-2.2 0-3.2h11.5c.9-.2 1.4-1.8 1.7-4.2.1-1 .3-1.7.5-1.7Z" fill={BODY} />
       <rect x="5.8" y="10.4" width="2.4" height="2.7" rx="1.1" />
       <rect x="8.9" y="10.4" width="2.4" height="2.7" rx="1.1" />
       <rect x="12" y="10.4" width="2.4" height="2.7" rx="1.1" />
