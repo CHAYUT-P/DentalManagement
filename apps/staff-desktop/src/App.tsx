@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { HashRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
+import { CrashScreen } from "./components/CrashScreen";
 import { LoginScreen } from "./components/LoginScreen";
 import { StaffSidebar } from "./components/StaffSidebar";
 import { API_BASE, ensureStaffToken, hasStaffToken, staffBootstrap, type StaffBootstrap } from "./api";
@@ -75,6 +76,7 @@ export default function App() {
   }
 
   return (
+    <CrashScreen>
     <LangProvider>
       <StaffProvider initial={initial} edition={STAFF_EDITION}>
         <HashRouter>
@@ -108,6 +110,7 @@ export default function App() {
         </HashRouter>
       </StaffProvider>
     </LangProvider>
+    </CrashScreen>
   );
 }
 

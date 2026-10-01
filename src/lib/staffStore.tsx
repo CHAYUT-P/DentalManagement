@@ -174,6 +174,23 @@ function asClinicSchedule(rows: StaffBootstrap["schedule"]): ClinicDaySetting[] 
   return rows.map((r) => ({ day: r.day as ClinicDaySetting["day"], isOpen: r.isOpen, start: r.start, end: r.end }));
 }
 
+/**
+ * The app can be newer than the server it talks to (a clinic PC updated
+ * before the deploy). Lists an older server doesn't send yet become empty
+ * instead of crashing the page.
+ */
+function withDefaults(b: StaffBootstrap): StaffBootstrap {
+  return {
+    ...b,
+    treatments: b.treatments ?? [],
+    dentistLeaves: b.dentistLeaves ?? [],
+    holidays: b.holidays ?? [],
+    waitlist: b.waitlist ?? [],
+    visitRecords: b.visitRecords ?? [],
+    notifications: b.notifications ?? [],
+  };
+}
+
 export function StaffProvider({
   children,
   initial,
@@ -184,7 +201,7 @@ export function StaffProvider({
   /** "queue" is the lean install; "full" adds patients + room pages */
   edition?: StaffEdition;
 }) {
-  const [state, setState] = useState<StaffBootstrap>(initial);
+  const [state, setState] = useState<StaffBootstrap>(() => withDefaults(initial));
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [walkinOpen, setWalkinOpen] = useState(false);
@@ -217,7 +234,7 @@ export function StaffProvider({
       try {
         await fn();
         const fresh = await staffBootstrap();
-        setState(fresh);
+        setState(withDefaults(fresh));
       } catch (e) {
         console.error(e);
         showToast(`ข้อผิดพลาด: ${what} ไม่สำเร็จ`);
@@ -231,7 +248,7 @@ export function StaffProvider({
   /** silent re-fetch — the poll and manual refresh share this */
   const refresh = useCallback(() => {
     staffBootstrap()
-      .then(setState)
+      .then((fresh) => setState(withDefaults(fresh)))
       .catch(() => {});
   }, []);
 
