@@ -17,7 +17,6 @@ import {
   IconCheck,
   IconX,
   IconDentist,
-  IconGrip,
 } from "@/components/staff/staffIcons";
 
 const TIME_SLOTS = [
@@ -26,7 +25,11 @@ const TIME_SLOTS = [
   "16:00", "16:30", "17:00", "17:30", "18:00"
 ];
 
-export function ScheduleDay() {
+/** HH:MM → minutes, to spot the gap the clinic leaves for lunch */
+const toMin = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+
+/** `lead` = the วัน / รายการ switch, drawn at the start of this toolbar */
+export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
   const {
     today,
     appointments,
@@ -98,7 +101,6 @@ export function ScheduleDay() {
   }, [appointments]);
 
   // Quick stats
-  const confirmedCount = dayAppts.filter((a) => a.status === "confirmed").length;
   const completedCount = dayAppts.filter((a) => a.status === "completed").length;
   const cancelledCount = dayAppts.filter((a) => a.status === "cancelled").length;
   const waitingCount = waitlist.filter((w) => w.status === "waiting").length;
@@ -109,10 +111,8 @@ export function ScheduleDay() {
 
   const dayOffset = daysFrom(today, selectedDate);
   const dateLong = fmtLong(dict, selectedDate, "th");
-  let dateTitle = dateLong;
-  if (dayOffset === 0) dateTitle = `วันนี้ · ${dateLong}`;
-  else if (dayOffset === 1) dateTitle = `พรุ่งนี้ · ${dateLong}`;
-  else if (dayOffset === -1) dateTitle = `เมื่อวาน · ${dateLong}`;
+  const dateHint =
+    dayOffset === 0 ? "วันนี้" : dayOffset === 1 ? "พรุ่งนี้" : dayOffset === -1 ? "เมื่อวาน" : "";
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, appt: StaffAppointment) => {
@@ -192,6 +192,7 @@ export function ScheduleDay() {
       <div className="schedule-toolbar">
         {/* Date Navigator */}
         <div className="schedule-date-nav">
+          {lead}
           <button
             type="button"
             className="btn-date-nav"
@@ -233,30 +234,23 @@ export function ScheduleDay() {
             counts={apptCounts}
           />
 
-          <span className="schedule-current-date-title">{dateTitle}</span>
+          <h1 className="schedule-current-date-title">
+            {dateLong}
+            {dateHint ? <span className="sched-date-hint">{dateHint}</span> : null}
+          </h1>
         </div>
 
         {/* Status Counters Strip */}
-        <div className="schedule-stats-strip">
-          <span className="stat-pill-item" title="นัดหมายทั้งหมดในวันนี้">
-            <strong style={{ color: "var(--staff-primary)" }}>{dayAppts.length}</strong> นัดหมาย
-          </span>
+        <div className="schedule-stats-strip" title="นัดหมายของวันที่เลือก">
+          <strong>{dayAppts.length}</strong> นัด
           <span className="stat-pill-divider">·</span>
-          <span className="stat-pill-item" style={{ color: "var(--staff-status-confirmed-fg)" }}>
-            <strong>{confirmedCount}</strong> รอรับการตรวจ
-          </span>
-          <span className="stat-pill-divider">·</span>
-          <span className="stat-pill-item" style={{ color: "var(--staff-status-completed-fg)" }}>
-            <strong>{completedCount}</strong> ตรวจเสร็จสิ้น
-          </span>
-          {cancelledCount > 0 && (
+          <strong>{completedCount}</strong> เสร็จ
+          {cancelledCount > 0 ? (
             <>
               <span className="stat-pill-divider">·</span>
-              <span className="stat-pill-item" style={{ color: "var(--staff-status-cancelled-fg)" }}>
-                <strong>{cancelledCount}</strong> ยกเลิก
-              </span>
+              <strong>{cancelledCount}</strong> ยกเลิก
             </>
-          )}
+          ) : null}
         </div>
 
         {/* Right Toolbar Controls */}
@@ -306,13 +300,7 @@ export function ScheduleDay() {
               return (
                 <div key={d.slug} className={`matrix-doctor-header ${working ? "on-duty" : "off-duty"}`}>
                   <div className="matrix-doc-avatar-wrap">
-                    <div
-                      className="matrix-doc-avatar"
-                      style={{
-                        background: working ? "var(--staff-primary-light)" : "#e4e4e7",
-                        color: working ? "var(--staff-primary)" : "#71717a",
-                      }}
-                    >
+                    <div className={`matrix-doc-avatar tint-${working ? d.tint : "off"}`}>
                       {d.text.th.name.split(" ")[1]?.[0] || "ท"}
                     </div>
                   </div>
@@ -331,8 +319,15 @@ export function ScheduleDay() {
 
           {/* Time Slot Rows */}
           <div className="matrix-body-scroll">
-            {TIME_SLOTS.map((time) => (
-              <div key={time} className="matrix-slot-row">
+            {TIME_SLOTS.map((time, i) => (
+              <React.Fragment key={time}>
+              {i > 0 && toMin(time) - toMin(TIME_SLOTS.at(i - 1) ?? time) > 30 ? (
+                <div className="matrix-break-row" aria-label="พักเที่ยง">
+                  <div className="matrix-time-label" />
+                  <div className="matrix-break">พักเที่ยง</div>
+                </div>
+              ) : null}
+              <div className="matrix-slot-row">
                 {/* Time Axis Column */}
                 <div className="matrix-time-label">
                   <span>{time}</span>
@@ -375,38 +370,22 @@ export function ScheduleDay() {
                           title="คลิกเพื่อดูรายละเอียด / ลากเพื่อย้ายเวลาหรือเปลี่ยนแพทย์"
                         >
                           <div className="appt-chip-header">
-                            <div className="appt-chip-title">
-                              <span className="drag-handle" title="ลากเพื่อย้ายเวลานัด">
-                                <IconGrip size={12} />
-                              </span>
-                              <strong>{appt.childName}</strong>
-                              {appt.childAge && <span className="child-age">({appt.childAge}ขวบ)</span>}
-                              {appt.forSelf && (
-                                <span
-                                  className="child-age"
-                                  style={{ background: "var(--staff-primary-light)", color: "var(--staff-primary)" }}
-                                >
-                                  ตนเอง
-                                </span>
-                              )}
-                            </div>
+                            <strong className="appt-chip-name">{appt.childName}</strong>
                             <span className="appt-chip-ref">{appt.ref}</span>
                           </div>
-
                           <div className="appt-chip-body">
                             <span className="appt-treatment-name">
                               {dict.service[appt.treatmentKey] || appt.treatmentKey}
                             </span>
-                            {appt.price ? <span className="appt-price">฿{appt.price}</span> : null}
-                          </div>
-
-                          <div className="appt-chip-footer">
-                            <span className={`source-pill-micro ${appt.source}`}>
-                              {appt.source === "online" && "LINE"}
-                              {appt.source === "phone" && "TEL"}
-                              {appt.source === "walkin" && "WALK"}
-                            </span>
-                            <span className="appt-phone-micro">{appt.phone}</span>
+                            {appt.lineName ? (
+                              <span className="line-tag">LINE · {appt.lineName}</span>
+                            ) : (
+                              <span className={`source-pill-micro ${appt.source}`}>
+                                {appt.source === "online" && "เว็บ"}
+                                {appt.source === "phone" && "โทร"}
+                                {appt.source === "walkin" && "Walk-in"}
+                              </span>
+                            )}
                           </div>
                         </div>
                       ) : (
@@ -429,6 +408,7 @@ export function ScheduleDay() {
                   );
                 })}
               </div>
+              </React.Fragment>
             ))}
           </div>
         </div>

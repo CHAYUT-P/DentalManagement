@@ -2428,3 +2428,541 @@
 td .line-tag {
   margin: 4px 0 0;
 }
+
+/* ==========================================================================
+   Redesign pass 2 — the schedule, the roster and the shared controls brought
+   up to the approved canvas: calm toolbar, the grid on a white panel, light
+   one-line chips, a lunch band, roster rows, softer tables and forms.
+   ========================================================================== */
+
+/* ── tints shared by dentist avatars (the dentist's own colour) ───────────── */
+.tint-rose   { background: #fcdeef; color: #b23a6f; }
+.tint-violet { background: #efe4f7; color: #5b3a90; }
+.tint-lav    { background: #efe4f7; color: #5b3a90; }
+.tint-steel  { background: #dbe6f4; color: #2f4f9a; }
+.tint-peri   { background: #dee0fa; color: #3a44a0; }
+.tint-blue   { background: #dde3fb; color: #3550b0; }
+.tint-gold   { background: #fef3d6; color: #8a5a0f; }
+.tint-off    { background: #f2eff6; color: #9a90b0; }
+
+/* ── ตารางนัด toolbar ───────────────────────────────────────────────────── */
+.sched-view .staff-schedule-container {
+  margin: 0;
+  border-top: 0;
+  background: transparent;
+}
+
+.sched-view-bar {
+  padding: 18px 28px 0;
+}
+
+.sched-view-bar .view-switch,
+.schedule-toolbar .view-switch {
+  margin: 0;
+}
+
+.schedule-toolbar .view-switch {
+  margin-right: 8px;
+}
+
+.schedule-toolbar {
+  padding: 18px 28px 14px;
+  background: transparent;
+  border-bottom: 0;
+  gap: 12px;
+}
+
+.schedule-date-nav {
+  gap: 6px;
+}
+
+.btn-date-nav {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border-color: var(--staff-border-strong);
+}
+
+.btn-date-pill {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border-color: var(--staff-border-strong);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.btn-date-pill.active {
+  font-weight: 500;
+}
+
+.dpTrigger {
+  height: 40px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.schedule-current-date-title {
+  margin: 0 0 0 8px;
+  font-family: var(--staff-font-display);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--staff-ink);
+}
+
+.sched-date-hint {
+  margin-left: 10px;
+  font-family: var(--staff-font);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--staff-ink-muted);
+}
+
+.schedule-stats-strip {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 14px;
+  color: var(--staff-ink-2);
+}
+
+.schedule-stats-strip .stat-pill-item,
+.schedule-stats-strip .stat-pill-item[style] {
+  color: var(--staff-ink-2) !important;
+  font-weight: 400;
+}
+
+.schedule-stats-strip strong {
+  font-weight: 500;
+  color: var(--staff-ink) !important;
+}
+
+.btn-seg-toggle,
+.btn-walkin-toggle {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* ── the grid on a white panel ──────────────────────────────────────────── */
+.sched-view .schedule-matrix-container {
+  margin: 0 28px 24px;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  border-radius: 16px;
+}
+
+.matrix-head-row {
+  background: var(--staff-surface);
+  border-bottom: 1px solid var(--staff-border);
+  box-shadow: none;
+}
+
+.matrix-time-header {
+  font-size: 12.5px;
+  font-weight: 400;
+  border-right-color: var(--staff-border);
+}
+
+.matrix-doctor-header {
+  padding: 12px 14px;
+  border-right-color: var(--staff-border);
+}
+
+.matrix-doctor-header.off-duty {
+  background: var(--staff-surface-subtle);
+}
+
+.matrix-doc-avatar {
+  width: 36px;
+  height: 36px;
+  font-family: var(--staff-font-display);
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.matrix-doc-fullname {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.matrix-doc-specialty {
+  font-size: 12.5px;
+}
+
+.matrix-doc-shift-badge {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--staff-ink-muted);
+}
+
+.matrix-slot-row,
+.matrix-break-row {
+  display: grid;
+  grid-template-columns: 75px repeat(var(--doc-count, 3), minmax(240px, 1fr));
+}
+
+.matrix-slot-row {
+  min-height: 54px;
+  border-bottom: 1px solid #f1ecf6;
+}
+
+.matrix-time-label {
+  padding: 8px 6px;
+  background: var(--staff-surface);
+  border-right-color: var(--staff-border);
+  font-size: 12.5px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.matrix-cell {
+  padding: 5px 8px;
+  border-right-color: #f1ecf6;
+}
+
+.matrix-cell.off-duty {
+  background-image: repeating-linear-gradient(135deg, #f7f4fa 0 8px, #ffffff 8px 16px);
+  opacity: 1;
+}
+
+/* the gap the clinic leaves for lunch, drawn rather than skipped */
+.matrix-break-row {
+  border-bottom: 1px solid #f1ecf6;
+}
+
+.matrix-break {
+  grid-column: 2 / -1;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+  color: var(--staff-ink-muted);
+  background: repeating-linear-gradient(135deg, #f7f4fa 0 8px, #ffffff 8px 16px);
+}
+
+.btn-cell-add {
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+/* ── appointment chips: light, two short lines ──────────────────────────── */
+.appt-chip-card {
+  min-height: 0;
+  padding: 7px 10px;
+  gap: 3px;
+  justify-content: center;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.appt-chip-card:hover {
+  transform: none;
+  box-shadow: 0 4px 12px -6px rgba(51, 44, 94, 0.35);
+}
+
+.schedule-matrix-container .appt-chip-card.confirmed { border-left: 1px solid var(--staff-status-confirmed-border); }
+.schedule-matrix-container .appt-chip-card.arrived   { border-left: 1px solid var(--staff-status-arrived-border); }
+.schedule-matrix-container .appt-chip-card.in_chair  { border-left: 1px solid var(--staff-status-inchair-border); }
+.schedule-matrix-container .appt-chip-card.completed { border-left: 1px solid var(--staff-status-completed-border); }
+.schedule-matrix-container .appt-chip-card.cancelled { border-left: 1px solid var(--staff-status-cancelled-border); }
+.schedule-matrix-container .appt-chip-card.no_show   { border-left: 1px solid var(--staff-status-noshow-border); }
+
+.appt-chip-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appt-chip-name {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appt-chip-ref {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--staff-ink-muted);
+}
+
+.appt-chip-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--staff-ink-2);
+}
+
+.appt-chip-body .appt-treatment-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appt-chip-body .line-tag {
+  margin-left: auto;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.appt-chip-body .source-pill-micro {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--staff-ink-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 18px;
+}
+
+/* ── ทันตแพทย์ & เวรตรวจ: roster rows ──────────────────────────────────── */
+.ledger-table {
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 252px 132px 104px;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 20px;
+}
+
+.ledger-head {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+  border-bottom: 1px solid var(--staff-border);
+}
+
+.ledger-row + .ledger-row {
+  border-top: 1px solid #f1ecf6;
+}
+
+.ledger-row.inactive .doc-who,
+.ledger-row.inactive .week-strip {
+  opacity: 0.55;
+}
+
+.doc-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.doc-avatar {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--staff-font-display);
+  font-size: 17px;
+}
+
+.doc-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.doc-name {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.doc-sub {
+  font-size: 13px;
+  color: var(--staff-ink-2);
+}
+
+.doc-treats {
+  font-size: 12.5px;
+  color: var(--staff-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.week-strip {
+  display: flex;
+  gap: 4px;
+}
+
+.week-strip span {
+  width: 30px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: #a597bd;
+  border: 1px dashed #ddd3ea;
+}
+
+.week-strip span.on {
+  background: var(--staff-primary-light);
+  color: var(--staff-ink);
+  border: 1px solid transparent;
+}
+
+.doc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.doc-toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--staff-primary);
+}
+
+.ledger-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+}
+
+/* ── shared controls: filters, tables, forms, dialogs ───────────────────── */
+.staff-toolbar {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+}
+
+.staff-pill-group {
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--staff-bg);
+  border-color: var(--staff-border);
+}
+
+.staff-pill-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 400;
+}
+
+.staff-pill-btn.active {
+  background: var(--staff-primary);
+  color: #ffffff;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.staff-search-box,
+.staff-select {
+  height: 38px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--staff-surface);
+  border-color: var(--staff-border-strong);
+  font-size: 14px;
+}
+
+.staff-search-box input {
+  font-size: 14px;
+}
+
+.staff-table-wrap {
+  border-radius: 16px;
+  border-color: var(--staff-border);
+  box-shadow: none;
+}
+
+.staff-table th {
+  background: var(--staff-surface);
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--staff-ink-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.staff-table td {
+  font-size: 14px;
+  border-bottom-color: #f1ecf6;
+}
+
+.status-pill {
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn-action-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.modal-card {
+  border-radius: 18px;
+  border: 1px solid var(--staff-border);
+  box-shadow: var(--staff-shadow-lg);
+}
+
+.modal-header h3 {
+  font-family: var(--staff-font-display);
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--staff-ink-2);
+}
+
+.form-control {
+  min-height: 42px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border-color: var(--staff-border-strong);
+  font-size: 14.5px;
+}
+
+.form-control:focus {
+  border-color: var(--staff-primary);
+  box-shadow: 0 0 0 3px var(--staff-primary-light);
+}
+
+/* two fields side by side never push the dialog wider: a long dentist name
+   in a <select> used to shove the treatment picker out of the card */
+.form-row-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-row-2 > .form-group,
+.form-row-2 .form-control {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.view-switch {
+  display: inline-flex;
+}

@@ -14,17 +14,27 @@ type View = "day" | "list";
  */
 export function ScheduleView() {
   const [view, setView] = useState<View>("day");
+  const viewSwitch = (
+    <div className="view-switch" role="group" aria-label="มุมมองตารางนัด">
+      <button type="button" aria-pressed={view === "day"} onClick={() => setView("day")}>
+        วัน
+      </button>
+      <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>
+        รายการ
+      </button>
+    </div>
+  );
   return (
     <div className="sched-view">
-      <div className="view-switch" role="group" aria-label="มุมมองตารางนัด">
-        <button type="button" aria-pressed={view === "day"} onClick={() => setView("day")}>
-          วัน
-        </button>
-        <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>
-          รายการ
-        </button>
-      </div>
-      {view === "day" ? <ScheduleDay /> : <AppointmentsList />}
+      {view === "day" ? (
+        // the switch rides at the start of the calendar's own toolbar
+        <ScheduleDay lead={viewSwitch} />
+      ) : (
+        <>
+          <div className="sched-view-bar">{viewSwitch}</div>
+          <AppointmentsList />
+        </>
+      )}
     </div>
   );
 }

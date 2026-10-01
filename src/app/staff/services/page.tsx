@@ -47,10 +47,8 @@ export default function StaffServicesPage() {
     <div className="staff-container">
       <div className="staff-page-header">
         <div>
-          <h2>จัดการหัตถการและอัตราค่ารักษา (Services & Pricing)</h2>
-          <p>
-            แก้ไขราคาเริ่มต้นและรายการบริการทันตกรรมทั้งหมด ข้อมูลนี้จะอัปเดตบนหน้าเว็บคนไข้แบบ Real-time
-          </p>
+          <h2>บริการ &amp; ราคา</h2>
+          <p>ราคาเริ่มต้นของแต่ละบริการ แก้แล้วหน้าเว็บคนไข้อัปเดตทันที</p>
         </div>
       </div>
 

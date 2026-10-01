@@ -130,12 +130,12 @@ export function AppointmentDetailModal({
                 className={`status-pill ${appointment.status}`}
                 style={{ fontSize: "12px", padding: "3px 10px", fontWeight: "600" }}
               >
-                {appointment.status === "confirmed" && "ยืนยันแล้ว (Confirmed)"}
-                {appointment.status === "arrived" && "เช็คอินแล้ว (Arrived)"}
-                {appointment.status === "in_chair" && "กำลังตรวจ (In chair)"}
-                {appointment.status === "completed" && "ตรวจเสร็จสิ้น (Completed)"}
-                {appointment.status === "cancelled" && "ยกเลิกแล้ว (Cancelled)"}
-                {appointment.status === "no_show" && "ไม่มาตามนัด (No-show)"}
+                {appointment.status === "confirmed" && "ยืนยันแล้ว"}
+                {appointment.status === "arrived" && "เช็คอินแล้ว"}
+                {appointment.status === "in_chair" && "กำลังตรวจ"}
+                {appointment.status === "completed" && "ตรวจเสร็จสิ้น"}
+                {appointment.status === "cancelled" && "ยกเลิกแล้ว"}
+                {appointment.status === "no_show" && "ไม่มาตามนัด"}
               </span>
               {appointment.forSelf && (
                 <span
@@ -173,7 +173,7 @@ export function AppointmentDetailModal({
                 {appointment.source === "online" && (
                   <>
                     <IconSmartphone size={12} />
-                    <span>LINE LIFF</span>
+                    <span>{appointment.lineName ? "LINE" : "ออนไลน์"}</span>
                   </>
                 )}
                 {appointment.source === "phone" && (
@@ -551,7 +551,7 @@ export function AppointmentDetailModal({
               }}
             >
               <div style={{ fontWeight: "700", fontSize: "14.5px", color: "var(--staff-primary)" }}>
-                เลื่อนวัน/เวลานัดหมาย (Reschedule)
+                เลื่อนวัน/เวลานัดหมาย
               </div>
               <div className="form-row-2">
                 <div className="form-group">
@@ -627,7 +627,7 @@ export function AppointmentDetailModal({
                 onClick={() => setIsRescheduling(true)}
               >
                 <IconEdit size={15} />
-                <span>เลื่อนนัดหมาย (Reschedule)</span>
+                <span>เลื่อนนัดหมาย</span>
               </button>
               <button
                 type="button"
@@ -655,7 +655,7 @@ export function AppointmentDetailModal({
 
           {/* Notes */}
           <div className="form-group">
-            <label style={{ fontSize: "13.5px", fontWeight: "600" }}>บันทึกของคลินิก (Staff Notes)</label>
+            <label style={{ fontSize: "13.5px", fontWeight: "600" }}>บันทึกของคลินิก</label>
             <textarea
               className="form-control"
               rows={3}
@@ -690,7 +690,7 @@ export function AppointmentDetailModal({
                 onClick={handleCancel}
               >
                 <IconX size={15} />
-                <span>ยกเลิกนัด (Cancel)</span>
+                <span>ยกเลิกนัด</span>
               </button>
               {appointment.status === "confirmed" && appointment.date <= today && (
                 <button
@@ -706,7 +706,7 @@ export function AppointmentDetailModal({
                   }}
                   onClick={() => queueMove("no_show")}
                 >
-                  <span>ไม่มา (No-show)</span>
+                  <span>ไม่มา</span>
                 </button>
               )}
             </div>
@@ -731,7 +731,7 @@ export function AppointmentDetailModal({
                 onClick={() => queueMove("arrived")}
               >
                 <IconWalkIn size={16} />
-                <span>เช็คอิน (Check in)</span>
+                <span>เช็คอิน</span>
               </button>
             )}
             {appointment.status === "confirmed" && appointment.date !== today && (

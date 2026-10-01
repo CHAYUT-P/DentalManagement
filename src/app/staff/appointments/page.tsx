@@ -109,28 +109,28 @@ export default function StaffAppointmentsPage() {
             className={`staff-pill-btn ${range === "today" ? "active" : ""}`}
             onClick={() => setRange("today")}
           >
-            นัดวันนี้ (Today)
+            นัดวันนี้
           </button>
           <button
             type="button"
             className={`staff-pill-btn ${range === "upcoming" ? "active" : ""}`}
             onClick={() => setRange("upcoming")}
           >
-            ที่กำลังจะถึง 14 วัน (Upcoming)
+            ที่กำลังจะถึง 14 วัน
           </button>
           <button
             type="button"
             className={`staff-pill-btn ${range === "past" ? "active" : ""}`}
             onClick={() => setRange("past")}
           >
-            ประวัติย้อนหลัง (Past)
+            ประวัติย้อนหลัง
           </button>
           <button
             type="button"
             className={`staff-pill-btn ${range === "all" ? "active" : ""}`}
             onClick={() => setRange("all")}
           >
-            ทั้งหมด (All)
+            ทั้งหมด
           </button>
         </div>
 
@@ -141,12 +141,12 @@ export default function StaffAppointmentsPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="">สถานะทั้งหมด</option>
-          <option value="confirmed">ยืนยันแล้ว (Confirmed)</option>
-          <option value="arrived">เช็คอินแล้ว (Arrived)</option>
-          <option value="in_chair">กำลังตรวจ (In chair)</option>
-          <option value="completed">เสร็จสิ้น (Completed)</option>
-          <option value="cancelled">ยกเลิกแล้ว (Cancelled)</option>
-          <option value="no_show">ไม่มาตามนัด (No-show)</option>
+          <option value="confirmed">ยืนยันแล้ว</option>
+          <option value="arrived">เช็คอินแล้ว</option>
+          <option value="in_chair">กำลังตรวจ</option>
+          <option value="completed">เสร็จสิ้น</option>
+          <option value="cancelled">ยกเลิกแล้ว</option>
+          <option value="no_show">ไม่มาตามนัด</option>
         </select>
 
         {/* Channel Dropdown */}
@@ -157,8 +157,8 @@ export default function StaffAppointmentsPage() {
         >
           <option value="">ทุกช่องทาง</option>
           <option value="online">LINE LIFF ออนไลน์</option>
-          <option value="phone">โทรศัพท์ (Phone)</option>
-          <option value="walkin">หน้าร้าน (Walk-in)</option>
+          <option value="phone">โทรศัพท์</option>
+          <option value="walkin">Walk-in</option>
         </select>
 
         {/* Dentist Dropdown */}
@@ -283,7 +283,7 @@ export default function StaffAppointmentsPage() {
                         {appt.source === "online" && (
                           <>
                             <IconSmartphone size={11} />
-                            <span>LINE</span>
+                            <span>{appt.lineName ? "LINE" : "ออนไลน์"}</span>
                           </>
                         )}
                         {appt.source === "phone" && (
@@ -319,7 +319,7 @@ export default function StaffAppointmentsPage() {
                             <button
                               type="button"
                               className="btn-action-icon success"
-                              title="ตรวจเสร็จสิ้น (Mark Completed)"
+                              title="ตรวจเสร็จสิ้น"
                               onClick={(e) => handleQuickComplete(e, appt.id)}
                             >
                               <IconCheck size={14} />
@@ -327,7 +327,7 @@ export default function StaffAppointmentsPage() {
                             <button
                               type="button"
                               className="btn-action-icon danger"
-                              title="ยกเลิกนัด (Cancel)"
+                              title="ยกเลิกนัด"
                               onClick={(e) => handleQuickCancel(e, appt.id, appt.childName)}
                             >
                               <IconX size={14} />
