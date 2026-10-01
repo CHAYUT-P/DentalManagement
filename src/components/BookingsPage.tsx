@@ -4,8 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { dentistBySlug } from "@/data/dentists";
-import type { IconKey } from "@/data/icons";
-import { iconLibrary } from "@/data/icons";
+import type { TreatmentKey } from "@/lib/treatments";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useLang } from "@/i18n/lang";
 import { fmtShort } from "@/lib/dates";
 import { cancelBooking, myBookings, myBookingsByLine } from "@/server/actions";
@@ -33,7 +33,7 @@ export interface BookingView {
   ref: string;
   date: string;
   time: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistSlug: string | null;
   status: "confirmed" | "arrived" | "in_chair" | "completed" | "cancelled" | "no_show";
   childName: string;
@@ -41,18 +41,17 @@ export interface BookingView {
   phone: string;
 }
 
-const TINT = new Map(iconLibrary.map((e) => [e.key, e.tint] as const));
-
 function PastRow({ a }: { a: BookingView }) {
   const { t, lang } = useLang();
+  const tr = useTreatments();
   const d = a.dentistSlug ? dentistBySlug(a.dentistSlug) : undefined;
   return (
     <div className={`histRow ${a.status}`}>
-      <span className={`disc t-${TINT.get(a.treatmentKey) ?? "lav"}`}>
-        <ServiceIcon k={a.treatmentKey} size={25} />
+      <span className={`disc t-${tr.tint(a.treatmentKey)}`}>
+        <ServiceIcon k={tr.icon(a.treatmentKey)} size={25} />
       </span>
       <span className="hText">
-        <span className="hn">{t.service[a.treatmentKey]}</span>
+        <span className="hn">{tr.name(a.treatmentKey, lang)}</span>
         <span className="hm">
           {fmtShort(t, a.date)} · {a.time} · {d ? d.text[lang].name : t.booking.anyone}
         </span>

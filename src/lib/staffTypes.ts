@@ -1,4 +1,5 @@
 import type { IconKey } from "@/data/icons";
+import type { TreatmentKey } from "@/lib/treatments";
 
 /**
  * The staff console's UI types. They used to live inside staffStore.tsx; they
@@ -39,7 +40,7 @@ export interface StaffAppointment {
   dentistSlug: string;
   /** null = pooled "any dentist" booking still waiting for assignment */
   dentistId: number | null;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   source: BookingSource;
   status: AppointmentStatus;
   /** HH:MM the family checked in at the desk (status "arrived" onward) */
@@ -113,7 +114,7 @@ export interface WaitlistEntry {
   id: string;
   childName: string;
   guardianPhone: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistSlug?: string;
   arrivedAt: string;
   status: "waiting" | "in_chair" | "done";
@@ -174,7 +175,7 @@ export interface VisitRecord {
   waitlistId?: string;
   dentistSlug?: string;
   /** IconKey[] — treatments actually performed */
-  treatments: IconKey[];
+  treatments: TreatmentKey[];
   detail: string;
   price?: number;
   updatedAt: string;

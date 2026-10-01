@@ -2,24 +2,23 @@
 
 import Link from "next/link";
 
-import { iconGroups, iconLibrary, type IconKey } from "@/data/icons";
-import { useT } from "@/i18n/lang";
+import { iconGroups } from "@/data/icons";
+import { useLang } from "@/i18n/lang";
+import type { TreatmentInfo } from "@/lib/treatments";
 import { Chevron } from "./icons";
 import { Eyebrow, Lead, Screen } from "./screen";
 import { ServiceIcon } from "./serviceIcons";
 
 /**
- * Every treatment the clinic offers, grouped the way the icon library groups
- * them, with a starting price. Prices arrive from the treatment table (the
- * staff app owns them); each row goes straight into the booking flow with
- * that treatment already chosen.
+ * Every treatment the clinic shows on the website, grouped, with a starting
+ * price — all from the treatment table the staff app edits (names, icons,
+ * show/hide). Each row goes straight into the booking flow with that
+ * treatment already chosen.
  */
-export function ServicesPage({ prices }: { prices: Partial<Record<IconKey, number | null>> }) {
-  const t = useT();
+export function ServicesPage({ treatments }: { treatments: TreatmentInfo[] }) {
+  const { t, lang } = useLang();
 
-  const priceShort = (k: IconKey) => {
-    const p = prices[k];
-    if (p === undefined) return "";
+  const priceShort = (p: number | null) => {
     if (p === null) return t.common.quote;
     if (p === 0) return t.common.free;
     return `${p.toLocaleString("en-US")} ${t.common.baht}`;
@@ -29,7 +28,7 @@ export function ServicesPage({ prices }: { prices: Partial<Record<IconKey, numbe
     <Screen title={t.nav.services} back="/">
       <Lead>{t.servicesPage.lead}</Lead>
       {iconGroups.map((g) => {
-        const items = iconLibrary.filter((e) => e.group === g && e.key !== "more");
+        const items = treatments.filter((e) => e.group === g && e.key !== "more");
         if (items.length === 0) return null;
         return (
           <section key={g}>
@@ -38,11 +37,11 @@ export function ServicesPage({ prices }: { prices: Partial<Record<IconKey, numbe
               {items.map((e) => (
                 <Link key={e.key} href={`/book?t=${e.key}`} className="pickRow">
                   <span className={`disc t-${e.tint}`}>
-                    <ServiceIcon k={e.key} size={26} />
+                    <ServiceIcon k={e.icon} size={26} />
                   </span>
                   <span className="pt">
-                    <span className="pn">{t.service[e.key]}</span>
-                    <span className="pp">{priceShort(e.key)}</span>
+                    <span className="pn">{e.name[lang]}</span>
+                    <span className="pp">{priceShort(e.price)}</span>
                   </span>
                   <Chevron />
                 </Link>

@@ -31,6 +31,8 @@ const OPS: Record<string, (...args: never[]) => Promise<unknown>> = {
   saveVisitRecord: actions.staffSaveVisitRecord,
   finishVisit: actions.staffFinishVisit,
   updatePrice: actions.staffUpdatePrice,
+  createTreatment: actions.staffCreateTreatment,
+  updateTreatment: actions.staffUpdateTreatment,
   updateDay: actions.staffUpdateDay,
   updateClinicInfo: actions.staffUpdateClinicInfo,
   addHoliday: actions.staffAddHoliday,

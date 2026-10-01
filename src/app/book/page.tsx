@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
-import { isIconKey } from "@/data/icons";
 import { services } from "@/data/services";
 import { nowMinutes, addDays, todayISO } from "@/lib/dates";
 import { toUIDentists } from "@/lib/convert";
-import { listActiveDentists, listClinicDays, listHolidays, listTreatments, slotsForDate, slotLoadForDates, getChairs } from "@/server/queries";
+import { listActiveDentists, listClinicDays, listHolidays, listTreatmentCatalog, slotsForDate, slotLoadForDates, getChairs } from "@/server/queries";
 import { BookingFlow } from "@/components/BookingFlow";
+import { TreatmentsProvider } from "@/lib/treatmentsContext";
 
 export const metadata: Metadata = {
   title: "Denta Kids · จองนัดหมาย",
@@ -54,15 +54,20 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
   // plus the chair count itself — one batch read for the whole window
   const [load, chairs] = await Promise.all([slotLoadForDates(dates), getChairs()]);
 
-  // prices for the compact labels
-  const prices: Partial<Record<string, number | null>> = {};
-  for (const t of await listTreatments()) {
-    prices[t.key] = t.price;
-  }
+  // the clinic's treatment list (names, icons, prices, show/hide) — staff-edited
+  const catalog = await listTreatmentCatalog();
+  const shown = new Set(catalog.filter((t) => t.isActive).map((t) => t.key));
+  const known = new Set(catalog.map((t) => t.key));
 
-  const popular = services.map((s) => s.key).filter((k) => k !== "more" && isIconKey(k));
+  // the popular grid: the home tiles the clinic still shows
+  const popular = services.map((s) => s.key).filter((k) => k !== "more" && shown.has(k));
+
+  // ?t= must be a shown treatment — except when postponing, where the booking's
+  // own treatment may since have been hidden from new bookings
+  const preTreatment = rawT && (rawR ? known.has(rawT) : shown.has(rawT)) ? rawT : undefined;
 
   return (
+    <TreatmentsProvider list={catalog}>
     <BookingFlow
       today={today}
       nowMin={nowMinutes()}
@@ -72,11 +77,11 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
       slots={slots}
       load={load}
       chairs={chairs}
-      prices={prices}
       popular={popular}
-      preTreatment={rawT && isIconKey(rawT) ? rawT : undefined}
+      preTreatment={preTreatment}
       preDentist={rawD && dentistRows.some((d) => d.slug === rawD) ? rawD : undefined}
       rescheduleRef={rawR}
     />
+    </TreatmentsProvider>
   );
 }

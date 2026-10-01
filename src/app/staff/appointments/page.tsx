@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type EditableDentist, type StaffAppointment } from "@/lib/staffStore";
 import { canTreat } from "@/lib/convert";
 import { addDays } from "@/lib/dates";
-import { useT } from "@/i18n/lang";
 import { AppointmentDetailModal } from "@/components/staff/AppointmentDetailModal";
 import {
   IconSearch,
@@ -21,7 +21,7 @@ type RangeFilter = "today" | "upcoming" | "past" | "all";
 
 export default function StaffAppointmentsPage() {
   const { today, appointments, dentists, updateStatus, assignDentist, settings } = useStaff();
-  const dict = useT();
+  const tr = useTreatments();
 
   const [range, setRange] = useState<RangeFilter>("today");
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -53,7 +53,7 @@ export default function StaffAppointmentsPage() {
         const q = searchQuery.toLowerCase();
         const d = dentists.find((doc) => doc.slug === a.dentistSlug);
         const docName = d ? d.text.th.name.toLowerCase() : "";
-        const svcName = (dict.service[a.treatmentKey] || a.treatmentKey).toLowerCase();
+        const svcName = (tr.name(a.treatmentKey)).toLowerCase();
 
         const match =
           a.ref.toLowerCase().includes(q) ||
@@ -68,7 +68,7 @@ export default function StaffAppointmentsPage() {
 
       return true;
     });
-  }, [appointments, range, today, statusFilter, sourceFilter, dentistFilter, searchQuery, dentists, dict]);
+  }, [appointments, range, today, statusFilter, sourceFilter, dentistFilter, searchQuery, dentists, tr]);
 
   const handleQuickComplete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -89,7 +89,7 @@ export default function StaffAppointmentsPage() {
         appointments={appointments}
         dentists={dentists}
         chairs={settings.chairs}
-        dictService={dict.service}
+        serviceName={tr.name}
         onAssign={assignDentist}
       />
       {/* Page Header */}
@@ -215,7 +215,7 @@ export default function StaffAppointmentsPage() {
             ) : (
               filtered.map((appt) => {
                 const dentist = dentists.find((d) => d.slug === appt.dentistSlug);
-                const svcName = dict.service[appt.treatmentKey] || appt.treatmentKey;
+                const svcName = tr.name(appt.treatmentKey);
 
                 return (
                   <tr
@@ -376,14 +376,14 @@ function PoolPanel({
   appointments,
   dentists,
   chairs,
-  dictService,
+  serviceName,
   onAssign,
 }: {
   today: string;
   appointments: StaffAppointment[];
   dentists: EditableDentist[];
   chairs: number;
-  dictService: Record<string, string>;
+  serviceName: (key: string) => string;
   onAssign: (id: string, dentistSlug: string) => void;
 }) {
   const [pick, setPick] = useState<Record<string, string>>({});
@@ -456,7 +456,7 @@ function PoolPanel({
             <div style={{ flex: "1 1 160px", minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: "13.5px" }}>{a.childName}</div>
               <div style={{ fontSize: "11.5px", color: "var(--staff-ink-muted)" }}>
-                {dictService[a.treatmentKey] || a.treatmentKey} · {a.phone}
+                {serviceName(a.treatmentKey)} · {a.phone}
                 {a.lineName ? ` · LINE ${a.lineName}` : ""} · {a.ref}
               </div>
             </div>

@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import type { TreatmentKey } from "@/lib/treatments";
+import { useTreatments } from "@/lib/treatmentsContext";
 import type { IconKey } from "@/data/icons";
 import { normalizeName } from "@/lib/clinicSettings";
 import {
@@ -10,7 +12,6 @@ import {
   type VisitRecord,
   type WaitlistEntry,
 } from "@/lib/staffStore";
-import { useT } from "@/i18n/lang";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -58,14 +59,13 @@ export function RoomPage({
     waitlist,
     visitRecords,
     patients,
-    servicePrices,
     saveVisitRecord,
     finishVisit,
     setQueueStatus,
     updateWaitlistStatus,
     showToast,
   } = useStaff();
-  const dict = useT();
+  const tr = useTreatments();
 
   const dentist = slug ? dentists.find((d) => d.slug === slug) : undefined;
 
@@ -223,8 +223,8 @@ export function RoomPage({
             record={recordOf(row)}
             child={childOf(row)}
             dentistSlug={slug}
-            serviceName={(k) => dict.service[k] || k}
-            defaultPrice={(k) => servicePrices[k]}
+            serviceName={(k) => tr.name(k)}
+            defaultPrice={(k) => tr.get(k).price}
             onSave={(rec) => {
               saveVisitRecord(rec);
               showToast("บันทึกการรักษาแล้ว");
@@ -261,7 +261,7 @@ export function RoomPage({
                     </span>
                   </div>
                   <strong className="queue-name">{name}</strong>
-                  <div className="queue-sub">{dict.service[treatKey] || treatKey}</div>
+                  <div className="queue-sub">{tr.name(treatKey)}</div>
                   <div className="queue-sub muted">
                     {isBooking
                       ? `นัด ${row.appt.time} น.${row.appt.checkedInAt ? ` · เช็คอิน ${row.appt.checkedInAt} น.` : ""}`
@@ -303,7 +303,7 @@ export function RoomPage({
                   {rec ? (
                     <>
                       <div className="queue-sub">
-                        {rec.treatments.map((k) => dict.service[k] || k).join(", ") || "—"}
+                        {rec.treatments.map((k) => tr.name(k)).join(", ") || "—"}
                       </div>
                       {rec.detail ? (
                         <div className="queue-sub muted" style={{ whiteSpace: "pre-wrap" }}>
@@ -343,16 +343,16 @@ function VisitEditor({
   record: VisitRecord | undefined;
   child: PatientChild | undefined;
   dentistSlug: string;
-  serviceName: (k: IconKey) => string;
-  defaultPrice: (k: IconKey) => number | null | undefined;
+  serviceName: (k: TreatmentKey) => string;
+  defaultPrice: (k: TreatmentKey) => number | null | undefined;
   onSave: (rec: Omit<VisitRecord, "id" | "updatedAt">) => void;
   onFinish: (rec: Omit<VisitRecord, "id" | "updatedAt">) => void;
 }) {
-  const bookedKey: IconKey = row.kind === "booking" ? row.appt.treatmentKey : row.entry.treatmentKey;
+  const bookedKey: TreatmentKey = row.kind === "booking" ? row.appt.treatmentKey : row.entry.treatmentKey;
   const name = row.kind === "booking" ? row.appt.childName : row.entry.childName;
   const phone = row.kind === "booking" ? row.appt.phone : row.entry.guardianPhone;
 
-  const [treatments, setTreatments] = useState<IconKey[]>(
+  const [treatments, setTreatments] = useState<TreatmentKey[]>(
     record?.treatments?.length ? record.treatments : [bookedKey],
   );
   const [detail, setDetail] = useState(record?.detail ?? "");

@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type StaffAppointment } from "@/lib/staffStore";
-import { useT } from "@/i18n/lang";
 import {
   IconX,
   IconCheck,
@@ -27,7 +27,7 @@ export function AppointmentDetailModal({
   onClose,
 }: AppointmentDetailModalProps) {
   const { edition, today, dentists, patients, updateStatus, setQueueStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast } = useStaff();
-  const dict = useT();
+  const tr = useTreatments();
 
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [newDate, setNewDate] = useState(appointment.date);
@@ -37,7 +37,7 @@ export function AppointmentDetailModal({
   const [copied, setCopied] = useState(false);
 
   const dentist = dentists.find((d) => d.slug === appointment.dentistSlug);
-  const treatmentName = dict.service[appointment.treatmentKey] || appointment.treatmentKey;
+  const treatmentName = tr.name(appointment.treatmentKey);
 
   /** online bookings arrive with only name + tel — match them to the patient
    *  file by phone number (dashes/spaces ignored) */

@@ -3134,3 +3134,270 @@ button.tr-tick:disabled {
 .staff-table th {
   white-space: nowrap;
 }
+
+/* ── บริการ & ราคา: treatment rows, show/hide switch, add/edit dialog ─────── */
+/* the icons punch overlaps out in the disc colour, so each tint names it */
+.tint-rose   { --halo: #fcdeef; }
+.tint-violet { --halo: #efe4f7; }
+.tint-lav    { --halo: #efe4f7; }
+.tint-steel  { --halo: #dbe6f4; }
+.tint-peri   { --halo: #dee0fa; }
+.tint-blue   { --halo: #dde3fb; }
+.tint-gold   { --halo: #fef3d6; }
+
+.svc-disc {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.svc-disc.sm {
+  width: 36px;
+  height: 36px;
+}
+
+.svc-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.svc-group-title {
+  margin: 4px 0 0;
+  font-size: 16px;
+  color: var(--staff-ink);
+}
+
+.svc-group-title span {
+  margin-left: 6px;
+  font-family: var(--staff-font);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--staff-ink-muted);
+}
+
+.svc-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 190px 150px 96px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+}
+
+.svc-row + .svc-row {
+  border-top: 1px solid #f1ecf6;
+}
+
+.svc-row.hidden-svc .svc-disc,
+.svc-row.hidden-svc .svc-name,
+.svc-row.hidden-svc .svc-price {
+  opacity: 0.5;
+}
+
+.svc-name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.svc-th {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.svc-en {
+  font-size: 12.5px;
+  color: var(--staff-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.svc-badge {
+  font-size: 11px;
+  font-weight: 400;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--staff-primary-light);
+  color: var(--staff-status-confirmed-fg);
+}
+
+.svc-price-btn {
+  padding: 6px 10px;
+  margin-left: -10px;
+  border: 1px dashed transparent;
+  border-radius: 8px;
+  background: none;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--staff-ink);
+  cursor: pointer;
+}
+
+.svc-price-btn:hover {
+  border-color: var(--staff-border-strong);
+  background: var(--staff-surface-subtle);
+}
+
+.svc-price-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.svc-price-edit .form-control {
+  width: 120px;
+}
+
+.svc-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.svc-switch input {
+  appearance: none;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  margin: 0;
+  border-radius: 999px;
+  background: #e2dbec;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.svc-switch input::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(51, 44, 94, 0.25);
+  transition: transform 0.15s;
+}
+
+.svc-switch input:checked {
+  background: var(--staff-primary);
+}
+
+.svc-switch input:checked::after {
+  transform: translateX(16px);
+}
+
+.svc-switch input:focus-visible {
+  outline: 2px solid var(--staff-primary);
+  outline-offset: 2px;
+}
+
+/* the add/edit dialog */
+.tm-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: var(--staff-surface-subtle);
+  border: 1px solid var(--staff-border);
+}
+
+.tm-preview-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-preview-text strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.tm-preview-text span {
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+}
+
+.tm-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--staff-ink-2);
+}
+
+.tm-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+  gap: 6px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--staff-border);
+}
+
+.tm-icon {
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+}
+
+.tm-icon:hover {
+  background: var(--staff-surface-hover);
+}
+
+.tm-icon.on {
+  border-color: var(--staff-primary);
+}
+
+.tm-tints {
+  display: flex;
+  gap: 8px;
+}
+
+.tm-tint {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.tm-tint.on {
+  border-color: var(--staff-primary);
+}
+
+.tm-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--staff-ink-2);
+  cursor: pointer;
+}
+
+.tm-err {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--staff-status-cancelled-fg);
+}

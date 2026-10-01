@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type StaffAppointment } from "@/lib/staffStore";
-import { useT } from "@/i18n/lang";
 import { BookingModal } from "./BookingModal";
 import { AddWaitlistModal } from "./AddWaitlistModal";
 import { AppointmentDetailModal } from "./AppointmentDetailModal";
@@ -25,7 +25,7 @@ const STATUS_TH: Record<StaffAppointment["status"], string> = {
  */
 export function StaffTopbar() {
   const { today, appointments, notifications, toast } = useStaff();
-  const dict = useT();
+  const tr = useTreatments();
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -102,7 +102,7 @@ export function StaffTopbar() {
                       <span className="ssr-main">
                         <span className="ssr-name">{a.childName}</span>
                         <span className="ssr-sub">
-                          {dict.service[a.treatmentKey] || a.treatmentKey} · {a.phone}
+                          {tr.name(a.treatmentKey)} · {a.phone}
                         </span>
                       </span>
                       <span className="ssr-side">

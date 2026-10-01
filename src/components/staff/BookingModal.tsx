@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type BookingSource } from "@/lib/staffStore";
 import type { IconKey } from "@/data/icons";
-import { useT } from "@/i18n/lang";
 import { IconX, IconPlus, IconPhone, IconWalkIn, IconSmartphone } from "./staffIcons";
 
 interface BookingModalProps {
@@ -32,8 +32,8 @@ export function BookingModal({
   onClose,
   onCreated,
 }: BookingModalProps) {
-  const { today, dentists, servicePrices, createAppointment } = useStaff();
-  const dict = useT();
+  const { today, dentists, createAppointment } = useStaff();
+  const tr = useTreatments();
 
   const [date, setDate] = useState(initialDate || today);
   const [time, setTime] = useState(initialTime || "10:00");
@@ -73,7 +73,7 @@ export function BookingModal({
       source,
       status: "confirmed",
       notes: notes.trim(),
-      price: servicePrices[treatmentKey] ?? 0,
+      price: tr.get(treatmentKey).price ?? 0,
       forSelf: initialForSelf ?? false,
     });
 
@@ -182,11 +182,14 @@ export function BookingModal({
                   value={treatmentKey}
                   onChange={(e) => setTreatmentKey(e.target.value as IconKey)}
                 >
-                  {Object.entries(dict.service).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label} {servicePrices[k as IconKey] ? `(฿${servicePrices[k as IconKey]})` : ""}
-                    </option>
-                  ))}
+                  {/* treatments shown on the website, plus the one already picked */}
+                  {tr.list
+                    .filter((t) => t.isActive || t.key === treatmentKey)
+                    .map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.name.th} {t.price ? `(฿${t.price.toLocaleString()})` : ""}
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>

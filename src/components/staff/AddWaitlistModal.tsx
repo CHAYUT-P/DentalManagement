@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff } from "@/lib/staffStore";
 import type { IconKey } from "@/data/icons";
-import { useT } from "@/i18n/lang";
 import { IconX, IconWalkIn } from "./staffIcons";
 
 interface AddWaitlistModalProps {
@@ -12,7 +12,7 @@ interface AddWaitlistModalProps {
 
 export function AddWaitlistModal({ onClose }: AddWaitlistModalProps) {
   const { dentists, addWaitlist } = useStaff();
-  const dict = useT();
+  const tr = useTreatments();
 
   const [childName, setChildName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
@@ -82,11 +82,14 @@ export function AddWaitlistModal({ onClose }: AddWaitlistModalProps) {
                   value={treatmentKey}
                   onChange={(e) => setTreatmentKey(e.target.value as IconKey)}
                 >
-                  {Object.entries(dict.service).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label}
-                    </option>
-                  ))}
+                  {/* treatments shown on the website, plus the one already picked */}
+                  {tr.list
+                    .filter((t) => t.isActive || t.key === treatmentKey)
+                    .map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.name.th}
+                      </option>
+                    ))}
                 </select>
               </div>
 

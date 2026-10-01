@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type StaffAppointment, type WaitlistEntry } from "@/lib/staffStore";
 import { useT } from "@/i18n/lang";
 import { fmtLong } from "@/lib/dates";
@@ -42,6 +43,7 @@ const HERE: StaffAppointment["status"][] = ["arrived", "in_chair", "completed"];
 export default function StaffTodayPage() {
   const { today, appointments, waitlist, dentists, setQueueStatus, showToast } = useStaff();
   const dict = useT();
+  const tr = useTreatments();
   const [opened, setOpened] = useState<StaffAppointment | null>(null);
 
   /* the wall clock, for "เลยเวลา 15 นาที" — client-only and coarse */
@@ -122,7 +124,7 @@ export default function StaffTodayPage() {
                 <div className="tr-main">
                   <span className="tr-name">{w.childName}</span>
                   <span className="tr-sub">
-                    {dict.service[w.treatmentKey] || w.treatmentKey}
+                    {tr.name(w.treatmentKey)}
                     {w.dentistSlug ? ` · ${dentistName(w.dentistSlug)}` : ""}
                   </span>
                   <span className="tr-meta">
@@ -160,7 +162,7 @@ export default function StaffTodayPage() {
                   {late > 0 ? <span className="tr-late">เลยเวลา {fmtMinutes(late)}</span> : null}
                 </span>
                 <span className="tr-sub">
-                  {dict.service[a.treatmentKey] || a.treatmentKey}
+                  {tr.name(a.treatmentKey)}
                   {a.dentistSlug ? ` · ${dentistName(a.dentistSlug)}` : " · รอจัดแพทย์"}
                 </span>
                 <span className="tr-meta">

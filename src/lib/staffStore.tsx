@@ -10,6 +10,8 @@ import React, {
 } from "react";
 
 import type { IconKey } from "@/data/icons";
+import type { TreatmentInfo } from "@/lib/treatments";
+import { TreatmentsProvider } from "@/lib/treatmentsContext";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import { todayISO } from "@/lib/dates";
 import {
@@ -33,6 +35,8 @@ import {
   staffUpdateDentist,
   staffUpdatePatient,
   staffUpdatePrice,
+  staffCreateTreatment,
+  staffUpdateTreatment,
   staffBootstrap,
   staffUpsertPatient,
   type StaffBootstrap,
@@ -132,6 +136,10 @@ export interface StaffContextType {
   finishVisit: (rec: Omit<VisitRecord, "id" | "updatedAt">) => void;
   refresh: () => void;
   updateServicePrice: (key: IconKey, price: number | null) => void;
+  /** every treatment, shown or hidden — ตั้งค่า → บริการ & ราคา edits these */
+  treatments: TreatmentInfo[];
+  createTreatment: (input: Parameters<typeof staffCreateTreatment>[0]) => void;
+  updateTreatment: (key: string, patch: Parameters<typeof staffUpdateTreatment>[1]) => void;
   updateDayOpen: (day: ClinicDaySetting["day"], isOpen: boolean) => void;
   updateDayTime: (day: ClinicDaySetting["day"], field: "start" | "end", val: string) => void;
   addHoliday: (start: string, end: string, name: string) => void;
@@ -541,6 +549,33 @@ export function StaffProvider({
     [mutate],
   );
 
+  const createTreatment = useCallback(
+    (input: Parameters<typeof staffCreateTreatment>[0]) => {
+      void mutate("เพิ่มบริการ", () => staffCreateTreatment(input));
+    },
+    [mutate],
+  );
+
+  const updateTreatment = useCallback(
+    (key: string, patch: Parameters<typeof staffUpdateTreatment>[1]) => {
+      // flip it on screen at once — the refresh after the write confirms it
+      setState((s) => ({
+        ...s,
+        treatments: s.treatments.map((t) =>
+          t.key === key
+            ? {
+                ...t,
+                ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
+                ...(patch.price !== undefined ? { price: patch.price } : {}),
+              }
+            : t,
+        ),
+      }));
+      void mutate("บันทึกบริการ", () => staffUpdateTreatment(key, patch));
+    },
+    [mutate],
+  );
+
   const updateDayOpen = useCallback(
     (day: ClinicDaySetting["day"], isOpen: boolean) => {
       setState((s) => ({ ...s, schedule: s.schedule.map((d) => (d.day === day ? { ...d, isOpen } : d)) }));
@@ -652,6 +687,9 @@ export function StaffProvider({
       finishVisit,
       refresh,
       updateServicePrice,
+      treatments: state.treatments,
+      createTreatment,
+      updateTreatment,
       updateDayOpen,
       updateDayTime,
       addHoliday,
@@ -669,14 +707,18 @@ export function StaffProvider({
       today, state, toast, showToast, walkinOpen, syncing,
       createAppointment, updateAppointment, updateStatus, setQueueStatus, rescheduleAppointment,
       deleteAppointment, updateDentist, createDentist, createPatient, updatePatient, addPatientChild,
-      addWaitlist, updateWaitlistStatus, assignWaitingDentist, removeWaitlist, updateServicePrice,
+      addWaitlist, updateWaitlistStatus, assignWaitingDentist, removeWaitlist, updateServicePrice, createTreatment, updateTreatment,
       saveVisitRecord, finishVisit, refresh,
       updateDayOpen, updateDayTime, addHoliday, removeHoliday, updateChairs, assignDentist,
       markAllNotificationsRead, simulateOnlineBooking,
     ],
   );
 
-  return <StaffContext.Provider value={value}>{children}</StaffContext.Provider>;
+  return (
+    <StaffContext.Provider value={value}>
+      <TreatmentsProvider list={state.treatments}>{children}</TreatmentsProvider>
+    </StaffContext.Provider>
+  );
 }
 
 export function useStaff() {

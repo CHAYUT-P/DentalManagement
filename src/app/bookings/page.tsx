@@ -3,6 +3,8 @@ import { connection } from "next/server";
 
 import { BookingsPage } from "@/components/BookingsPage";
 import { todayISO } from "@/lib/dates";
+import { TreatmentsProvider } from "@/lib/treatmentsContext";
+import { listTreatmentCatalog } from "@/server/queries";
 
 export const metadata: Metadata = {
   title: "Denta Kids · ประวัติการจอง",
@@ -17,5 +19,11 @@ export const metadata: Metadata = {
  */
 export default async function Page() {
   await connection();
-  return <BookingsPage today={todayISO()} />;
+  // every treatment, hidden ones too — an old booking still shows its name
+  const catalog = await listTreatmentCatalog();
+  return (
+    <TreatmentsProvider list={catalog}>
+      <BookingsPage today={todayISO()} />
+    </TreatmentsProvider>
+  );
 }

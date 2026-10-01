@@ -1,190 +1,178 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useStaff } from "@/lib/staffStore";
-import { iconLibrary, type IconKey, type IconGroup } from "@/data/icons";
+import { iconGroups } from "@/data/icons";
 import { useT } from "@/i18n/lang";
+import type { TreatmentInfo } from "@/lib/treatments";
 import { ServiceIcon } from "@/components/serviceIcons";
-import { IconSearch, IconEdit, IconCheck, IconSparkle } from "@/components/staff/staffIcons";
+import { TreatmentModal } from "@/components/staff/TreatmentModal";
+import { IconCheck, IconEdit, IconPlus, IconSearch } from "@/components/staff/staffIcons";
 
-const GROUP_ORDER: IconGroup[] = [
-  "check",
-  "clean",
-  "restore",
-  "ortho",
-  "surgery",
-  "cosmetic",
-  "kids",
-  "misc",
-];
+type Show = "all" | "on" | "off";
 
+/**
+ * บริการ & ราคา — every treatment the clinic offers, by group. Each row: the
+ * icon and name, the starting price (edit in place), whether it shows on the
+ * patient site, and an edit button for name / icon / colour / group. "เพิ่ม
+ * บริการ" adds a new one that can reuse any icon.
+ */
 export default function StaffServicesPage() {
-  const { servicePrices, updateServicePrice } = useStaff();
+  const { treatments: all, updateTreatment } = useStaff();
+  // "more" is the home page's see-all tile, not a treatment anyone books
+  const treatments = useMemo(() => all.filter((t) => t.key !== "more"), [all]);
   const dict = useT();
 
   const [search, setSearch] = useState("");
-  const [editingKey, setEditingKey] = useState<IconKey | null>(null);
-  const [editPriceValue, setEditPriceValue] = useState<string>("");
+  const [show, setShow] = useState<Show>("all");
+  const [editingPrice, setEditingPrice] = useState<string | null>(null);
+  const [priceValue, setPriceValue] = useState("");
+  const [modal, setModal] = useState<TreatmentInfo | "new" | null>(null);
 
-  const startEdit = (k: IconKey) => {
-    setEditingKey(k);
-    const p = servicePrices[k];
-    setEditPriceValue(p === null ? "" : String(p));
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return treatments.filter((t) => {
+      if (show === "on" && !t.isActive) return false;
+      if (show === "off" && t.isActive) return false;
+      if (!q) return true;
+      return t.name.th.toLowerCase().includes(q) || t.name.en.toLowerCase().includes(q);
+    });
+  }, [treatments, search, show]);
+
+  const onCount = treatments.filter((t) => t.isActive).length;
+
+  const startPrice = (t: TreatmentInfo) => {
+    setEditingPrice(t.key);
+    setPriceValue(t.price === null ? "" : String(t.price));
   };
 
-  const saveEdit = (k: IconKey) => {
-    const trimmed = editPriceValue.trim();
-    if (trimmed === "") {
-      updateServicePrice(k, null);
-    } else {
-      const num = parseInt(trimmed, 10);
-      updateServicePrice(k, isNaN(num) ? null : num);
-    }
-    setEditingKey(null);
+  const savePrice = (t: TreatmentInfo) => {
+    const raw = priceValue.trim();
+    const num = raw === "" ? null : Number(raw.replace(/[^\d]/g, ""));
+    updateTreatment(t.key, { price: num !== null && Number.isFinite(num) ? num : null });
+    setEditingPrice(null);
   };
+
+  const priceText = (p: number | null) =>
+    p === null ? "ประเมินหน้างาน" : p === 0 ? "ฟรี (รวมในค่าตรวจ)" : `฿${p.toLocaleString()}`;
 
   return (
     <div className="staff-container">
       <div className="staff-page-header">
         <div>
           <h2>บริการ &amp; ราคา</h2>
-          <p>ราคาเริ่มต้นของแต่ละบริการ แก้แล้วหน้าเว็บคนไข้อัปเดตทันที</p>
+          <p>
+            แสดงบนเว็บ {onCount} จาก {treatments.length} บริการ · แก้แล้วหน้าเว็บคนไข้อัปเดตทันที
+          </p>
         </div>
+        <button type="button" className="btn-secondary-staff btn-lg" onClick={() => setModal("new")}>
+          <IconPlus size={17} />
+          <span>เพิ่มบริการ</span>
+        </button>
       </div>
 
-      {/* Search */}
       <div className="staff-toolbar">
-        <div className="staff-search-box" style={{ width: "320px" }}>
+        <div className="staff-pill-group">
+          <button type="button" className={`staff-pill-btn ${show === "all" ? "active" : ""}`} onClick={() => setShow("all")}>
+            ทั้งหมด
+          </button>
+          <button type="button" className={`staff-pill-btn ${show === "on" ? "active" : ""}`} onClick={() => setShow("on")}>
+            แสดงบนเว็บ
+          </button>
+          <button type="button" className={`staff-pill-btn ${show === "off" ? "active" : ""}`} onClick={() => setShow("off")}>
+            ซ่อนอยู่
+          </button>
+        </div>
+        <div className="staff-search-box" style={{ width: "300px" }}>
           <IconSearch size={15} color="var(--staff-ink-muted)" />
           <input
             type="search"
-            placeholder="ค้นหาชื่อการรักษาหรือหัตถการ..."
+            aria-label="ค้นหาบริการ"
+            placeholder="ค้นหาชื่อบริการ…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Groups */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-        {GROUP_ORDER.map((groupKey) => {
-          const groupItems = iconLibrary.filter((item) => {
-            if (item.group !== groupKey) return false;
-            if (!search.trim()) return true;
-            const q = search.toLowerCase();
-            const nameTh = (dict.service[item.key] || item.key).toLowerCase();
-            return nameTh.includes(q) || item.key.toLowerCase().includes(q);
-          });
+      {iconGroups.map((g) => {
+        const items = visible.filter((t) => t.group === g);
+        if (items.length === 0) return null;
+        return (
+          <section key={g} className="svc-group">
+            <h3 className="svc-group-title">
+              {dict.group[g]} <span>{items.length}</span>
+            </h3>
+            <div className="ledger-table">
+              {items.map((t) => (
+                <div key={t.key} className={`svc-row ${t.isActive ? "" : "hidden-svc"}`}>
+                  <span className={`svc-disc tint-${t.tint}`}>
+                    <ServiceIcon k={t.icon} size={24} />
+                  </span>
 
-          if (groupItems.length === 0) return null;
+                  <span className="svc-name">
+                    <span className="svc-th">
+                      {t.name.th}
+                      {t.custom ? <span className="svc-badge">เพิ่มเอง</span> : null}
+                    </span>
+                    <span className="svc-en">{t.name.en}</span>
+                  </span>
 
-          const groupTitle = dict.group[groupKey] || groupKey;
+                  <span className="svc-price">
+                    {editingPrice === t.key ? (
+                      <span className="svc-price-edit">
+                        <input
+                          className="form-control"
+                          inputMode="numeric"
+                          aria-label={`ราคา ${t.name.th}`}
+                          placeholder="ว่าง = ประเมิน"
+                          value={priceValue}
+                          autoFocus
+                          onChange={(e) => setPriceValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") savePrice(t);
+                            if (e.key === "Escape") setEditingPrice(null);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn-action-icon success"
+                          aria-label="บันทึกราคา"
+                          onClick={() => savePrice(t)}
+                        >
+                          <IconCheck size={15} />
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" className="svc-price-btn" onClick={() => startPrice(t)} title="แตะเพื่อแก้ราคา">
+                        {priceText(t.price)}
+                      </button>
+                    )}
+                  </span>
 
-          return (
-            <div key={groupKey} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <div style={{ fontSize: "14.5px", fontWeight: "700", color: "var(--staff-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
-                <IconSparkle size={14} />
-                <span>{groupTitle}</span>
-                <span style={{ fontSize: "12px", color: "var(--staff-ink-muted)", fontWeight: "400" }}>
-                  ({groupItems.length} รายการ)
-                </span>
-              </div>
+                  <label className="svc-switch" title={t.isActive ? "แสดงบนเว็บคนไข้" : "ซ่อนจากเว็บคนไข้"}>
+                    <input
+                      type="checkbox"
+                      checked={t.isActive}
+                      onChange={(e) => updateTreatment(t.key, { isActive: e.target.checked })}
+                    />
+                    <span>{t.isActive ? "แสดงบนเว็บ" : "ซ่อนอยู่"}</span>
+                  </label>
 
-              <div className="staff-table-wrap">
-                <table className="staff-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: "60px" }}>ไอคอน</th>
-                      <th>บริการ</th>
-                      <th style={{ width: "200px" }}>ราคาเริ่มต้น</th>
-                      <th style={{ width: "140px" }}>บนเว็บคนไข้</th>
-                      <th style={{ textAlign: "right", width: "120px" }}>แก้ไขราคา</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groupItems.map((item) => {
-                      const name = dict.service[item.key] || item.key;
-                      const price = servicePrices[item.key];
-                      const isEditing = editingKey === item.key;
-
-                      return (
-                        <tr key={item.key}>
-                          <td>
-                            <div
-                              style={{
-                                width: "36px",
-                                height: "36px",
-                                borderRadius: "50%",
-                                display: "grid",
-                                placeItems: "center",
-                                background: `var(--t-${item.tint}-bg, #fcdeef)`,
-                                color: `var(--t-${item.tint}, #f472a8)`,
-                              }}
-                            >
-                              <ServiceIcon k={item.key} size={20} />
-                            </div>
-                          </td>
-
-                          <td>
-                            <strong style={{ fontSize: "14px" }}>{name}</strong>
-                          </td>
-
-                          <td>
-                            {isEditing ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <input
-                                  type="number"
-                                  className="form-control"
-                                  style={{ width: "100px", padding: "4px 8px" }}
-                                  value={editPriceValue}
-                                  placeholder="ประเมิน"
-                                  onChange={(e) => setEditPriceValue(e.target.value)}
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  className="btn-action-icon success"
-                                  onClick={() => saveEdit(item.key)}
-                                >
-                                  <IconCheck size={14} />
-                                </button>
-                              </div>
-                            ) : (
-                              <span style={{ fontWeight: "600", color: "var(--staff-ink)" }}>
-                                {price === null && <span style={{ color: "var(--staff-ink-muted)", fontWeight: "normal" }}>ตรวจประเมิน</span>}
-                                {price === 0 && <span style={{ color: "#2b8a3e" }}>ฟรี (รวมในค่าตรวจ)</span>}
-                                {price !== null && price > 0 && `฿${price.toLocaleString()}`}
-                              </span>
-                            )}
-                          </td>
-
-                          <td>
-                            <span className="status-pill completed">แสดงบนเว็บ</span>
-                          </td>
-
-                          <td style={{ textAlign: "right" }}>
-                            {!isEditing && (
-                              <button
-                                type="button"
-                                className="btn-secondary-staff"
-                                style={{ padding: "4px 10px", fontSize: "12px" }}
-                                onClick={() => startEdit(item.key)}
-                              >
-                                <IconEdit size={12} />
-                                <span>ตั้งราคา</span>
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                  <button type="button" className="btn-secondary-staff" onClick={() => setModal(t)}>
+                    <IconEdit size={14} />
+                    <span>แก้ไข</span>
+                  </button>
+                </div>
+              ))}
             </div>
-          );
-        })}
-      </div>
+          </section>
+        );
+      })}
+
+      {visible.length === 0 ? <div className="staff-empty">ไม่พบบริการที่ตรงกับการค้นหา</div> : null}
+
+      {modal ? <TreatmentModal treatment={modal === "new" ? null : modal} onClose={() => setModal(null)} /> : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type StaffAppointment } from "@/lib/staffStore";
 import { addDays, weekday, daysFrom, fmtLong } from "@/lib/dates";
 import { useT } from "@/i18n/lang";
@@ -44,6 +45,7 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
     setWalkinOpen,
   } = useStaff();
   const dict = useT();
+  const tr = useTreatments();
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedAppt, setSelectedAppt] = useState<StaffAppointment | null>(null);
@@ -375,7 +377,7 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
                           </div>
                           <div className="appt-chip-body">
                             <span className="appt-treatment-name">
-                              {dict.service[appt.treatmentKey] || appt.treatmentKey}
+                              {tr.name(appt.treatmentKey)}
                             </span>
                             {appt.lineName ? (
                               <span className="line-tag">LINE · {appt.lineName}</span>
@@ -460,7 +462,7 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
                     </div>
 
                     <div style={{ fontSize: "12px", color: "var(--staff-ink-2)" }}>
-                      {dict.service[w.treatmentKey] || w.treatmentKey} · {w.guardianPhone}
+                      {tr.name(w.treatmentKey)} · {w.guardianPhone}
                     </div>
 
                     {/* who takes this walk-in — the room page keys off it */}

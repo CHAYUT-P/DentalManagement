@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTreatments } from "@/lib/treatmentsContext";
 
 import { dentists as fallbackDentists } from "@/data/dentists";
 import type { Dentist } from "@/data/dentists";
@@ -67,10 +68,13 @@ export function SectionHead({ title, href }: { title: string; href?: string }) {
 }
 
 export function ServiceGrid({ items, cols = 5 }: { items: Service[]; cols?: 3 | 5 }) {
-  const t = useT();
+  const { t, lang } = useLang();
+  const tr = useTreatments();
+  // a tile whose treatment the clinic switched off disappears ("more" stays)
+  const shown = items.filter((s) => s.key === "more" || tr.list.length === 0 || tr.get(s.key).isActive);
   return (
     <div className={cols === 3 ? "grid cols3" : "grid"}>
-      {items.map((s) => (
+      {shown.map((s) => (
         <Link
           key={s.key}
           /* the last tile is the way out to the full list, not a treatment */
@@ -78,9 +82,9 @@ export function ServiceGrid({ items, cols = 5 }: { items: Service[]; cols?: 3 | 
           className="tile"
         >
           <span className={`disc t-${s.tint}`}>
-            <ServiceIcon k={s.key} size={cols === 3 ? 35 : 31} />
+            <ServiceIcon k={s.key === "more" ? "more" : tr.icon(s.key)} size={cols === 3 ? 35 : 31} />
           </span>
-          <span className="label">{t.service[s.key]}</span>
+          <span className="label">{s.key === "more" ? t.service.more : tr.name(s.key, lang)}</span>
         </Link>
       ))}
     </div>

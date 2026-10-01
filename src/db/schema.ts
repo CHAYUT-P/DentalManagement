@@ -117,11 +117,24 @@ export const treatment = pgTable(
   "treatment",
   {
     id: serial("id").primaryKey(),
-    /** IconKey — the stable join to icons, names and drawings */
+    /**
+     * The treatment's id, stored on every booking. Built-in rows use their
+     * IconKey ("checkup"); rows the clinic adds get a "x-…" slug and pick an
+     * icon below — so an icon can be reused by any number of treatments.
+     */
     key: text("key").notNull(),
+    /** which drawing from the icon library; null = the key itself is the icon */
+    iconKey: text("icon_key"),
+    /** names the clinic typed; null = the built-in name from i18n/dict.ts */
+    nameTh: text("name_th"),
+    nameEn: text("name_en"),
+    /** disc colour + list group; null = the icon library's suggestion */
+    tint: text("tint"),
+    groupKey: text("group_key"),
     /** baht; null = quoted at the visit; 0 = included with the visit */
     price: integer("price"),
     durationMin: integer("duration_min").notNull().default(30),
+    /** false = hidden from the patient site (still shown on old bookings) */
     isActive: boolean("is_active").notNull().default(true),
     sort: integer("sort").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

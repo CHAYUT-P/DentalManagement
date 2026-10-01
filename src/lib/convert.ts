@@ -1,4 +1,5 @@
 import type { Dentist, DentistText, Face } from "@/data/dentists";
+import type { TreatmentKey } from "@/lib/treatments";
 import type { IconKey, Tint } from "@/data/icons";
 import type { DentistDTO } from "@/server/queries";
 
@@ -58,15 +59,16 @@ export function toUIDentists(list: DentistDTO[]): (Dentist & { id: number })[] {
 export const GENERAL_TREATS: IconKey[] = ["checkup", "consult", "followup"];
 
 /** can a dentist with these treats take this treatment? */
-export function canTreat(treats: IconKey[], k: IconKey): boolean {
-  if (GENERAL_TREATS.includes(k)) return true;
-  if (treats.includes(k)) return true;
+export function canTreat(treats: IconKey[], k: TreatmentKey): boolean {
+  if ((GENERAL_TREATS as string[]).includes(k)) return true;
+  if ((treats as string[]).includes(k)) return true;
   return false;
 }
 
 /** who can be booked for a treatment, over a DB-driven roster */
-export function dentistsForUI(list: Dentist[], k: IconKey): Dentist[] {
-  if (GENERAL_TREATS.includes(k)) return list;
-  const able = list.filter((d) => d.treats.includes(k));
+export function dentistsForUI(list: Dentist[], k: TreatmentKey): Dentist[] {
+  if ((GENERAL_TREATS as string[]).includes(k)) return list;
+  // a treatment the clinic added has no claims yet → anyone can take it
+  const able = list.filter((d) => (d.treats as string[]).includes(k));
   return able.length > 0 ? able : list;
 }

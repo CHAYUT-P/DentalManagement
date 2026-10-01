@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type EditableDentist } from "@/lib/staffStore";
-import { useT } from "@/i18n/lang";
 import { EditDentistModal } from "@/components/staff/EditDentistModal";
 import { IconEdit, IconPlus } from "@/components/staff/staffIcons";
 
@@ -17,7 +17,7 @@ const WEEK = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
  */
 export default function StaffDentistsPage() {
   const { dentists, updateDentist } = useStaff();
-  const dict = useT();
+  const tr = useTreatments();
   const [editingDentist, setEditingDentist] = useState<EditableDentist | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -48,7 +48,7 @@ export default function StaffDentistsPage() {
             const s = d.shifts?.find((x) => x.weekday === wd);
             return s?.enabled ? `${s.start}–${s.end} น.` : "หยุด";
           };
-          const treats = d.treats.map((k) => dict.service[k] || k).join(" · ");
+          const treats = d.treats.map((k) => tr.name(k)).join(" · ");
           return (
             <div key={d.slug} className={`ledger-row doc-grid ${d.isActive ? "" : "inactive"}`} role="row">
               <div className="doc-who" role="cell">

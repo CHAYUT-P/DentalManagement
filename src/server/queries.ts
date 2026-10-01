@@ -1,5 +1,6 @@
 /**
  * NOTE: no `server-only` import here on purpose — the seed and verification
+import type { TreatmentKey } from "@/lib/treatments";
  * scripts import these same query functions outside Next.js. The credential
  * boundary is src/db/index.ts (which does carry `server-only`); this file
  * only ever runs on the server in the app because only server code imports it.
@@ -10,6 +11,7 @@ import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, lte, ne, or, sql }
 import type { IconKey } from "@/data/icons";
 import { isIconKey } from "@/data/icons";
 import { minutesOf, todayISO, weekday, weekdayIndex } from "@/lib/dates";
+import { newTreatmentKey, toTreatmentInfo, type TreatmentInfo, type TreatmentKey } from "@/lib/treatments";
 import type { PatientChildInput, PatientUpsertInput } from "@/lib/staffTypes";
 /**
  * The client instance is imported directly (not via "@/db", whose `server-only`
@@ -110,7 +112,7 @@ export interface AppointmentDTO {
   dentistId: number | null;
   dentistSlug: string;
   dentistName: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   source: AppointmentSource;
   status: AppointmentStatus;
   /** HH:MM the family checked in — set when status moves to "arrived" */
@@ -170,7 +172,7 @@ export interface WaitlistDTO {
   id: number;
   childName: string;
   guardianPhone: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistId: number | null;
   dentistSlug: string | null;
   arrivedAt: string;
@@ -253,6 +255,77 @@ export async function listTreatments(): Promise<TreatmentDTO[]> {
     price: t.price,
     durationMin: t.durationMin,
   }));
+}
+
+/**
+ * Every treatment, shown or hidden, resolved for display (names, icon, tint,
+ * group with built-in fallbacks). The patient site filters `isActive`; the
+ * staff console shows all of them.
+ */
+export async function listTreatmentCatalog(): Promise<TreatmentInfo[]> {
+  const rows = await db.select().from(treatment).orderBy(asc(treatment.sort), asc(treatment.id));
+  return rows.map(toTreatmentInfo);
+}
+
+export interface TreatmentInput {
+  nameTh: string;
+  nameEn?: string;
+  iconKey: IconKey;
+  tint?: string;
+  groupKey?: string;
+  price: number | null;
+}
+
+/** a treatment the clinic adds: its own key, typed names, a library icon */
+export async function createTreatment(input: TreatmentInput): Promise<string> {
+  const keys = new Set((await db.select({ key: treatment.key }).from(treatment)).map((r) => r.key));
+  let key = newTreatmentKey();
+  while (keys.has(key)) key = newTreatmentKey();
+  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${treatment.sort}), 0)` }).from(treatment);
+  await db.insert(treatment).values({
+    key,
+    iconKey: input.iconKey,
+    nameTh: input.nameTh.trim(),
+    nameEn: input.nameEn?.trim() || null,
+    tint: input.tint ?? null,
+    groupKey: input.groupKey ?? null,
+    price: input.price,
+    isActive: true,
+    sort: Number(max) + 1,
+  });
+  return key;
+}
+
+export interface TreatmentPatch {
+  nameTh?: string | null;
+  nameEn?: string | null;
+  iconKey?: IconKey;
+  tint?: string | null;
+  groupKey?: string | null;
+  price?: number | null;
+  isActive?: boolean;
+}
+
+/** edit any treatment — built-in ones too (a typed name overrides the default) */
+export async function updateTreatment(key: string, patch: TreatmentPatch): Promise<void> {
+  const set: Partial<typeof treatment.$inferInsert> = { updatedAt: new Date() };
+  if (patch.nameTh !== undefined) set.nameTh = patch.nameTh?.trim() || null;
+  if (patch.nameEn !== undefined) set.nameEn = patch.nameEn?.trim() || null;
+  if (patch.iconKey !== undefined) set.iconKey = patch.iconKey;
+  if (patch.tint !== undefined) set.tint = patch.tint;
+  if (patch.groupKey !== undefined) set.groupKey = patch.groupKey;
+  if (patch.price !== undefined) set.price = patch.price;
+  if (patch.isActive !== undefined) set.isActive = patch.isActive;
+  await db.update(treatment).set(set).where(eq(treatment.key, key));
+}
+
+/** can a family book this right now? It must exist and be shown on the website */
+export async function isBookableTreatment(key: string): Promise<boolean> {
+  const rows = await db
+    .select({ on: treatment.isActive })
+    .from(treatment)
+    .where(eq(treatment.key, key));
+  return rows[0]?.on === true;
 }
 
 /** price map keyed by IconKey — the shape the staff console edits */
@@ -440,12 +513,12 @@ export async function setChairs(n: number): Promise<void> {
 const GENERAL_TREATS: IconKey[] = ["checkup", "consult", "followup"];
 
 /** ids of active dentists who take this treatment (routine visits: everyone) */
-export async function capableDentistIds(treatmentKey: IconKey): Promise<number[]> {
+export async function capableDentistIds(treatmentKey: TreatmentKey): Promise<number[]> {
   const active = await db
     .select({ id: dentist.id })
     .from(dentist)
     .where(eq(dentist.isActive, true));
-  if (GENERAL_TREATS.includes(treatmentKey)) return active.map((a) => a.id);
+  if ((GENERAL_TREATS as string[]).includes(treatmentKey)) return active.map((a) => a.id);
   const claimed = await db.select({ id: dentistTreat.dentistId }).from(dentistTreat).where(
     eq(dentistTreat.treatmentKey, treatmentKey),
   );
@@ -457,7 +530,7 @@ export async function capableDentistIds(treatmentKey: IconKey): Promise<number[]
 
 export interface SlotLiveRow {
   id: number;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistId: number | null;
   createdAt: Date;
 }
@@ -628,7 +701,7 @@ export async function checkRate(key: string, limit: number, windowSec: number): 
 export async function freeCapableAtSlot(
   date: string,
   time: string,
-  treatmentKey: IconKey,
+  treatmentKey: TreatmentKey,
 ): Promise<{ id: number; slug: string }[]> {
   const [capable, slots] = await Promise.all([
     capableDentistIds(treatmentKey),
@@ -688,7 +761,7 @@ export async function settlePool(date: string, time: string): Promise<string[]> 
 export interface CreateAppointmentInput {
   date: string;
   time: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   /** null = pooled "any dentist" booking (see settlePool) */
   dentistId: number | null;
   childName: string;
@@ -1175,7 +1248,7 @@ export function clinicNowHHMM(now: Date = new Date()): string {
 export async function addWaitlist(input: {
   childName: string;
   guardianPhone?: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistId?: number | null;
   note?: string;
 }): Promise<void> {

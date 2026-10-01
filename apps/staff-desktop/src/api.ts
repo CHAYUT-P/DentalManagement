@@ -1,4 +1,5 @@
 import type { IconKey } from "@/data/icons";
+import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type {
   EditableDentist,
@@ -108,6 +109,7 @@ export interface StaffBootstrap {
   schedule: ClinicDaySetting[];
   holidays: { id: number; start: string; end: string; name: string }[];
   servicePrices: Record<IconKey, number | null>;
+  treatments: TreatmentInfo[];
   settings: { chairs: number };
 }
 
@@ -125,7 +127,7 @@ export function staffPrices() {
 export function staffCreateAppointment(input: {
   date: string;
   time: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistId: number;
   childName: string;
   guardianName: string;
@@ -212,6 +214,32 @@ export function staffFinishVisit(input: VisitRecordInput) {
 
 export function staffUpdatePrice(key: IconKey, price: number | null) {
   return call<void>("updatePrice", [key, price]);
+}
+
+export function staffCreateTreatment(input: {
+  nameTh: string;
+  nameEn?: string;
+  iconKey: IconKey;
+  tint?: string;
+  groupKey?: string;
+  price: number | null;
+}) {
+  return call<{ ok: boolean; key?: string }>("createTreatment", [input]);
+}
+
+export function staffUpdateTreatment(
+  key: string,
+  patch: {
+    nameTh?: string | null;
+    nameEn?: string | null;
+    iconKey?: IconKey;
+    tint?: string | null;
+    groupKey?: string | null;
+    price?: number | null;
+    isActive?: boolean;
+  },
+) {
+  return call<void>("updateTreatment", [key, patch]);
 }
 
 export function staffUpdateDay<T extends object>(day: string, patch: T) {

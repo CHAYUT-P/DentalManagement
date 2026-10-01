@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 
 import type { Dentist } from "@/data/dentists";
-import { iconGroups, iconLibrary, type IconKey } from "@/data/icons";
+import { iconGroups, type IconKey } from "@/data/icons";
+import type { TreatmentKey } from "@/lib/treatments";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { patient } from "@/data/appointments";
 import { useLang, useT } from "@/i18n/lang";
 import {
@@ -104,10 +106,10 @@ export interface BookingFlowProps {
   /** treatment chairs — one wall-clock slot holds this many live bookings */
   chairs: number;
   /** per-treatment price map for the compact price label */
-  prices: Partial<Record<IconKey, number | null>>;
   /** the popular grid on step 1 — the ten home tiles */
   popular: IconKey[];
-  preTreatment?: IconKey;
+  /** a treatment key shown on the website (built-in IconKey or one the clinic added) */
+  preTreatment?: TreatmentKey;
   preDentist?: string;
   /** `?r=` — move this existing booking instead of making a new one */
   rescheduleRef?: string;
@@ -136,15 +138,16 @@ function Stepper({ step, onBack }: { step: Step; onBack: (s: Step) => void }) {
   );
 }
 
-function TreatRow({ k, tint, onPick }: { k: IconKey; tint: string; onPick: (k: IconKey) => void }) {
-  const t = useT();
+function TreatRow({ k, onPick }: { k: TreatmentKey; onPick: (k: TreatmentKey) => void }) {
+  const { lang } = useLang();
+  const tr = useTreatments();
   return (
     <button type="button" className="pickRow" onClick={() => onPick(k)}>
-      <span className={`disc t-${tint}`}>
-        <ServiceIcon k={k} size={26} />
+      <span className={`disc t-${tr.tint(k)}`}>
+        <ServiceIcon k={tr.icon(k)} size={26} />
       </span>
       <span className="pt">
-        <span className="pn">{t.service[k]}</span>
+        <span className="pn">{tr.name(k, lang)}</span>
       </span>
       <Chevron />
     </button>
@@ -317,7 +320,8 @@ function DayCalendar({
 /* ═══════════════════════════════ the flow itself ═════════════════════════ */
 
 export function BookingFlow(props: BookingFlowProps) {
-  const { today, nowMin, dentists, openDays, holidays, slots, load, chairs, prices, popular } = props;
+  const { today, nowMin, dentists, openDays, holidays, slots, load, chairs, popular } = props;
+  const tr = useTreatments();
   const { t, lang } = useLang();
 
   /* postpone mode: same treatment and dentist, straight to the calendar, and
@@ -339,7 +343,7 @@ export function BookingFlow(props: BookingFlowProps) {
   const [movedChild, setMovedChild] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>(resched ? 3 : props.preTreatment ? 2 : 1);
-  const [treatment, setTreatment] = useState<IconKey | null>(props.preTreatment ?? null);
+  const [treatment, setTreatment] = useState<TreatmentKey | null>(props.preTreatment ?? null);
   /** null is a real choice here — "any dentist" — so undefined means "not yet" */
   const [dentist, setDentist] = useState<string | null | undefined>(
     props.preDentist ?? (resched ? null : undefined),
@@ -414,14 +418,9 @@ export function BookingFlow(props: BookingFlowProps) {
     return { morning: cut(0, 720), afternoon: cut(720, 1440) };
   }, [date, dentist, slots, load, chairs, roster, today, nowMin]);
 
-  /* tint for the treatment discs — from the icon library, like the home page */
-  const TINT = useMemo(() => new Map(iconLibrary.map((e) => [e.key, e.tint] as const)), []);
-  const tintOf = (k: IconKey) => TINT.get(k) ?? "lav";
-
-  /* the compact price under a treatment name */
-  const priceShort = (k: IconKey) => {
-    const p = prices[k];
-    if (p === undefined) return "";
+  /* the compact price under a treatment name — from the clinic's treatment list */
+  const priceShort = (k: TreatmentKey) => {
+    const p = tr.get(k).price;
     if (p === null) return t.common.quote;
     if (p === 0) return t.common.free;
     return `${p.toLocaleString("en-US")} ${t.common.baht}`;
@@ -451,7 +450,7 @@ export function BookingFlow(props: BookingFlowProps) {
     });
   }
 
-  function pickTreatment(k: IconKey) {
+  function pickTreatment(k: TreatmentKey) {
     clearHold();
     setTreatment(k);
     // a dentist picked for the previous treatment may not take this one —
@@ -592,11 +591,11 @@ export function BookingFlow(props: BookingFlowProps) {
 
           {step > 1 && treatment ? (
             <div className="pickedBar">
-              <span className={`disc t-${tintOf(treatment)}`}>
-                <ServiceIcon k={treatment} size={23} />
+              <span className={`disc t-${tr.tint(treatment)}`}>
+                <ServiceIcon k={tr.icon(treatment)} size={23} />
               </span>
               <span className="pt">
-                <span className="pn">{t.service[treatment]}</span>
+                <span className="pn">{tr.name(treatment, lang)}</span>
                 <span className="pp">{priceShort(treatment)}</span>
               </span>
               {resched ? null : (
@@ -634,24 +633,25 @@ export function BookingFlow(props: BookingFlowProps) {
               <div className="grid cols4">
                 {popular.map((k) => (
                   <button key={k} type="button" className="tile" onClick={() => pickTreatment(k)}>
-                    <span className={`disc t-${tintOf(k)}`}>
-                      <ServiceIcon k={k} size={27} />
+                    <span className={`disc t-${tr.tint(k)}`}>
+                      <ServiceIcon k={tr.icon(k)} size={27} />
                     </span>
-                    <span className="label">{t.service[k]}</span>
+                    <span className="label">{tr.name(k, lang)}</span>
                   </button>
                 ))}
               </div>
 
               <Eyebrow>{t.booking.allGroups}</Eyebrow>
               {iconGroups.map((g) => {
-                const items = iconLibrary.filter((e) => e.group === g && e.key !== "more");
+                // only treatments the clinic shows on the website
+                const items = tr.list.filter((e) => e.isActive && e.group === g && e.key !== "more");
                 if (items.length === 0) return null;
                 return (
                   <div key={g} className="pickGroup">
                     <h3>{t.group[g]}</h3>
                     <div className="pick">
                       {items.map((e) => (
-                        <TreatRow key={e.key} k={e.key} tint={tintOf(e.key)} onPick={pickTreatment} />
+                        <TreatRow key={e.key} k={e.key} onPick={pickTreatment} />
                       ))}
                     </div>
                   </div>

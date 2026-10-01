@@ -1,6 +1,7 @@
 "use server";
 
 import "server-only";
+import type { TreatmentKey } from "@/lib/treatments";
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -148,7 +149,7 @@ export interface BookResult {
 async function slotVerdict(
   date: string,
   time: string,
-  treatmentKey: IconKey,
+  treatmentKey: TreatmentKey,
   dentistId: number | null,
 ): Promise<"ok" | "invalid" | "slot_taken"> {
   const { todayISO, nowMinutes, minutesOf } = await import("@/lib/dates");
@@ -202,12 +203,14 @@ async function slotVerdict(
 export async function holdSlot(input: {
   date: string;
   time: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   /** dentist id, or null for "any dentist" — holds a chair */
   dentistId: number | null;
 }): Promise<{ ok: boolean; token?: string; expiresAt?: string }> {
   if (await limited("hold", 30, 600)) return { ok: false };
   if (!input.date || !input.time || !input.treatmentKey) return { ok: false };
+  const { isBookableTreatment } = await import("@/server/queries");
+  if (!(await isBookableTreatment(input.treatmentKey))) return { ok: false };
   if ((await slotVerdict(input.date, input.time, input.treatmentKey, input.dentistId)) !== "ok") {
     return { ok: false };
   }
@@ -227,7 +230,7 @@ export async function releaseSlotHold(token: string): Promise<void> {
 export async function bookAppointment(input: {
   date: string;
   time: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   /** dentist id, or null for "any dentist" */
   dentistId: number | null;
   /** the name the family gives at the desk — a nickname is enough */
@@ -250,6 +253,9 @@ export async function bookAppointment(input: {
   if (!/^[0-9]{9,10}$/.test(input.phone.replace(/\D/g, ""))) {
     return { ok: false, error: "invalid" };
   }
+  // only treatments the clinic shows on the website can be booked online
+  const { isBookableTreatment } = await import("@/server/queries");
+  if (!(await isBookableTreatment(input.treatmentKey))) return { ok: false, error: "invalid" };
 
   // consume the caller's hold first — deleting it means our own reservation
   // can't trip the checks below; if it lapsed and someone grabbed the slot
@@ -498,7 +504,7 @@ export async function staffLogout(): Promise<void> {
 export async function staffCreateAppointment(input: {
   date: string;
   time: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistId: number;
   childName: string;
   guardianName: string;
@@ -618,7 +624,7 @@ export async function staffAddChild(patientId: number, child: string | ChildInpu
 export async function staffAddWaitlist(input: {
   childName: string;
   guardianPhone?: string;
-  treatmentKey: IconKey;
+  treatmentKey: TreatmentKey;
   dentistId?: number | null;
   note?: string;
 }) {
@@ -670,6 +676,45 @@ export async function staffRemoveWaitlist(id: number) {
 export async function staffUpdatePrice(key: IconKey, price: number | null) {
   await guard();
   await updateTreatmentPrice(key, price);
+  revalidateAll();
+}
+
+/** ตั้งค่า → บริการ & ราคา: add a treatment (its own name, a reused icon) */
+export async function staffCreateTreatment(input: {
+  nameTh: string;
+  nameEn?: string;
+  iconKey: IconKey;
+  tint?: string;
+  groupKey?: string;
+  price: number | null;
+}): Promise<{ ok: boolean; key?: string }> {
+  await guard();
+  const { isIconKey } = await import("@/data/icons");
+  if (!input.nameTh?.trim() || !isIconKey(input.iconKey)) return { ok: false };
+  const { createTreatment } = await import("@/server/queries");
+  const key = await createTreatment(input);
+  revalidateAll();
+  return { ok: true, key };
+}
+
+/** edit a treatment's name / icon / colour / group / price, or show-hide it on the website */
+export async function staffUpdateTreatment(
+  key: string,
+  patch: {
+    nameTh?: string | null;
+    nameEn?: string | null;
+    iconKey?: IconKey;
+    tint?: string | null;
+    groupKey?: string | null;
+    price?: number | null;
+    isActive?: boolean;
+  },
+) {
+  await guard();
+  const { isIconKey } = await import("@/data/icons");
+  if (patch.iconKey !== undefined && !isIconKey(patch.iconKey)) return;
+  const { updateTreatment } = await import("@/server/queries");
+  await updateTreatment(key, patch);
   revalidateAll();
 }
 
@@ -752,11 +797,12 @@ export async function staffBootstrap() {
     listHolidays,
     priceMap,
     getChairs,
+    listTreatmentCatalog,
   } = await import("@/server/queries");
 
   const today = (await import("@/lib/dates")).todayISO();
 
-  const [appts, dentists, patients, waitlist, visitRecords, notifications, days, holidays, prices, chairs] =
+  const [appts, dentists, patients, waitlist, visitRecords, notifications, days, holidays, prices, chairs, treatments] =
     await Promise.all([
       listAppointmentsBetween("1970-01-01", "9999-12-31"),
       listDentists(),
@@ -768,6 +814,7 @@ export async function staffBootstrap() {
       listHolidays(),
       priceMap(),
       getChairs(),
+      listTreatmentCatalog(),
     ]);
 
   return {
@@ -781,6 +828,7 @@ export async function staffBootstrap() {
     schedule: days,
     holidays,
     servicePrices: prices,
+    treatments,
     settings: { chairs },
   };
 }

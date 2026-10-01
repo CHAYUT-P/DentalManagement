@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 
-import type { IconKey } from "@/data/icons";
+import type { TreatmentKey } from "@/lib/treatments";
+import { useTreatments } from "@/lib/treatmentsContext";
 import { dentistBySlug } from "@/data/dentists";
 import { useLang, useT } from "@/i18n/lang";
 import { dayOfMonth, fmtLong, monthKey, weekday } from "@/lib/dates";
@@ -105,7 +106,7 @@ export type SlipData = {
   ref: string;
   dateISO: string;
   time: string;
-  treatment: IconKey;
+  treatment: TreatmentKey;
   /** dentist slug, or null for "any dentist" */
   dentist: string | null;
   status: "confirmed" | "done" | "cancelled";
@@ -118,6 +119,7 @@ export type SlipData = {
  */
 export function Slip({ appt, patient }: { appt: SlipData; patient: string }) {
   const { t, lang } = useLang();
+  const tr = useTreatments();
   const d = appt.dentist ? dentistBySlug(appt.dentist) : undefined;
   const state =
     appt.status === "confirmed"
@@ -152,7 +154,7 @@ export function Slip({ appt, patient }: { appt: SlipData; patient: string }) {
 
       <Ledger>
         <Row k={t.slip.patient} v={<span className="child">{patient}</span>} />
-        <Row k={t.slip.treatment} v={t.service[appt.treatment]} />
+        <Row k={t.slip.treatment} v={tr.name(appt.treatment, lang)} />
         <Row k={t.slip.dentist} v={d ? d.text[lang].name : t.booking.anyone} />
         <Row k={t.slip.when} v={`${fmtLong(t, appt.dateISO, lang)} · ${appt.time}`} />
         <Row k={t.slip.where} v={t.clinic.address} />
