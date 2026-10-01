@@ -39,9 +39,11 @@ import {
   staffCreateTreatment,
   staffAddDentistLeave,
   staffRemoveDentistLeave,
+  staffMessageFamily,
   staffUpdateTreatment,
   staffBootstrap,
   staffUpsertPatient,
+  type FamilyMessageResult,
   type StaffBootstrap,
   type VisitRecordInput,
 } from "@/server/actions";
@@ -123,6 +125,8 @@ export interface StaffContextType {
   /** queue transitions — check-in stamps the clinic clock server-side */
   setQueueStatus: (id: string, status: "confirmed" | "arrived" | "in_chair" | "completed" | "no_show") => void;
   rescheduleAppointment: (id: string, date: string, time: string, dentistSlug?: string) => void;
+  /** push a message into the family's LINE chat; resolves with what happened (and toasts it) */
+  messageFamily: (id: string, text: string) => Promise<FamilyMessageResult>;
   deleteAppointment: (id: string) => void;
   updateDentist: (slug: string, updates: Partial<EditableDentist>) => void;
   createDentist: (input: Parameters<typeof staffCreateDentist>[0]) => void;
@@ -344,6 +348,26 @@ export function StaffProvider({
       updateAppointment(id, { date, time, dentistSlug, status: "confirmed" });
     },
     [updateAppointment],
+  );
+
+  const messageFamily = useCallback(
+    async (id: string, text: string): Promise<FamilyMessageResult> => {
+      const numeric = Number(id);
+      const result: FamilyMessageResult = Number.isFinite(numeric)
+        ? await staffMessageFamily(numeric, text).catch((): FamilyMessageResult => "failed")
+        : "failed";
+      showToast(
+        result === "sent"
+          ? "ส่งข้อความทาง LINE แล้ว"
+          : result === "no_line"
+            ? "นัดนี้ไม่ได้จองผ่าน LINE — โทรแจ้งผู้ปกครองแทน"
+            : result === "not_configured"
+              ? "ยังไม่ได้ตั้งค่า LINE OA บนเซิร์ฟเวอร์ — ส่งข้อความไม่ได้"
+              : "ส่งข้อความทาง LINE ไม่สำเร็จ — โทรแจ้งผู้ปกครองแทน",
+      );
+      return result;
+    },
+    [showToast],
   );
 
   const deleteAppointment = useCallback(
@@ -703,6 +727,7 @@ export function StaffProvider({
       updateStatus,
       setQueueStatus,
       rescheduleAppointment,
+      messageFamily,
       deleteAppointment,
       updateDentist,
       createDentist,
@@ -739,7 +764,7 @@ export function StaffProvider({
     [
       edition, deviceMode, setDeviceMode, roomDentistSlug, setRoomDentistSlug,
       today, state, toast, showToast, walkinOpen, syncing,
-      createAppointment, updateAppointment, updateStatus, setQueueStatus, rescheduleAppointment,
+      createAppointment, updateAppointment, updateStatus, setQueueStatus, rescheduleAppointment, messageFamily,
       deleteAppointment, updateDentist, createDentist, createPatient, updatePatient, addPatientChild,
       addWaitlist, updateWaitlistStatus, assignWaitingDentist, removeWaitlist, updateServicePrice, createTreatment, updateTreatment, addDentistLeave, removeDentistLeave, onLeave,
       saveVisitRecord, finishVisit, refresh,

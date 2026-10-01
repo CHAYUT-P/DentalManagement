@@ -52,6 +52,8 @@ export interface StaffAppointment {
   forSelf?: boolean;
   /** LINE display name of the account that booked online ("" or absent = not via LINE) */
   lineName?: string;
+  /** booked from LINE — the desk can message the family from the app */
+  hasLine?: boolean;
 }
 
 export interface ShiftHour {

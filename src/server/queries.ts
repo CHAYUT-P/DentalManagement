@@ -123,6 +123,8 @@ export interface AppointmentDTO {
   forSelf: boolean;
   /** LINE display name of the account that booked ("" = not booked in LINE) */
   lineName: string;
+  /** the booking carries a LINE account the clinic can message */
+  hasLine: boolean;
 }
 
 export interface GuardianDTO {
@@ -961,6 +963,7 @@ function toAppointmentDTO(
     price: row.price,
     forSelf: row.forSelf,
     lineName: row.lineName,
+    hasLine: !!row.lineUserId,
   };
 }
 

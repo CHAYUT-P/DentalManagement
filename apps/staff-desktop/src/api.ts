@@ -226,6 +226,12 @@ export function staffRemoveDentistLeave(id: number) {
   return call<void>("removeDentistLeave", [id]);
 }
 
+export type FamilyMessageResult = "sent" | "no_line" | "not_configured" | "failed";
+
+export function staffMessageFamily(id: number, text: string) {
+  return call<FamilyMessageResult>("messageFamily", [id, text]);
+}
+
 export function staffCreateTreatment(input: {
   nameTh: string;
   nameEn?: string;

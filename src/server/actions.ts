@@ -679,6 +679,29 @@ export async function staffUpdatePrice(key: IconKey, price: number | null) {
   revalidateAll();
 }
 
+/**
+ * A message from the desk into the family's LINE chat — used when the clinic
+ * cancels or moves a booking, or just needs to tell them something. Goes to
+ * the LINE account that made the booking; logged as "custom".
+ */
+export type FamilyMessageResult = "sent" | "no_line" | "not_configured" | "failed";
+
+export async function staffMessageFamily(id: number, text: string): Promise<FamilyMessageResult> {
+  await guard();
+  const body = text.trim().slice(0, 2000);
+  if (!body) return "failed";
+  const { lineTargetForAppointment } = await import("@/server/queries");
+  const to = await lineTargetForAppointment(id);
+  if (!to) return "no_line";
+  if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) return "not_configured";
+  const { pushLineText } = await import("@/server/line");
+  const ok = await pushLineText(to, body).catch(() => false);
+  if (!ok) return "failed";
+  const { messageLog } = await import("@/db/schema");
+  await db.insert(messageLog).values({ appointmentId: id, kind: "custom" });
+  return "sent";
+}
+
 /** a dentist's leave (ลา) — those days drop out of online booking */
 export async function staffAddDentistLeave(dentistSlug: string, start: string, end: string, note: string) {
   await guard();

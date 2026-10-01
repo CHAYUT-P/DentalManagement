@@ -46,6 +46,7 @@ export function toUIAppointment(a: AppointmentDTO): StaffAppointment {
     price: a.price ?? undefined,
     forSelf: a.forSelf,
     lineName: a.lineName,
+    hasLine: a.hasLine,
     createdAt: a.date,
   };
 }

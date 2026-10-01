@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type StaffAppointment } from "@/lib/staffStore";
+import { useT } from "@/i18n/lang";
+import { fmtLong } from "@/lib/dates";
 import {
   IconX,
   IconCheck,
@@ -17,6 +19,85 @@ import {
   IconDollar,
 } from "./staffIcons";
 
+/** quick reasons the desk can drop into the message to the family */
+const REASONS = ["คุณหมอติดธุระ", "คุณหมอลา", "คลินิกปิดทำการ"];
+
+/**
+ * The "tell the family" box under cancel / postpone / message. A booking made
+ * from LINE gets a ticked box and an editable message that goes straight to
+ * the family's LINE chat; any other booking shows the number to call.
+ */
+function LineCompose({
+  hasLine,
+  phone,
+  send,
+  onSend,
+  text,
+  onText,
+  reason,
+  onReason,
+  alwaysOn = false,
+}: {
+  hasLine: boolean;
+  phone: string;
+  send: boolean;
+  onSend: (v: boolean) => void;
+  text: string;
+  onText: (v: string) => void;
+  reason?: string;
+  onReason?: (v: string) => void;
+  alwaysOn?: boolean;
+}) {
+  if (!hasLine) {
+    return (
+      <div className="line-compose off">
+        <IconPhone size={15} />
+        <span>
+          นัดนี้ไม่ได้จองผ่าน LINE — โทรแจ้งผู้ปกครองที่ <strong>{phone}</strong>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="line-compose">
+      {alwaysOn ? (
+        <span className="lc-title">ข้อความถึงผู้ปกครองทาง LINE</span>
+      ) : (
+        <label className="lc-check">
+          <input type="checkbox" checked={send} onChange={(e) => onSend(e.target.checked)} />
+          <span>แจ้งผู้ปกครองทาง LINE</span>
+        </label>
+      )}
+      {send || alwaysOn ? (
+        <>
+          {onReason ? (
+            <div className="lc-reasons">
+              <span>เหตุผล:</span>
+              {REASONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={`lc-chip ${reason === r ? "on" : ""}`}
+                  onClick={() => onReason(reason === r ? "" : r)}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <textarea
+            className="form-control"
+            rows={5}
+            aria-label="ข้อความถึงผู้ปกครอง"
+            value={text}
+            onChange={(e) => onText(e.target.value)}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 interface AppointmentDetailModalProps {
   appointment: StaffAppointment;
   onClose: () => void;
@@ -26,18 +107,56 @@ export function AppointmentDetailModal({
   appointment,
   onClose,
 }: AppointmentDetailModalProps) {
-  const { edition, today, dentists, patients, updateStatus, setQueueStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast } = useStaff();
+  const { edition, today, dentists, patients, updateStatus, setQueueStatus, rescheduleAppointment, updateAppointment, assignDentist, createPatient, showToast, messageFamily, onLeave } = useStaff();
   const tr = useTreatments();
+  const dict = useT();
 
-  const [isRescheduling, setIsRescheduling] = useState(false);
+  /** which panel is open under the details: postpone, cancel, or a free message */
+  const [panel, setPanel] = useState<"reschedule" | "cancel" | "message" | null>(null);
   const [newDate, setNewDate] = useState(appointment.date);
   const [newTime, setNewTime] = useState(appointment.time);
   const [newDentist, setNewDentist] = useState(appointment.dentistSlug);
   const [editNotes, setEditNotes] = useState(appointment.notes || "");
   const [copied, setCopied] = useState(false);
 
+  const hasLine = !!appointment.hasLine;
+  const [notify, setNotify] = useState(hasLine);
+  const [reason, setReason] = useState("");
+  /** null = the staff haven't typed — the message follows the template */
+  const [typed, setTyped] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
   const dentist = dentists.find((d) => d.slug === appointment.dentistSlug);
   const treatmentName = tr.name(appointment.treatmentKey);
+  const day = (iso: string) => `วัน${fmtLong(dict, iso, "th")}`;
+  const newDentistName = dentists.find((d) => d.slug === newDentist)?.text.th.name;
+  const newDateLeave = newDentist ? onLeave(newDentist, newDate) : undefined;
+
+  const template =
+    panel === "cancel"
+      ? `คลินิก Denta Kids ขออภัยค่ะ ขอยกเลิกนัดของ ${appointment.childName}\n` +
+        `${day(appointment.date)} เวลา ${appointment.time} น. (${treatmentName})\n` +
+        (reason ? `เนื่องจาก${reason}\n` : "") +
+        `จองวันใหม่ได้ที่เมนูจองนัดใน LINE นี้ หรือติดต่อคลินิกได้เลยค่ะ ขอบคุณค่ะ`
+      : panel === "reschedule"
+        ? `คลินิก Denta Kids ขอแจ้งเลื่อนนัดของ ${appointment.childName}` +
+          (reason ? ` เนื่องจาก${reason}` : "") +
+          `\nจาก ${day(appointment.date)} เวลา ${appointment.time} น.` +
+          `\nเป็น ${day(newDate)} เวลา ${newTime} น.` +
+          (newDentist !== appointment.dentistSlug && newDentistName ? `\nกับ ${newDentistName}` : "") +
+          `\nหากไม่สะดวก ติดต่อคลินิกได้เลยค่ะ ขอบคุณค่ะ`
+        : `คลินิก Denta Kids ขอเตือนนัดของ ${appointment.childName}\n` +
+          `${day(appointment.date)} เวลา ${appointment.time} น. (${treatmentName})` +
+          (dentist ? ` กับ ${dentist.text.th.name}` : "") +
+          `\nกรุณามาถึงก่อนเวลา 10 นาทีนะคะ`;
+  const message = typed ?? template;
+
+  const openPanel = (p: typeof panel) => {
+    setPanel(p);
+    setReason("");
+    setTyped(null);
+    setNotify(hasLine);
+  };
 
   /** online bookings arrive with only name + tel — match them to the patient
    *  file by phone number (dashes/spaces ignored) */
@@ -78,10 +197,17 @@ export function AppointmentDetailModal({
   };
 
   const handleCancel = () => {
-    if (window.confirm(`ยืนยันยกเลิกนัดหมายของ ${appointment.childName} (${appointment.ref})?`)) {
-      updateStatus(appointment.id, "cancelled");
-      onClose();
-    }
+    updateStatus(appointment.id, "cancelled");
+    if (hasLine && notify && message.trim()) void messageFamily(appointment.id, message);
+    onClose();
+  };
+
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
+    setSending(true);
+    const result = await messageFamily(appointment.id, message);
+    setSending(false);
+    if (result === "sent") setPanel(null);
   };
 
   /** one-tap queue moves — check-in stamps the clinic clock on the server */
@@ -101,13 +227,15 @@ export function AppointmentDetailModal({
     if (editNotes !== appointment.notes) {
       updateAppointment(appointment.id, { notes: editNotes.trim() });
     }
-    setIsRescheduling(false);
+    const changed = moved || newDentist !== appointment.dentistSlug;
+    if (changed && hasLine && notify && message.trim()) void messageFamily(appointment.id, message);
+    setPanel(null);
     onClose();
   };
 
+  /** a booking without LINE: copy the reminder to paste into a chat by hand */
   const copyReminderText = () => {
-    const text = `คลินิก Denta Kids ขอเตือนนัดหมายของ ${appointment.childName} ในวันที่ ${appointment.date} เวลา ${appointment.time} น. (${treatmentName}) กับ ${dentist?.text.th.name || "ทันตแพทย์"} กรุณามาถึงก่อนเวลา 10 นาที สอบถามโทร 02-123-4567`;
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(message);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -537,8 +665,60 @@ export function AppointmentDetailModal({
             </div>
           )}
 
-          {/* Reschedule Panel or Quick Actions */}
-          {isRescheduling ? (
+          {/* Reschedule / Cancel / Message panel, or the quick actions */}
+          {panel === "cancel" ? (
+            <div className="appt-panel danger">
+              <div className="ap-title">ยกเลิกนัดของ {appointment.childName}</div>
+              <LineCompose
+                hasLine={hasLine}
+                phone={appointment.phone}
+                send={notify}
+                onSend={setNotify}
+                text={message}
+                onText={setTyped}
+                reason={reason}
+                onReason={(r) => {
+                  setReason(r);
+                  setTyped(null);
+                }}
+              />
+              <div className="ap-actions">
+                <button type="button" className="btn-secondary-staff" onClick={() => setPanel(null)}>
+                  ไม่ยกเลิก
+                </button>
+                <button type="button" className="btn-primary-staff danger" onClick={handleCancel}>
+                  <IconX size={15} />
+                  <span>{hasLine && notify ? "ยกเลิกนัดและส่งข้อความ" : "ยืนยันยกเลิกนัด"}</span>
+                </button>
+              </div>
+            </div>
+          ) : panel === "message" ? (
+            <div className="appt-panel">
+              <LineCompose
+                hasLine={hasLine}
+                phone={appointment.phone}
+                send
+                onSend={() => {}}
+                text={message}
+                onText={setTyped}
+                alwaysOn
+              />
+              <div className="ap-actions">
+                <button type="button" className="btn-secondary-staff" onClick={() => setPanel(null)}>
+                  ปิด
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary-staff"
+                  disabled={sending || !message.trim()}
+                  onClick={handleSendMessage}
+                >
+                  <IconSmartphone size={15} />
+                  <span>{sending ? "กำลังส่ง…" : "ส่งทาง LINE"}</span>
+                </button>
+              </div>
+            </div>
+          ) : panel === "reschedule" ? (
             <div
               style={{
                 border: "1.5px solid var(--staff-primary)",
@@ -595,11 +775,29 @@ export function AppointmentDetailModal({
                   ))}
                 </select>
               </div>
+              {newDateLeave ? (
+                <div className="ap-warn">
+                  {newDentistName} ลาวันนี้{newDateLeave.note ? ` (${newDateLeave.note})` : ""} — เลือกวันอื่นหรือแพทย์ท่านอื่น
+                </div>
+              ) : null}
+              <LineCompose
+                hasLine={hasLine}
+                phone={appointment.phone}
+                send={notify}
+                onSend={setNotify}
+                text={message}
+                onText={setTyped}
+                reason={reason}
+                onReason={(r) => {
+                  setReason(r);
+                  setTyped(null);
+                }}
+              />
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "6px" }}>
                 <button
                   type="button"
                   className="btn-secondary-staff"
-                  onClick={() => setIsRescheduling(false)}
+                  onClick={() => setPanel(null)}
                 >
                   ยกเลิก
                 </button>
@@ -608,7 +806,7 @@ export function AppointmentDetailModal({
                   className="btn-primary-staff"
                   onClick={handleSaveReschedule}
                 >
-                  บันทึกการเลื่อนนัด
+                  {hasLine && notify ? "บันทึกและส่งข้อความ" : "บันทึกการเลื่อนนัด"}
                 </button>
               </div>
             </div>
@@ -624,7 +822,7 @@ export function AppointmentDetailModal({
                   fontSize: "13.5px",
                   fontWeight: "600",
                 }}
-                onClick={() => setIsRescheduling(true)}
+                onClick={() => openPanel("reschedule")}
               >
                 <IconEdit size={15} />
                 <span>เลื่อนนัดหมาย</span>
@@ -639,15 +837,20 @@ export function AppointmentDetailModal({
                   fontSize: "13.5px",
                   fontWeight: "600",
                 }}
-                onClick={copyReminderText}
+                onClick={hasLine ? () => openPanel("message") : copyReminderText}
               >
-                {copied ? (
+                {hasLine ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <IconSmartphone size={15} />
+                    <span>ส่งข้อความทาง LINE</span>
+                  </span>
+                ) : copied ? (
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#2b8a3e" }}>
                     <IconCheck size={15} color="#2b8a3e" />
                     <span>คัดลอกข้อความแล้ว</span>
                   </span>
                 ) : (
-                  <span>คัดลอกข้อความเตือน LINE</span>
+                  <span>คัดลอกข้อความเตือน</span>
                 )}
               </button>
             </div>
@@ -674,7 +877,7 @@ export function AppointmentDetailModal({
 
         {/* Modal Footer */}
         <div className="modal-footer" style={{ padding: "16px 24px", justifyContent: "space-between" }}>
-          {appointment.status === "confirmed" || appointment.status === "arrived" ? (
+          {(appointment.status === "confirmed" || appointment.status === "arrived") && panel !== "cancel" ? (
             <div style={{ display: "flex", gap: "8px" }}>
               <button
                 type="button"
@@ -687,7 +890,7 @@ export function AppointmentDetailModal({
                   fontSize: "13.5px",
                   fontWeight: "600",
                 }}
-                onClick={handleCancel}
+                onClick={() => openPanel("cancel")}
               >
                 <IconX size={15} />
                 <span>ยกเลิกนัด</span>
