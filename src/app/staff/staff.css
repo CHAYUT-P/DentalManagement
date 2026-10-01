@@ -3401,3 +3401,81 @@ button.tr-tick:disabled {
   font-size: 13.5px;
   color: var(--staff-status-cancelled-fg);
 }
+
+/* ── วันนี้: two groups — ยังไม่มา | มาแล้ว ──────────────────────────────── */
+.today-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1180px) {
+  .today-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.today-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.today-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.today-group-head h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.tg-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.tg-dot.waiting {
+  background: var(--staff-gold);
+}
+
+.tg-dot.here {
+  background: #8fd0a6;
+}
+
+.tg-count {
+  font-size: 15px;
+  color: var(--staff-ink-muted);
+}
+
+.tg-note {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+}
+
+.today-group .today-list {
+  max-width: none;
+}
+
+.today-group .today-row {
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 14px 18px;
+}
+
+.today-group .tr-time {
+  font-size: 19px;
+}
+
+.today-group .tr-tick {
+  min-width: 132px;
+  height: 48px;
+  font-size: 15px;
+}

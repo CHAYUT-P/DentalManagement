@@ -9,11 +9,12 @@ import { AppointmentDetailModal } from "@/components/staff/AppointmentDetailModa
 import { IconCheck, IconPhone, IconWalkIn } from "@/components/staff/staffIcons";
 
 /**
- * วันนี้ — today's queue as one list in time order. The desk only manages who
- * has arrived, so each row has a single tick: tap when the family walks in,
- * tap again to undo a mistake. Walk-ins join the list at the time they came,
- * already ticked. Tapping a name opens the booking (postpone, cancel, no-show
- * live there).
+ * วันนี้ — today's queue in two groups. ยังไม่มา: bookings not here yet, by
+ * their time (no-shows at the bottom). มาแล้ว: checked-in bookings and
+ * walk-ins, in the order they arrived. The desk only manages arrival, so each
+ * booking has a single tick: tap when the family walks in (it moves across),
+ * tap again to undo a mistake. Tapping a name opens the booking (postpone,
+ * cancel, no-show live there).
  *
  * What the parents' queue-check page shows (/api/queue) is still the
  * checked-in line, so ticking here is what moves a family onto it.
@@ -60,22 +61,40 @@ export default function StaffTodayPage() {
   const dentistName = (slug: string | null | undefined) =>
     slug ? (dentists.find((d) => d.slug === slug)?.text.th.name ?? "") : "";
 
-  /* one list: today's bookings by their time, walk-ins by when they came */
-  const rows = useMemo<Row[]>(
-    () =>
-      [
-        ...appointments
-          .filter((a) => a.date === today && a.status !== "cancelled")
-          .map((appt): Row => ({ kind: "booking", at: appt.time, appt })),
-        ...waitlist.map((entry): Row => ({ kind: "walkin", at: entry.arrivedAt, entry })),
-      ].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)),
-    [appointments, waitlist, today],
+  const todays = useMemo(
+    () => appointments.filter((a) => a.date === today && a.status !== "cancelled"),
+    [appointments, today],
   );
 
-  const booked = rows.filter((r) => r.kind === "booking");
-  const arrived = booked.filter((r) => r.kind === "booking" && HERE.includes(r.appt.status)).length;
-  const notYet = booked.filter((r) => r.kind === "booking" && r.appt.status === "confirmed").length;
-  const walkins = rows.length - booked.length;
+  /* not here yet: by booked time, no-shows sink to the bottom */
+  const waitingRows = useMemo<Row[]>(
+    () =>
+      todays
+        .filter((a) => !HERE.includes(a.status))
+        .sort((a, b) => {
+          const na = a.status === "no_show" ? 1 : 0;
+          const nb = b.status === "no_show" ? 1 : 0;
+          return na - nb || (a.time < b.time ? -1 : a.time > b.time ? 1 : 0);
+        })
+        .map((appt): Row => ({ kind: "booking", at: appt.time, appt })),
+    [todays],
+  );
+
+  /* here: checked-in bookings and walk-ins, in the order they arrived */
+  const hereRows = useMemo<Row[]>(
+    () =>
+      [
+        ...todays
+          .filter((a) => HERE.includes(a.status))
+          .map((appt): Row => ({ kind: "booking", at: appt.checkedInAt ?? appt.time, appt })),
+        ...waitlist.map((entry): Row => ({ kind: "walkin", at: entry.arrivedAt, entry })),
+      ].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)),
+    [todays, waitlist],
+  );
+
+  const arrived = todays.filter((a) => HERE.includes(a.status)).length;
+  const notYet = todays.filter((a) => a.status === "confirmed").length;
+  const walkins = waitlist.length;
 
   const toggle = (a: StaffAppointment) => {
     if (a.status === "confirmed") {
@@ -86,36 +105,8 @@ export default function StaffTodayPage() {
     }
   };
 
-  return (
-    <div className="staff-container today-view">
-      <div className="today-head">
-        <div>
-          <div className="today-kicker">วันนี้</div>
-          <h1>
-            {fmtLong(dict, today, "th")}
-            {clock ? <span className="today-clock"> · {clock}</span> : null}
-          </h1>
-        </div>
-        <div className="today-stats">
-          <span>
-            <b>{booked.length}</b> นัดวันนี้
-          </span>
-          <span>
-            <b>{arrived}</b> มาแล้ว
-          </span>
-          <span>
-            <b>{notYet}</b> ยังไม่มา
-          </span>
-          <span>
-            <b>{walkins}</b> Walk-in
-          </span>
-        </div>
-      </div>
-
-      <div className="today-list" role="list" aria-label="คิววันนี้">
-        {rows.length === 0 ? <div className="today-empty">วันนี้ยังไม่มีนัด</div> : null}
-
-        {rows.map((r) => {
+  /** one row — a booking (with its tick) or a walk-in (already here) */
+  const renderRow = (r: Row) => {
           if (r.kind === "walkin") {
             const w = r.entry;
             return (
@@ -188,7 +179,61 @@ export default function StaffTodayPage() {
               )}
             </div>
           );
-        })}
+  };
+
+  return (
+    <div className="staff-container today-view">
+      <div className="today-head">
+        <div>
+          <div className="today-kicker">วันนี้</div>
+          <h1>
+            {fmtLong(dict, today, "th")}
+            {clock ? <span className="today-clock"> · {clock}</span> : null}
+          </h1>
+        </div>
+        <div className="today-stats">
+          <span>
+            <b>{todays.length}</b> นัดวันนี้
+          </span>
+          <span>
+            <b>{arrived}</b> มาแล้ว
+          </span>
+          <span>
+            <b>{notYet}</b> ยังไม่มา
+          </span>
+          <span>
+            <b>{walkins}</b> Walk-in
+          </span>
+        </div>
+      </div>
+
+      <div className="today-groups">
+        <section className="today-group" aria-labelledby="g-waiting">
+          <header className="today-group-head">
+            <span className="tg-dot waiting" aria-hidden="true" />
+            <h2 id="g-waiting">ยังไม่มา</h2>
+            <span className="tg-count">{notYet}</span>
+          </header>
+          <div className="today-list" role="list" aria-label="ยังไม่มา">
+            {waitingRows.length === 0 ? (
+              <div className="today-empty">{todays.length === 0 ? "วันนี้ยังไม่มีนัด" : "มาครบทุกนัดแล้ว"}</div>
+            ) : (
+              waitingRows.map(renderRow)
+            )}
+          </div>
+        </section>
+
+        <section className="today-group" aria-labelledby="g-here">
+          <header className="today-group-head">
+            <span className="tg-dot here" aria-hidden="true" />
+            <h2 id="g-here">มาแล้ว</h2>
+            <span className="tg-count">{hereRows.length}</span>
+            <span className="tg-note">เรียงตามเวลามาถึง</span>
+          </header>
+          <div className="today-list" role="list" aria-label="มาแล้ว">
+            {hereRows.length === 0 ? <div className="today-empty">ยังไม่มีใครมาถึง</div> : hereRows.map(renderRow)}
+          </div>
+        </section>
       </div>
 
       {opened && <AppointmentDetailModal appointment={opened} onClose={() => setOpened(null)} />}

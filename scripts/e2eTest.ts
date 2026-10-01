@@ -93,6 +93,8 @@ async function main() {
   await actions.staffSetWaitlistStatus(entry!.id, "done");
   wl = await queries.listWaitlist();
   ok("queue completed", wl.find(w => w.id === entry!.id)?.status === "done");
+  // leave no test walk-in on today's real board
+  await actions.staffRemoveWaitlist(entry!.id);
 
   console.log("\n— 7. Staff edits content —");
   const naree = (await queries.listDentists()).find(d => d.slug === "naree")!;
