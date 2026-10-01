@@ -2,6 +2,7 @@ import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type {
+  DentistLeave,
   EditableDentist,
   PatientChildInput,
   PatientRecord,
@@ -110,6 +111,7 @@ export interface StaffBootstrap {
   holidays: { id: number; start: string; end: string; name: string }[];
   servicePrices: Record<IconKey, number | null>;
   treatments: TreatmentInfo[];
+  dentistLeaves: DentistLeave[];
   settings: { chairs: number };
 }
 
@@ -214,6 +216,14 @@ export function staffFinishVisit(input: VisitRecordInput) {
 
 export function staffUpdatePrice(key: IconKey, price: number | null) {
   return call<void>("updatePrice", [key, price]);
+}
+
+export function staffAddDentistLeave(dentistSlug: string, start: string, end: string, note: string) {
+  return call<{ ok: boolean }>("addDentistLeave", [dentistSlug, start, end, note]);
+}
+
+export function staffRemoveDentistLeave(id: number) {
+  return call<void>("removeDentistLeave", [id]);
 }
 
 export function staffCreateTreatment(input: {

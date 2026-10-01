@@ -386,6 +386,26 @@ export const holiday = pgTable("holiday", {
 });
 
 /**
+ * Days a dentist is away (ลา), entered ahead from the staff console. On these
+ * days the dentist has no bookable slots and the schedule shows them as ลา;
+ * bookings already made are left alone for the desk to move or cancel.
+ */
+export const dentistLeave = pgTable(
+  "dentist_leave",
+  {
+    id: serial("id").primaryKey(),
+    dentistId: integer("dentist_id")
+      .notNull()
+      .references(() => dentist.id, { onDelete: "cascade" }),
+    start: text("start").notNull(), // YYYY-MM-DD
+    end: text("end").notNull(), // YYYY-MM-DD, inclusive
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("dentist_leave_dentist_idx").on(t.dentistId)],
+);
+
+/**
  * Single knobs the staff console owns, as key/value rows. Only `chairs` is
  * read today: the number of treatment chairs, which caps how many live
  * bookings (assigned + pooled "any dentist") may hold one wall-clock slot —

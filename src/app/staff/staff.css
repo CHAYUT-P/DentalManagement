@@ -3479,3 +3479,153 @@ button.tr-tick:disabled {
   height: 48px;
   font-size: 15px;
 }
+
+/* ── Dentist leave (วันลา) ─────────────────────────────────────────── */
+.doc-grid {
+  grid-template-columns: minmax(0, 1.6fr) 252px 132px 196px;
+}
+
+.doc-days {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.doc-leave-tag {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fff4d6;
+  color: #8a6510;
+  white-space: nowrap;
+}
+
+.doc-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.leave-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  align-items: start;
+}
+
+.leave-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.leave-pick {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--staff-primary-light);
+  font-size: 14px;
+}
+
+.leave-hint {
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+}
+
+.leave-clash {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff4d6;
+  font-size: 12.5px;
+  color: #6b5210;
+}
+
+.leave-clash strong {
+  font-size: 13.5px;
+}
+
+.leave-clash-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 2px 8px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #f3dfa6;
+  background: #fff;
+  font: inherit;
+  color: var(--staff-ink);
+  cursor: pointer;
+}
+
+.leave-clash-row:hover {
+  border-color: var(--staff-primary);
+}
+
+.leave-clash-row .lcr-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leave-clash-row .lcr-sub {
+  grid-column: 2;
+  color: var(--staff-ink-muted);
+}
+
+.leave-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--staff-border);
+}
+
+.leave-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 6px 10px;
+  border-radius: 10px;
+  background: #faf7fc;
+  font-size: 13.5px;
+  color: var(--staff-ink-2);
+}
+
+.leave-item .li-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.leave-item .li-note {
+  color: var(--staff-ink-muted);
+}
+
+.matrix-doctor-header.on-leave .matrix-doc-shift-badge {
+  background: #fff4d6;
+  color: #8a6510;
+}
+
+.matrix-cell.off-duty.on-leave {
+  background: repeating-linear-gradient(-45deg, #fffaf0 0 8px, #fdf0cf 8px 10px);
+}
+
+@media (max-width: 900px) {
+  .leave-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.btn-primary-staff:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -181,6 +181,16 @@ export interface VisitRecord {
   updatedAt: string;
 }
 
+/** a dentist's leave (ลา): no bookable slots from start to end, inclusive */
+export interface DentistLeave {
+  id: number;
+  dentistId: number;
+  dentistSlug: string;
+  start: string; // YYYY-MM-DD
+  end: string; // YYYY-MM-DD
+  note: string;
+}
+
 export interface StaffNotification {
   id: string;
   type: "online_booking" | "cancellation" | "reschedule" | "check_in" | "reminder";

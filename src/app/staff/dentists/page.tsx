@@ -4,7 +4,9 @@ import React, { useState } from "react";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type EditableDentist } from "@/lib/staffStore";
 import { EditDentistModal } from "@/components/staff/EditDentistModal";
-import { IconEdit, IconPlus } from "@/components/staff/staffIcons";
+import { DentistLeaveModal } from "@/components/staff/DentistLeaveModal";
+import { fmtHolidayRange } from "@/components/staff/RangeCalendar";
+import { IconCalendar, IconEdit, IconPlus } from "@/components/staff/staffIcons";
 
 /** Sunday-first, like a wall calendar — `shift.weekday` 0 = Sun … 6 = Sat */
 const WEEK = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
@@ -16,10 +18,11 @@ const WEEK = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
  * lives in the edit dialog; what is set here shows on the patient site.
  */
 export default function StaffDentistsPage() {
-  const { dentists, updateDentist } = useStaff();
+  const { dentists, updateDentist, dentistLeaves, today } = useStaff();
   const tr = useTreatments();
   const [editingDentist, setEditingDentist] = useState<EditableDentist | null>(null);
   const [adding, setAdding] = useState(false);
+  const [leaveFor, setLeaveFor] = useState<EditableDentist | null>(null);
 
   return (
     <div className="staff-container">
@@ -39,7 +42,7 @@ export default function StaffDentistsPage() {
           <span role="columnheader">ทันตแพทย์</span>
           <span role="columnheader">วันออกตรวจ</span>
           <span role="columnheader">รับนัดออนไลน์</span>
-          <span role="columnheader" aria-label="แก้ไข" />
+          <span role="columnheader" aria-label="วันลาและแก้ไข" />
         </div>
 
         {dentists.map((d) => {
@@ -49,6 +52,9 @@ export default function StaffDentistsPage() {
             return s?.enabled ? `${s.start}–${s.end} น.` : "หยุด";
           };
           const treats = d.treats.map((k) => tr.name(k)).join(" · ");
+          const upcoming = dentistLeaves.filter((l) => l.dentistSlug === d.slug && l.end >= today);
+          const nextLeave = upcoming.at(0);
+          const moreLeaves = upcoming.length - 1;
           return (
             <div key={d.slug} className={`ledger-row doc-grid ${d.isActive ? "" : "inactive"}`} role="row">
               <div className="doc-who" role="cell">
@@ -68,12 +74,20 @@ export default function StaffDentistsPage() {
                 </span>
               </div>
 
-              <div className="week-strip" role="cell" aria-label="วันออกตรวจ">
-                {WEEK.map((w, wd) => (
-                  <span key={w} className={on(wd) ? "on" : ""} title={`${w} · ${hours(wd)}`}>
-                    {w}
+              <div className="doc-days" role="cell">
+                <div className="week-strip" aria-label="วันออกตรวจ">
+                  {WEEK.map((w, wd) => (
+                    <span key={w} className={on(wd) ? "on" : ""} title={`${w} · ${hours(wd)}`}>
+                      {w}
+                    </span>
+                  ))}
+                </div>
+                {nextLeave ? (
+                  <span className="doc-leave-tag">
+                    ลา {fmtHolidayRange(nextLeave)}
+                    {moreLeaves > 0 ? ` +${moreLeaves}` : ""}
                   </span>
-                ))}
+                ) : null}
               </div>
 
               <label className="doc-toggle" role="cell">
@@ -85,7 +99,11 @@ export default function StaffDentistsPage() {
                 <span>{d.isActive ? "เปิดรับ" : "พักงาน"}</span>
               </label>
 
-              <div role="cell">
+              <div role="cell" className="doc-actions">
+                <button type="button" className="btn-secondary-staff" onClick={() => setLeaveFor(d)}>
+                  <IconCalendar size={14} />
+                  <span>วันลา</span>
+                </button>
                 <button type="button" className="btn-secondary-staff" onClick={() => setEditingDentist(d)}>
                   <IconEdit size={14} />
                   <span>แก้ไข</span>
@@ -96,13 +114,14 @@ export default function StaffDentistsPage() {
         })}
       </div>
       <p className="ledger-note">
-        เวลาเข้าเวรรายวัน รูป และคำแนะนำตัว แก้ได้ในปุ่ม “แก้ไข” · วันหยุดทั้งคลินิกอยู่ในเมนู “เวลาทำการ &amp; วันหยุด”
+        “วันลา” ปิดรับนัดออนไลน์ของคุณหมอในวันที่เลือก · เวลาเข้าเวร รูป และคำแนะนำตัว แก้ได้ในปุ่ม “แก้ไข” · วันหยุดทั้งคลินิกอยู่ในเมนู “เวลาทำการ &amp; วันหยุด”
       </p>
 
       {editingDentist && (
         <EditDentistModal dentist={editingDentist} onClose={() => setEditingDentist(null)} />
       )}
       {adding && <EditDentistModal dentist={null} onClose={() => setAdding(false)} />}
+      {leaveFor && <DentistLeaveModal dentist={leaveFor} onClose={() => setLeaveFor(null)} />}
     </div>
   );
 }

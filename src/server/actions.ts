@@ -679,6 +679,23 @@ export async function staffUpdatePrice(key: IconKey, price: number | null) {
   revalidateAll();
 }
 
+/** a dentist's leave (ลา) — those days drop out of online booking */
+export async function staffAddDentistLeave(dentistSlug: string, start: string, end: string, note: string) {
+  await guard();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return { ok: false };
+  const { addDentistLeave } = await import("@/server/queries");
+  const ok = await addDentistLeave(dentistSlug, start, end, note);
+  revalidateAll();
+  return { ok };
+}
+
+export async function staffRemoveDentistLeave(id: number) {
+  await guard();
+  const { removeDentistLeave } = await import("@/server/queries");
+  await removeDentistLeave(id);
+  revalidateAll();
+}
+
 /** ตั้งค่า → บริการ & ราคา: add a treatment (its own name, a reused icon) */
 export async function staffCreateTreatment(input: {
   nameTh: string;
@@ -798,11 +815,12 @@ export async function staffBootstrap() {
     priceMap,
     getChairs,
     listTreatmentCatalog,
+    listDentistLeaves,
   } = await import("@/server/queries");
 
   const today = (await import("@/lib/dates")).todayISO();
 
-  const [appts, dentists, patients, waitlist, visitRecords, notifications, days, holidays, prices, chairs, treatments] =
+  const [appts, dentists, patients, waitlist, visitRecords, notifications, days, holidays, prices, chairs, treatments, dentistLeaves] =
     await Promise.all([
       listAppointmentsBetween("1970-01-01", "9999-12-31"),
       listDentists(),
@@ -815,6 +833,7 @@ export async function staffBootstrap() {
       priceMap(),
       getChairs(),
       listTreatmentCatalog(),
+      listDentistLeaves(),
     ]);
 
   return {
@@ -829,6 +848,7 @@ export async function staffBootstrap() {
     holidays,
     servicePrices: prices,
     treatments,
+    dentistLeaves,
     settings: { chairs },
   };
 }

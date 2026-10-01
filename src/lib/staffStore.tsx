@@ -11,6 +11,7 @@ import React, {
 
 import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo } from "@/lib/treatments";
+import type { DentistLeave } from "@/lib/staffTypes";
 import { TreatmentsProvider } from "@/lib/treatmentsContext";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import { todayISO } from "@/lib/dates";
@@ -36,6 +37,8 @@ import {
   staffUpdatePatient,
   staffUpdatePrice,
   staffCreateTreatment,
+  staffAddDentistLeave,
+  staffRemoveDentistLeave,
   staffUpdateTreatment,
   staffBootstrap,
   staffUpsertPatient,
@@ -139,6 +142,12 @@ export interface StaffContextType {
   /** every treatment, shown or hidden — ตั้งค่า → บริการ & ราคา edits these */
   treatments: TreatmentInfo[];
   createTreatment: (input: Parameters<typeof staffCreateTreatment>[0]) => void;
+  /** dentists' leave (ลา) — those days have no bookable slots */
+  dentistLeaves: DentistLeave[];
+  addDentistLeave: (dentistSlug: string, start: string, end: string, note: string) => void;
+  removeDentistLeave: (id: number) => void;
+  /** is this dentist on leave on this date? */
+  onLeave: (dentistSlug: string, date: string) => DentistLeave | undefined;
   updateTreatment: (key: string, patch: Parameters<typeof staffUpdateTreatment>[1]) => void;
   updateDayOpen: (day: ClinicDaySetting["day"], isOpen: boolean) => void;
   updateDayTime: (day: ClinicDaySetting["day"], field: "start" | "end", val: string) => void;
@@ -549,6 +558,27 @@ export function StaffProvider({
     [mutate],
   );
 
+  const addDentistLeave = useCallback(
+    (dentistSlug: string, start: string, end: string, note: string) => {
+      void mutate("บันทึกวันลา", () => staffAddDentistLeave(dentistSlug, start, end, note));
+    },
+    [mutate],
+  );
+
+  const removeDentistLeave = useCallback(
+    (id: number) => {
+      setState((s) => ({ ...s, dentistLeaves: s.dentistLeaves.filter((l) => l.id !== id) }));
+      void mutate("ลบวันลา", () => staffRemoveDentistLeave(id));
+    },
+    [mutate],
+  );
+
+  const onLeave = useCallback(
+    (dentistSlug: string, date: string) =>
+      state.dentistLeaves.find((l) => l.dentistSlug === dentistSlug && l.start <= date && l.end >= date),
+    [state.dentistLeaves],
+  );
+
   const createTreatment = useCallback(
     (input: Parameters<typeof staffCreateTreatment>[0]) => {
       void mutate("เพิ่มบริการ", () => staffCreateTreatment(input));
@@ -688,6 +718,10 @@ export function StaffProvider({
       refresh,
       updateServicePrice,
       treatments: state.treatments,
+      dentistLeaves: state.dentistLeaves,
+      addDentistLeave,
+      removeDentistLeave,
+      onLeave,
       createTreatment,
       updateTreatment,
       updateDayOpen,
@@ -707,7 +741,7 @@ export function StaffProvider({
       today, state, toast, showToast, walkinOpen, syncing,
       createAppointment, updateAppointment, updateStatus, setQueueStatus, rescheduleAppointment,
       deleteAppointment, updateDentist, createDentist, createPatient, updatePatient, addPatientChild,
-      addWaitlist, updateWaitlistStatus, assignWaitingDentist, removeWaitlist, updateServicePrice, createTreatment, updateTreatment,
+      addWaitlist, updateWaitlistStatus, assignWaitingDentist, removeWaitlist, updateServicePrice, createTreatment, updateTreatment, addDentistLeave, removeDentistLeave, onLeave,
       saveVisitRecord, finishVisit, refresh,
       updateDayOpen, updateDayTime, addHoliday, removeHoliday, updateChairs, assignDentist,
       markAllNotificationsRead, simulateOnlineBooking,

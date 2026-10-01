@@ -43,6 +43,7 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
     removeWaitlist,
     walkinOpen,
     setWalkinOpen,
+    onLeave,
   } = useStaff();
   const dict = useT();
   const tr = useTreatments();
@@ -67,10 +68,11 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
 
   const isDentistWorking = useCallback(
     (dentist: (typeof dentists)[0]) => {
+      if (onLeave(dentist.slug, selectedDate)) return false;
       const shift = dentist.shifts?.find((s) => s.weekday === weekdayNum);
       return shift ? shift.enabled : false;
     },
-    [weekdayNum]
+    [weekdayNum, onLeave, selectedDate]
   );
 
   const getDentistShiftHours = (dentist: (typeof dentists)[0]) => {
@@ -79,18 +81,22 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
   };
 
   // Dentists to show
-  const displayedDentists = useMemo(() => {
-    const active = dentists.filter((d) => d.isActive);
-    if (!showOnlyOnDuty) return active;
-    const onDuty = active.filter(isDentistWorking);
-    return onDuty.length > 0 ? onDuty : active;
-  }, [dentists, showOnlyOnDuty, isDentistWorking]);
-
   // Appointments on selected date
   const dayAppts = useMemo(
     () => appointments.filter((a) => a.date === selectedDate),
     [appointments, selectedDate]
   );
+
+  // Dentists to show — one who is off (or on leave) but still holds a live
+  // booking that day stays on the board, so the booking can be moved
+  const displayedDentists = useMemo(() => {
+    const active = dentists.filter((d) => d.isActive);
+    if (!showOnlyOnDuty) return active;
+    const holds = (slug: string) =>
+      dayAppts.some((a) => a.dentistSlug === slug && a.status !== "cancelled");
+    const onDuty = active.filter((d) => isDentistWorking(d) || holds(d.slug));
+    return onDuty.length > 0 ? onDuty : active;
+  }, [dentists, showOnlyOnDuty, isDentistWorking, dayAppts]);
 
   /** live bookings per day — what the date picker draws under each day number */
   const apptCounts = useMemo(() => {
@@ -115,6 +121,38 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
   const dateLong = fmtLong(dict, selectedDate, "th");
   const dateHint =
     dayOffset === 0 ? "วันนี้" : dayOffset === 1 ? "พรุ่งนี้" : dayOffset === -1 ? "เมื่อวาน" : "";
+
+  const renderChip = (appt: StaffAppointment) => (
+    <div
+      draggable={appt.status === "confirmed"}
+      onDragStart={(e) => handleDragStart(e, appt)}
+      onDragEnd={handleDragEnd}
+      onClick={() => setSelectedAppt(appt)}
+      className={`appt-chip-card ${appt.status} ${
+        draggingApptId === appt.id ? "is-dragging" : ""
+      }`}
+      title="คลิกเพื่อดูรายละเอียด / ลากเพื่อย้ายเวลาหรือเปลี่ยนแพทย์"
+    >
+      <div className="appt-chip-header">
+        <strong className="appt-chip-name">{appt.childName}</strong>
+        <span className="appt-chip-ref">{appt.ref}</span>
+      </div>
+      <div className="appt-chip-body">
+        <span className="appt-treatment-name">
+          {tr.name(appt.treatmentKey)}
+        </span>
+        {appt.lineName ? (
+          <span className="line-tag">LINE · {appt.lineName}</span>
+        ) : (
+          <span className={`source-pill-micro ${appt.source}`}>
+            {appt.source === "online" && "เว็บ"}
+            {appt.source === "phone" && "โทร"}
+            {appt.source === "walkin" && "Walk-in"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, appt: StaffAppointment) => {
@@ -298,9 +336,13 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
             {displayedDentists.map((d) => {
               const working = isDentistWorking(d);
               const shiftHours = getDentistShiftHours(d);
+              const leave = onLeave(d.slug, selectedDate);
 
               return (
-                <div key={d.slug} className={`matrix-doctor-header ${working ? "on-duty" : "off-duty"}`}>
+                <div
+                  key={d.slug}
+                  className={`matrix-doctor-header ${working ? "on-duty" : "off-duty"} ${leave ? "on-leave" : ""}`}
+                >
                   <div className="matrix-doc-avatar-wrap">
                     <div className={`matrix-doc-avatar tint-${working ? d.tint : "off"}`}>
                       {d.text.th.name.split(" ")[1]?.[0] || "ท"}
@@ -311,7 +353,11 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
                     <div className="matrix-doc-fullname">{d.text.th.name}</div>
                     <div className="matrix-doc-specialty">{d.text.th.title}</div>
                     <div className="matrix-doc-shift-badge">
-                      {working ? `เวรตรวจ ${shiftHours} น.` : "— หยุดประจำวัน —"}
+                      {leave
+                        ? `ลา${leave.note ? ` · ${leave.note}` : ""}`
+                        : working
+                          ? `เวรตรวจ ${shiftHours} น.`
+                          : "— หยุดประจำวัน —"}
                     </div>
                   </div>
                 </div>
@@ -346,9 +392,11 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
                     return (
                       <div
                         key={slotKey}
-                        className="matrix-cell off-duty"
-                        title="แพทย์ไม่อยู่ในเวรตรวจวันนี้"
-                      />
+                        className={`matrix-cell off-duty ${onLeave(d.slug, selectedDate) ? "on-leave" : ""}`}
+                        title={onLeave(d.slug, selectedDate) ? "แพทย์ลาวันนี้" : "แพทย์ไม่อยู่ในเวรตรวจวันนี้"}
+                      >
+                        {appt ? renderChip(appt) : null}
+                      </div>
                     );
                   }
 
@@ -361,35 +409,7 @@ export function ScheduleDay({ lead }: { lead?: React.ReactNode }) {
                       onDrop={(e) => handleDrop(e, selectedDate, time, d.slug, working)}
                     >
                       {appt ? (
-                        <div
-                          draggable={appt.status === "confirmed"}
-                          onDragStart={(e) => handleDragStart(e, appt)}
-                          onDragEnd={handleDragEnd}
-                          onClick={() => setSelectedAppt(appt)}
-                          className={`appt-chip-card ${appt.status} ${
-                            draggingApptId === appt.id ? "is-dragging" : ""
-                          }`}
-                          title="คลิกเพื่อดูรายละเอียด / ลากเพื่อย้ายเวลาหรือเปลี่ยนแพทย์"
-                        >
-                          <div className="appt-chip-header">
-                            <strong className="appt-chip-name">{appt.childName}</strong>
-                            <span className="appt-chip-ref">{appt.ref}</span>
-                          </div>
-                          <div className="appt-chip-body">
-                            <span className="appt-treatment-name">
-                              {tr.name(appt.treatmentKey)}
-                            </span>
-                            {appt.lineName ? (
-                              <span className="line-tag">LINE · {appt.lineName}</span>
-                            ) : (
-                              <span className={`source-pill-micro ${appt.source}`}>
-                                {appt.source === "online" && "เว็บ"}
-                                {appt.source === "phone" && "โทร"}
-                                {appt.source === "walkin" && "Walk-in"}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        renderChip(appt)
                       ) : (
                         <button
                           type="button"

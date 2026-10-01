@@ -10,7 +10,7 @@ import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, lte, ne, or, sql }
 
 import type { IconKey } from "@/data/icons";
 import { isIconKey } from "@/data/icons";
-import { minutesOf, todayISO, weekday, weekdayIndex } from "@/lib/dates";
+import { addDays, minutesOf, todayISO, weekday, weekdayIndex } from "@/lib/dates";
 import { newTreatmentKey, toTreatmentInfo, type TreatmentInfo, type TreatmentKey } from "@/lib/treatments";
 import type { PatientChildInput, PatientUpsertInput } from "@/lib/staffTypes";
 /**
@@ -27,6 +27,7 @@ import {
   clinicSetting,
   dentist,
   dentistShift,
+  dentistLeave,
   dentistText,
   dentistTreat,
   guardian,
@@ -328,6 +329,48 @@ export async function isBookableTreatment(key: string): Promise<boolean> {
   return rows[0]?.on === true;
 }
 
+/* ═══════════════════════════════ dentist leave ══════════════════════════ */
+
+export interface DentistLeaveDTO {
+  id: number;
+  dentistId: number;
+  dentistSlug: string;
+  start: string;
+  end: string;
+  note: string;
+}
+
+/** leave that hasn't ended yet (plus the last 30 days, for reference) */
+export async function listDentistLeaves(): Promise<DentistLeaveDTO[]> {
+  const since = addDays(todayISO(), -30);
+  const rows = await db
+    .select({ l: dentistLeave, slug: dentist.slug })
+    .from(dentistLeave)
+    .innerJoin(dentist, eq(dentist.id, dentistLeave.dentistId))
+    .where(gte(dentistLeave.end, since))
+    .orderBy(asc(dentistLeave.start));
+  return rows.map((r) => ({
+    id: r.l.id,
+    dentistId: r.l.dentistId,
+    dentistSlug: r.slug,
+    start: r.l.start,
+    end: r.l.end,
+    note: r.l.note,
+  }));
+}
+
+export async function addDentistLeave(dentistSlug: string, start: string, end: string, note: string): Promise<boolean> {
+  const d = await db.select({ id: dentist.id }).from(dentist).where(eq(dentist.slug, dentistSlug));
+  if (!d[0]) return false;
+  const [s, e] = start <= end ? [start, end] : [end, start];
+  await db.insert(dentistLeave).values({ dentistId: d[0].id, start: s, end: e, note: note.trim() });
+  return true;
+}
+
+export async function removeDentistLeave(id: number): Promise<void> {
+  await db.delete(dentistLeave).where(eq(dentistLeave.id, id));
+}
+
 /** price map keyed by IconKey — the shape the staff console edits */
 export async function priceMap(): Promise<Record<IconKey, number | null>> {
   const rows = await db.select().from(treatment);
@@ -421,10 +464,21 @@ export async function slotsForDate(date: string): Promise<SlotRow[]> {
   const open = days[0]?.isOpen && daysOff.length === 0;
   if (!open) return [];
 
-  const active = await db
+  const roster = await db
     .select({ id: dentist.id, slug: dentist.slug })
     .from(dentist)
     .where(eq(dentist.isActive, true));
+
+  // a dentist on leave (ลา) that day has no slots at all
+  const away = new Set(
+    (
+      await db
+        .select({ id: dentistLeave.dentistId })
+        .from(dentistLeave)
+        .where(and(lte(dentistLeave.start, date), gte(dentistLeave.end, date)))
+    ).map((l) => l.id),
+  );
+  const active = roster.filter((d) => !away.has(d.id));
 
   if (active.length === 0) return [];
 
