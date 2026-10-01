@@ -36,7 +36,6 @@ const OPS: Record<string, (...args: never[]) => Promise<unknown>> = {
   addHoliday: actions.staffAddHoliday,
   removeHoliday: actions.staffRemoveHoliday,
   markNotificationsRead: actions.staffMarkNotificationsRead,
-  resetDemoData: actions.staffResetDemoData,
 };
 
 const CORS = {

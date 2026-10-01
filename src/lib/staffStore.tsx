@@ -33,7 +33,6 @@ import {
   staffUpdateDentist,
   staffUpdatePatient,
   staffUpdatePrice,
-  staffResetDemoData,
   staffBootstrap,
   staffUpsertPatient,
   type StaffBootstrap,
@@ -139,7 +138,6 @@ export interface StaffContextType {
   removeHoliday: (id: number | string) => void;
   markAllNotificationsRead: () => void;
   simulateOnlineBooking: () => void;
-  resetAllData: () => void;
   toast: string | null;
   showToast: (msg: string) => void;
   walkinOpen: boolean;
@@ -615,11 +613,6 @@ export function StaffProvider({
     showToast("จำลองการจองออนไลน์เรียบร้อย");
   }, [createAppointment, today, state.servicePrices, showToast]);
 
-  const resetAllData = useCallback(() => {
-    void mutate("รีเซ็ตข้อมูล", () => staffResetDemoData());
-    showToast("รีเซ็ตข้อมูลตัวอย่างแล้ว");
-  }, [mutate, showToast]);
-
   const value = useMemo<StaffContextType>(
     () => ({
       edition,
@@ -665,7 +658,6 @@ export function StaffProvider({
       removeHoliday,
       markAllNotificationsRead,
       simulateOnlineBooking,
-      resetAllData,
       toast,
       showToast,
       walkinOpen,
@@ -680,7 +672,7 @@ export function StaffProvider({
       addWaitlist, updateWaitlistStatus, assignWaitingDentist, removeWaitlist, updateServicePrice,
       saveVisitRecord, finishVisit, refresh,
       updateDayOpen, updateDayTime, addHoliday, removeHoliday, updateChairs, assignDentist,
-      markAllNotificationsRead, simulateOnlineBooking, resetAllData,
+      markAllNotificationsRead, simulateOnlineBooking,
     ],
   );
 

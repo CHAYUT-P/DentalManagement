@@ -787,12 +787,3 @@ export async function staffBootstrap() {
 
 export type StaffBootstrap = Awaited<ReturnType<typeof staffBootstrap>>;
 
-/** wipe and re-seed the demo data (the staff console's reset button) */
-export async function staffResetDemoData() {
-  await guard();
-  const { execFile } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const run = promisify(execFile);
-  await run("pnpm", ["db:seed"], { cwd: process.cwd() });
-  revalidateAll();
-}

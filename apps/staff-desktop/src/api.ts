@@ -233,7 +233,3 @@ export function staffRemoveHoliday(id: number) {
 export function staffMarkNotificationsRead() {
   return call<void>("markNotificationsRead");
 }
-
-export function staffResetDemoData() {
-  return call<void>("resetDemoData");
-}

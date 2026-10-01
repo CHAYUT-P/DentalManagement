@@ -13,7 +13,6 @@ import {
 import {
   IconClock,
   IconCheck,
-  IconZap,
   IconX,
   IconCalendar,
   IconChevronLeft,
@@ -193,7 +192,6 @@ export function ClinicSettings({ tab }: { tab: SettingsTab }) {
     roomDentistSlug,
     setRoomDentistSlug,
     dentists,
-    resetAllData,
     showToast,
     schedule,
     holidays,
@@ -299,17 +297,6 @@ export function ClinicSettings({ tab }: { tab: SettingsTab }) {
       });
     }
     showToast("บันทึกการตั้งค่าคลินิกเรียบร้อยแล้ว — เว็บผู้ปกครองอัปเดตทันที");
-  };
-
-  const handleResetData = () => {
-    if (
-      window.confirm(
-        "ต้องการรีเซ็ตข้อมูลจำลองทั้งหมดกลับเป็นค่าเริ่มต้นหรือไม่? (ตารางนัดหมาย, คนไข้, แพทย์)"
-      )
-    ) {
-      resetAllData();
-      showToast("รีเซ็ตข้อมูลตัวอย่างเรียบร้อยแล้ว");
-    }
   };
 
   return (
@@ -1011,7 +998,7 @@ export function ClinicSettings({ tab }: { tab: SettingsTab }) {
               </div>
             </div>
 
-            {/* Staff Users Roles */}
+            {/* How the desk signs in — the real mechanism, not a mock account list */}
             <div
               style={{
                 background: "#ffffff",
@@ -1020,97 +1007,16 @@ export function ClinicSettings({ tab }: { tab: SettingsTab }) {
                 padding: "22px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "16px",
-                boxShadow: "var(--staff-shadow-sm)",
+                gap: "8px",
               }}
             >
-              <strong style={{ fontSize: "15px", color: "var(--staff-ink)" }}>
-                บัญชีผู้ใช้งานระบบคลินิก (Staff Accounts & Roles)
-              </strong>
-
-              <div className="staff-table-wrap">
-                <table className="staff-table">
-                  <thead>
-                    <tr>
-                      <th>ชื่อ-นามสกุล</th>
-                      <th>ชื่อผู้ใช้ (Username)</th>
-                      <th>บทบาท (Role)</th>
-                      <th>สิทธิ์การใช้งาน</th>
-                      <th>สถานะ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <strong>พยาบาลขวัญใจ (Kwan)</strong>
-                      </td>
-                      <td>kwan_front</td>
-                      <td>
-                        <span className="status-pill completed">Front Desk & Admin</span>
-                      </td>
-                      <td style={{ fontSize: "12.5px", color: "var(--staff-ink-2)" }}>
-                        จัดการนัดหมาย, คิวตรวจ, แก้ไขข้อมูลแพทย์, ตั้งค่าคลินิก
-                      </td>
-                      <td>
-                        <span style={{ color: "#2b8a3e", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                          <IconCheck size={14} />
-                          <span>กำลังใช้งาน</span>
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <strong>ทันตแพทย์ประจำคลินิก (Dentist Roster)</strong>
-                      </td>
-                      <td>dentist_staff</td>
-                      <td>
-                        <span className="status-pill confirmed">Dentist (แพทย์)</span>
-                      </td>
-                      <td style={{ fontSize: "12.5px", color: "var(--staff-ink-2)" }}>
-                        ดูตารางนัดหมาย, บันทึกการตรวจ, จัดการสถานะเคส
-                      </td>
-                      <td>
-                        <span style={{ color: "#2b8a3e", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                          <IconCheck size={14} />
-                          <span>ใช้งานได้</span>
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Developer Reset Section */}
-            <div
-              style={{
-                background: "#fff5f5",
-                border: "1px solid #ffc9c9",
-                borderRadius: "14px",
-                padding: "20px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div>
-                <strong style={{ fontSize: "14px", color: "#e03131" }}>
-                  รีเซ็ตข้อมูลตัวอย่างทั้งหมด (Reset Demo Seed Data)
-                </strong>
-                <div style={{ fontSize: "12px", color: "#c92a2a", marginTop: "2px" }}>
-                  ล้างข้อมูลใน localStorage และโหลดตัวอย่างเริ่มต้น (นัดหมาย, คนไข้, แพทย์)
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="btn-secondary-staff"
-                style={{ color: "#e03131", borderColor: "#ffc9c9", background: "#ffffff" }}
-                onClick={handleResetData}
-              >
-                <IconZap size={14} />
-                <span>รีเซ็ตข้อมูลเริ่มต้น</span>
-              </button>
+              <strong style={{ fontSize: "15px", color: "var(--staff-ink)" }}>การเข้าใช้งานแอป</strong>
+              <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.6, color: "var(--staff-ink-2)" }}>
+                แอปเจ้าหน้าที่เข้าระบบด้วย PIN ของคลินิกรหัสเดียว ที่ติดมากับตัวติดตั้งแอป ยังไม่มีบัญชีแยกรายคน
+              </p>
+              <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.6, color: "var(--staff-ink-2)" }}>
+                เปลี่ยน PIN: แก้ค่า STAFF_PIN บนเซิร์ฟเวอร์ แล้วสร้างตัวติดตั้งแอปใหม่ให้ทุกเครื่อง
+              </p>
             </div>
           </div>
         )}
