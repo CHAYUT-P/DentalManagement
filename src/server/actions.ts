@@ -547,12 +547,14 @@ export async function staffUpdateAppointment(id: number, patch: AppointmentUpdat
  */
 export async function staffSetQueueStatus(
   id: number,
-  status: "arrived" | "in_chair" | "completed" | "no_show",
+  /** "confirmed" = undo a check-in ticked by mistake */
+  status: "confirmed" | "arrived" | "in_chair" | "completed" | "no_show",
 ) {
   await guard();
   await updateAppointment(id, {
     status,
     ...(status === "arrived" ? { checkedInAt: clinicNowHHMM() } : {}),
+    ...(status === "confirmed" ? { checkedInAt: null } : {}),
   });
   revalidateAll();
 }

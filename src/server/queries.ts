@@ -1136,11 +1136,17 @@ export async function addChildToGuardian(
 
 /* ═══════════════════════════════ waitlist ═══════════════════════════════ */
 
+/**
+ * Today's walk-ins (clinic time). A walk-in only ever means "here today" —
+ * its arrivedAt is a bare HH:MM — so earlier days' rows must not resurface
+ * on the desk board or the parents' queue page.
+ */
 export async function listWaitlist(): Promise<WaitlistDTO[]> {
   const rows = await db
     .select({ w: waitlistEntry, slug: dentist.slug })
     .from(waitlistEntry)
     .leftJoin(dentist, eq(dentist.id, waitlistEntry.dentistId))
+    .where(sql`(${waitlistEntry.createdAt} at time zone 'Asia/Bangkok')::date = ${todayISO()}::date`)
     .orderBy(asc(waitlistEntry.arrivedAt));
 
   return rows.map((r) => ({
@@ -1336,6 +1342,8 @@ export async function queueDay(date: string): Promise<QueueDayDTO> {
             dentistText,
             and(eq(dentistText.dentistId, dentist.id), eq(dentistText.lang, "th")),
           )
+          // only today's walk-ins (clinic time) — older rows are other days' queues
+          .where(sql`(${waitlistEntry.createdAt} at time zone 'Asia/Bangkok')::date = ${date}::date`)
       : Promise.resolve([]),
     db
       .select({ slug: dentist.slug, name: dentistText.name })

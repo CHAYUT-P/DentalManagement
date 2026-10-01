@@ -147,7 +147,7 @@ export function staffDeleteAppointment(id: number) {
 
 export function staffSetQueueStatus(
   id: number,
-  status: "arrived" | "in_chair" | "completed" | "no_show",
+  status: "confirmed" | "arrived" | "in_chair" | "completed" | "no_show",
 ) {
   return call<void>("setQueueStatus", [id, status]);
 }

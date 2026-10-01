@@ -95,10 +95,9 @@ export default function StaffServicesPage() {
                   <thead>
                     <tr>
                       <th style={{ width: "60px" }}>ไอคอน</th>
-                      <th style={{ width: "240px" }}>ชื่อหัตถการ (ไทย)</th>
-                      <th style={{ width: "160px" }}>Key รหัสระบบ</th>
-                      <th style={{ width: "180px" }}>ราคาเริ่มต้น (บาท)</th>
-                      <th>สถานะบนเว็บคนไข้</th>
+                      <th>บริการ</th>
+                      <th style={{ width: "200px" }}>ราคาเริ่มต้น</th>
+                      <th style={{ width: "140px" }}>บนเว็บคนไข้</th>
                       <th style={{ textAlign: "right", width: "120px" }}>แก้ไขราคา</th>
                     </tr>
                   </thead>
@@ -131,12 +130,6 @@ export default function StaffServicesPage() {
                           </td>
 
                           <td>
-                            <code style={{ fontSize: "11px", background: "var(--staff-surface-subtle)", padding: "2px 6px", borderRadius: "4px", color: "var(--staff-ink-muted)" }}>
-                              {item.key}
-                            </code>
-                          </td>
-
-                          <td>
                             {isEditing ? (
                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                 <input
@@ -166,9 +159,7 @@ export default function StaffServicesPage() {
                           </td>
 
                           <td>
-                            <span className="status-pill completed" style={{ fontSize: "11px" }}>
-                              เปิดให้จองออนไลน์
-                            </span>
+                            <span className="status-pill completed">แสดงบนเว็บ</span>
                           </td>
 
                           <td style={{ textAlign: "right" }}>

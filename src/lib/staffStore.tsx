@@ -115,7 +115,7 @@ export interface StaffContextType {
   updateAppointment: (id: string, updates: Partial<StaffAppointment>) => void;
   updateStatus: (id: string, status: AppointmentStatus) => void;
   /** queue transitions — check-in stamps the clinic clock server-side */
-  setQueueStatus: (id: string, status: "arrived" | "in_chair" | "completed" | "no_show") => void;
+  setQueueStatus: (id: string, status: "confirmed" | "arrived" | "in_chair" | "completed" | "no_show") => void;
   rescheduleAppointment: (id: string, date: string, time: string, dentistSlug?: string) => void;
   deleteAppointment: (id: string) => void;
   updateDentist: (slug: string, updates: Partial<EditableDentist>) => void;
@@ -316,7 +316,7 @@ export function StaffProvider({
   );
 
   const setQueueStatus = useCallback(
-    (id: string, status: "arrived" | "in_chair" | "completed" | "no_show") => {
+    (id: string, status: "confirmed" | "arrived" | "in_chair" | "completed" | "no_show") => {
       const numeric = Number(id);
       if (!Number.isFinite(numeric)) return;
       void mutate("อัปเดตคิว", () => staffSetQueueStatus(numeric, status));

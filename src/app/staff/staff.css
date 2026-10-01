@@ -2966,3 +2966,171 @@ td .line-tag {
 .view-switch {
   display: inline-flex;
 }
+
+/* ── วันนี้: today's queue as one list, one tick per family ─────────────── */
+.today-list {
+  max-width: 1120px;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.today-empty {
+  padding: 48px 20px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--staff-ink-muted);
+}
+
+.today-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 22px;
+}
+
+.today-row + .today-row {
+  border-top: 1px solid #f1ecf6;
+}
+
+.tr-time {
+  font-family: var(--staff-font-display);
+  font-size: 22px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--staff-ink);
+}
+
+.today-row.here .tr-time {
+  color: var(--staff-ink-muted);
+}
+
+.tr-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--staff-ink);
+}
+
+button.tr-main {
+  cursor: pointer;
+}
+
+button.tr-main:hover .tr-name {
+  text-decoration: underline;
+  text-decoration-color: var(--staff-border-strong);
+  text-underline-offset: 4px;
+}
+
+.tr-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.tr-late {
+  font-size: 12.5px;
+  font-weight: 400;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--staff-status-arrived-bg);
+  color: var(--staff-status-arrived-fg);
+}
+
+.tr-sub {
+  font-size: 14px;
+  color: var(--staff-ink-2);
+}
+
+.tr-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+}
+
+.tr-meta .line-tag {
+  margin-left: 4px;
+}
+
+.tr-ref {
+  margin-left: 8px;
+}
+
+.tr-tick {
+  min-width: 164px;
+  height: 52px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 14px;
+  border: 1.5px solid var(--staff-primary);
+  background: var(--staff-surface);
+  color: var(--staff-primary);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+button.tr-tick:hover {
+  background: var(--staff-primary-light);
+}
+
+button.tr-tick:active {
+  transform: scale(0.98);
+}
+
+.tr-tick.done {
+  border-color: var(--staff-status-completed-border);
+  background: var(--staff-status-completed-bg);
+  color: var(--staff-status-completed-fg);
+}
+
+button.tr-tick.done:hover {
+  background: #dcefe2;
+}
+
+span.tr-tick,
+button.tr-tick:disabled {
+  cursor: default;
+}
+
+.tr-tick.off {
+  border-style: dashed;
+  border-color: var(--staff-border-strong);
+  color: var(--staff-ink-muted);
+}
+
+.today-row.noshow {
+  opacity: 0.55;
+}
+
+.tr-tick:focus-visible,
+.tr-main:focus-visible {
+  outline: 2px solid var(--staff-primary);
+  outline-offset: 3px;
+}
+
+/* a status label is one short line, never a wrapped bubble */
+.status-pill {
+  white-space: nowrap;
+}
+
+.staff-table th {
+  white-space: nowrap;
+}
