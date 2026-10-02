@@ -3,6 +3,7 @@ import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type { DfStatement, ReportData } from "@/server/reports";
 import type { AuditRow, Role, StaffUserInfo, WhoAmI } from "@/lib/roles";
+import type { ImportField } from "@/lib/dataio";
 import type { Consumable, Expense, LabOrder, MoveKind, StockItem, StockMove, Supplier } from "@/lib/stock";
 import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, PayMethod } from "@/lib/billing";
 import type {
@@ -244,6 +245,20 @@ export function staffAddDentistLeave(dentistSlug: string, start: string, end: st
 
 export function staffRemoveDentistLeave(id: number) {
   return call<void>("removeDentistLeave", [id]);
+}
+
+/* ── data in / out (full edition) ─────────────────────────────────────── */
+
+export function staffExportPatients() {
+  return call<string>("exportPatients", []);
+}
+
+export function staffImportPatients(rows: Partial<Record<ImportField, string>>[]) {
+  return call<{ created: number; updated: number; skipped: number }>("importPatients", [rows]);
+}
+
+export function staffExportBills(from: string, to: string) {
+  return call<string>("exportBills", [from, to]);
 }
 
 /* ── accounts (full edition) ──────────────────────────────────────────── */

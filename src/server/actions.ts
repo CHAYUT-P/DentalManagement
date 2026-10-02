@@ -987,9 +987,33 @@ export async function staffAudit() {
   return listAudit();
 }
 
-/* ═══════════════════════════ staff: reports (full edition) ══════════════ */
-
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/* ═══════════════════════════ staff: data in / out (full edition) ════════ */
+
+export async function staffExportPatients() {
+  await guard("users");
+  const { exportPatientsCsv } = await import("@/server/dataio");
+  await logAction("ส่งออกรายชื่อคนไข้");
+  return exportPatientsCsv();
+}
+
+export async function staffImportPatients(rows: Parameters<typeof import("@/server/dataio").importPatients>[0]) {
+  await guard("users");
+  const { importPatients } = await import("@/server/dataio");
+  const r = await importPatients(rows);
+  await logAction("นำเข้ารายชื่อคนไข้", `เพิ่ม ${r.created} · อัปเดต ${r.updated} · ข้าม ${r.skipped}`);
+  revalidateAll();
+  return r;
+}
+
+export async function staffExportBills(from: string, to: string) {
+  await guard("reports");
+  const { exportBillsCsv } = await import("@/server/dataio");
+  return exportBillsCsv(ISO.test(from) ? from : todayISO(), ISO.test(to) ? to : todayISO());
+}
+
+/* ═══════════════════════════ staff: reports (full edition) ══════════════ */
 
 export async function staffReport(from: string, to: string) {
   await guard("reports");

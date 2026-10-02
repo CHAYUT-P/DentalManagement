@@ -7,10 +7,11 @@ import { useStaff } from "@/lib/staffStore";
 import { useStaffUser } from "@/lib/staffUser";
 import { BillingSettingsPanel } from "./BillingSettingsPanel";
 import { UsersPanel } from "./UsersPanel";
+import { DataPanel } from "./DataPanel";
 import { ClinicSettings, type SettingsTab } from "./ClinicSettings";
 import { IconExternal } from "./staffIcons";
 
-type Section = "dentists" | "services" | "billing" | "users" | SettingsTab;
+type Section = "dentists" | "services" | "billing" | "users" | "data" | SettingsTab;
 
 /**
  * ตั้งค่า — everything the desk opens rarely, behind one menu entry: the
@@ -34,6 +35,7 @@ export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
   if (edition === "full") {
     if (can("finance_settings")) items.splice(2, 0, { key: "billing", label: "การเงิน & DF", sub: "ใบเสร็จ พร้อมเพย์ ค่าแพทย์" });
     if (can("users")) items.push({ key: "users", label: "ผู้ใช้ & สิทธิ์", sub: "PIN แต่ละคน · ตำแหน่ง · ประวัติ" });
+    if (can("users")) items.push({ key: "data", label: "นำเข้า / ส่งออกข้อมูล", sub: "ย้ายคนไข้จากโปรแกรมเดิม · CSV" });
     items.push({ key: "device", label: "หน้าจอเครื่องนี้", sub: "เคาน์เตอร์ หรือ ห้องตรวจ" });
   }
 
@@ -68,6 +70,8 @@ export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
           <BillingSettingsPanel />
         ) : section === "users" ? (
           <UsersPanel />
+        ) : section === "data" ? (
+          <DataPanel />
         ) : (
           // one instance across groups, like the old tab strip — edits made in
           // one group survive a look at another before saving

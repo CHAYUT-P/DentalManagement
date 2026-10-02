@@ -5749,3 +5749,56 @@ label.btn-primary-staff.disabled {
 .audit-row {
   grid-template-columns: 130px 120px 140px minmax(0, 1fr);
 }
+
+/* ══ Full edition: data in / out ═══════════════════════════════════════ */
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px 12px;
+}
+
+.map-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--staff-ink-2);
+}
+
+.map-grid .form-control {
+  min-height: 36px;
+}
+
+.import-preview {
+  overflow-x: auto;
+  font-size: 13px;
+}
+
+.ok-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--staff-status-completed-bg);
+  color: var(--staff-status-completed-fg);
+  font-size: 13.5px;
+}
+
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-top: 1px solid #f1ecf6;
+  font-size: 14px;
+}
+
+.export-row > span {
+  flex: 1;
+  min-width: 160px;
+}
+
+.export-row .form-control {
+  width: 160px;
+  min-height: 38px;
+}
