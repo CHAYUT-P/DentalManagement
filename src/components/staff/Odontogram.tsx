@@ -15,43 +15,120 @@ import {
   type ToothRow,
   type ToothStatus,
 } from "@/lib/clinical";
+import { SECTOR_FOR, lateralPath, occlusalPath, toothFlip } from "@/lib/toothShapes";
 import { useStaff } from "@/lib/staffStore";
 
 type ChartSet = "primary" | "mixed" | "permanent";
 
-/** patient's right is drawn on the viewer's left — mesial faces the midline */
-const mesialOnRight = (tooth: string) => ["1", "4", "5", "8"].includes(tooth[0]);
+const isLower = (tooth: string) => ["3", "4", "7", "8"].includes(tooth[0]);
 
-function ToothGlyph({ tooth, row, selected }: { tooth: string; row?: ToothRow; selected: boolean }) {
+/** a big X across a drawing — the tooth was taken out */
+function cross(viewBox: string) {
+  const [, , w, h] = viewBox.split(" ").map(Number);
+  return `M ${w * 0.12} ${h * 0.1} L ${w * 0.88} ${h * 0.9} M ${w * 0.88} ${h * 0.1} L ${w * 0.12} ${h * 0.9}`;
+}
+
+/** the transform that mirrors a drawing inside its own box */
+function flipTransform(viewBox: string, flip: { x: boolean; y: boolean }) {
+  const [, , w, h] = viewBox.split(" ").map(Number);
+  return `translate(${flip.x ? w : 0} ${flip.y ? h : 0}) scale(${flip.x ? -1 : 1} ${flip.y ? -1 : 1})`;
+}
+
+/**
+ * One tooth, drawn the way charts are: the side view (crown and roots —
+ * roots up for upper teeth, down for lower) and the five-surface top view.
+ * Faces with a finding are coloured; whole-tooth conditions change the
+ * tooth itself (crowned, root-treated, gone, not yet erupted…).
+ */
+function ToothGlyph({ tooth, row }: { tooth: string; row?: ToothRow }) {
   const status = row?.status;
   const meta = status ? TOOTH_STATUSES.find((s) => s.key === status) : undefined;
-  const faces = row?.surfaces ?? [];
-  const whole = status && !meta?.surfaces;
-  const center = surfacesFor(tooth)[1]; // O or I
-  const left = mesialOnRight(tooth) ? "D" : "M";
-  const right = mesialOnRight(tooth) ? "M" : "D";
-  const fill = (face: string) =>
-    meta?.surfaces && faces.includes(face) ? `var(--tooth-${meta.tone})` : whole ? `var(--tooth-${meta!.tone}-soft)` : "#fff";
-  const gone = status === "missing" || status === "extracted" || status === "unerupted";
+  const faces = new Set((row?.surfaces ?? []).map((f) => SECTOR_FOR[f]));
+  const tone = meta ? `var(--tooth-${meta.tone})` : "";
+  const gone = status === "missing" || status === "extracted";
+  const ghost = gone || status === "unerupted";
+  const lat = lateralPath(tooth);
+  const occ = occlusalPath(tooth);
+  const flip = toothFlip(tooth);
+  const lower = isLower(tooth);
+  const crownFill = status === "crown" || status === "ssc" || status === "implant" ? tone : "var(--tooth-enamel)";
+  // root canal: the whole canal; pulpotomy (baby teeth): only the pulp inside the crown
+  const pulp = status === "rct" ? lat.pulp : undefined;
+  const clip = `occ-${tooth}`;
 
-  return (
-    <svg viewBox="0 0 40 40" className={`tooth-svg ${selected ? "sel" : ""}`} aria-hidden="true">
-      {/* B top, L bottom, mesial/distal sides, O/I centre */}
-      <polygon points="2,2 38,2 28,12 12,12" fill={fill("B")} />
-      <polygon points="12,28 28,28 38,38 2,38" fill={fill("L")} />
-      <polygon points="2,2 12,12 12,28 2,38" fill={fill(left)} />
-      <polygon points="38,2 38,38 28,28 28,12" fill={fill(right)} />
-      <rect x="12" y="12" width="16" height="16" fill={fill(center)} />
-      <g fill="none" stroke="currentColor" strokeWidth="1">
-        <rect x="2" y="2" width="36" height="36" rx="3" />
-        <rect x="12" y="12" width="16" height="16" />
-        <path d="M2 2 12 12M38 2 28 12M2 38 12 28M38 38 28 28" />
+  const side = (
+    <svg
+      viewBox={lat.viewBox}
+      className={`tooth-side ${ghost ? "ghost" : ""} ${status === "unerupted" ? "dashed" : ""}`}
+      preserveAspectRatio={lower ? "xMidYMin meet" : "xMidYMax meet"}
+      aria-hidden="true"
+    >
+      <g transform={flipTransform(lat.viewBox, flip)}>
+        {(lat.roots ?? (lat.root ? [lat.root] : [])).map((d, i) =>
+          status === "implant" ? null : <path key={i} d={d} className="tooth-root" />,
+        )}
+        {status === "implant" ? <path d={lat.root ?? lat.roots?.[0] ?? ""} className="tooth-implant" /> : null}
+        {status === "pulpotomy" ? (
+          <clipPath id={`crown-${tooth}`}>
+            <path d={lat.crown} />
+          </clipPath>
+        ) : null}
+        <path d={lat.crown} className="tooth-crown" style={{ fill: crownFill }} />
+        {meta?.surfaces && faces.size ? <path d={lat.crown} fill={tone} opacity={0.45} /> : null}
+        {status === "rct" && pulp ? <path d={pulp} fill={tone} /> : null}
+        {status === "pulpotomy" ? (
+          // the pulp chamber inside the crown, filled
+          <ellipse
+            cx={lat.anchors?.crownCenter.x ?? 23}
+            cy={lat.anchors?.crownCenter.y ?? 100}
+            rx={Number(lat.viewBox.split(" ")[2]) * 0.2}
+            ry={Number(lat.viewBox.split(" ")[3]) * 0.07}
+            fill={tone}
+            clipPath={`url(#crown-${tooth})`}
+          />
+        ) : null}
       </g>
-      {gone ? <path d="M6 6 34 34M34 6 6 34" stroke="var(--tooth-gone)" strokeWidth="3" strokeLinecap="round" /> : null}
-      {status === "crown" || status === "ssc" || status === "implant" ? (
-        <circle cx="20" cy="20" r="16" fill="none" stroke={`var(--tooth-${meta!.tone})`} strokeWidth="3" />
-      ) : null}
+      {status === "extracted" ? <path d={cross(lat.viewBox)} className="tooth-x" /> : null}
     </svg>
+  );
+
+  const top = (
+    <svg viewBox="0 0 50 50" className={`tooth-top ${ghost ? "ghost" : ""}`} aria-hidden="true">
+      <defs>
+        <clipPath id={clip}>
+          <path d={occ.outline} />
+        </clipPath>
+      </defs>
+      <g transform={flipTransform("0 0 50 50", flip)}>
+        <path d={occ.outline} className="tooth-crown" style={{ fill: crownFill }} />
+        <g clipPath={`url(#${clip})`}>
+          {Object.entries(occ.surfaces).map(([k, d]) => (
+            <path
+              key={k}
+              d={d}
+              fill={meta?.surfaces && faces.has(k) ? tone : status === "sealant" && k === "O" ? tone : "transparent"}
+            />
+          ))}
+          {occ.highlight.map((d, i) => (
+            <path key={i} d={d} className="tooth-line" />
+          ))}
+        </g>
+        <path d={occ.outline} className="tooth-edge" />
+      </g>
+      {gone ? <path d="M10 10 L40 40 M40 10 L10 40" stroke="var(--tooth-gone)" strokeWidth="3" strokeLinecap="round" /> : null}
+    </svg>
+  );
+
+  return lower ? (
+    <>
+      {top}
+      {side}
+    </>
+  ) : (
+    <>
+      {side}
+      {top}
+    </>
   );
 }
 
@@ -123,9 +200,9 @@ export function Odontogram({
             aria-pressed={selected.includes(t)}
             onClick={() => toggle(t)}
           >
-            <span className="odo-tag">{s?.short ?? ""}</span>
-            <ToothGlyph tooth={t} row={r} selected={selected.includes(t)} />
-            <span className="odo-num">{t}</span>
+            {isLower(t) ? <span className="odo-num">{t}</span> : <span className="odo-tag">{s?.short ?? ""}</span>}
+            <ToothGlyph tooth={t} row={r} />
+            {isLower(t) ? <span className="odo-tag">{s?.short ?? ""}</span> : <span className="odo-num">{t}</span>}
           </button>
         );
       })}

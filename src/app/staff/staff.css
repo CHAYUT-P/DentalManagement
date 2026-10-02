@@ -5802,3 +5802,84 @@ label.btn-primary-staff.disabled {
   width: 160px;
   min-height: 38px;
 }
+
+/* ── dental chart: anatomical teeth (shapes from DentalPin) ──────────── */
+:root {
+  --tooth-enamel: #fffdf8;
+  --tooth-root-fill: #f6ecdc;
+  --tooth-stroke: #b9a993;
+}
+
+.odo-tooth {
+  width: 46px;
+  gap: 1px;
+}
+
+.tooth-side {
+  width: 40px;
+  height: 62px;
+  overflow: visible;
+}
+
+.tooth-top {
+  width: 34px;
+  height: 34px;
+}
+
+.tooth-crown {
+  stroke: var(--tooth-stroke);
+  stroke-width: 1.4;
+}
+
+.tooth-root {
+  fill: var(--tooth-root-fill);
+  stroke: var(--tooth-stroke);
+  stroke-width: 1.4;
+}
+
+.tooth-implant {
+  fill: #c9ced8;
+  stroke: #7e8596;
+  stroke-width: 1.6;
+  stroke-dasharray: 3 2;
+}
+
+.tooth-edge {
+  fill: none;
+  stroke: var(--tooth-stroke);
+  stroke-width: 1.3;
+}
+
+.tooth-line {
+  fill: none;
+  stroke: #d8cbb8;
+  stroke-width: 0.8;
+}
+
+.tooth-x {
+  stroke: var(--tooth-caries);
+  stroke-width: 4;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.tooth-side.ghost,
+.tooth-top.ghost {
+  opacity: 0.35;
+}
+
+.tooth-side.dashed .tooth-crown,
+.tooth-side.dashed .tooth-root {
+  stroke-dasharray: 3 2;
+}
+
+.odo-tooth.sel .tooth-crown,
+.odo-tooth.sel .tooth-root,
+.odo-tooth.sel .tooth-edge {
+  stroke: var(--staff-primary);
+  stroke-width: 2;
+}
+
+.odo-row + .odo-row {
+  margin-top: 4px;
+}
