@@ -4,11 +4,13 @@ import React, { useState } from "react";
 import DentistsPage from "@/app/staff/dentists/page";
 import ServicesPage from "@/app/staff/services/page";
 import { useStaff } from "@/lib/staffStore";
+import { useStaffUser } from "@/lib/staffUser";
 import { BillingSettingsPanel } from "./BillingSettingsPanel";
+import { UsersPanel } from "./UsersPanel";
 import { ClinicSettings, type SettingsTab } from "./ClinicSettings";
 import { IconExternal } from "./staffIcons";
 
-type Section = "dentists" | "services" | "billing" | SettingsTab;
+type Section = "dentists" | "services" | "billing" | "users" | SettingsTab;
 
 /**
  * ตั้งค่า — everything the desk opens rarely, behind one menu entry: the
@@ -17,6 +19,7 @@ type Section = "dentists" | "services" | "billing" | SettingsTab;
  */
 export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
   const { edition, dentists, settings } = useStaff();
+  const { can } = useStaffUser();
   const [section, setSection] = useState<Section>("dentists");
 
   const active = dentists.filter((d) => d.isActive).length;
@@ -29,7 +32,8 @@ export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
     { key: "staff_notif", label: "การแจ้งเตือน & บัญชี", sub: "เตือนนัดทาง LINE · ผู้ใช้" },
   ];
   if (edition === "full") {
-    items.splice(2, 0, { key: "billing", label: "การเงิน & DF", sub: "ใบเสร็จ พร้อมเพย์ ค่าแพทย์" });
+    if (can("finance_settings")) items.splice(2, 0, { key: "billing", label: "การเงิน & DF", sub: "ใบเสร็จ พร้อมเพย์ ค่าแพทย์" });
+    if (can("users")) items.push({ key: "users", label: "ผู้ใช้ & สิทธิ์", sub: "PIN แต่ละคน · ตำแหน่ง · ประวัติ" });
     items.push({ key: "device", label: "หน้าจอเครื่องนี้", sub: "เคาน์เตอร์ หรือ ห้องตรวจ" });
   }
 
@@ -62,6 +66,8 @@ export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
           <ServicesPage />
         ) : section === "billing" ? (
           <BillingSettingsPanel />
+        ) : section === "users" ? (
+          <UsersPanel />
         ) : (
           // one instance across groups, like the old tab strip — edits made in
           // one group survive a look at another before saving

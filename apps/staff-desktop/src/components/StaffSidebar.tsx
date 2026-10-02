@@ -2,6 +2,7 @@ import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { useStaff } from "@/lib/staffStore";
+import { useStaffUser } from "@/lib/staffUser";
 import { railItems, RailLogo } from "@/components/staff/staffRail";
 
 /**
@@ -12,7 +13,8 @@ import { railItems, RailLogo } from "@/components/staff/staffRail";
 export function StaffSidebar() {
   const { pathname } = useLocation();
   const staff = useStaff();
-  const items = railItems(staff, "");
+  const { can } = useStaffUser();
+  const items = railItems(staff, "", can);
 
   return (
     <nav className="staff-rail" aria-label="เมนูหลัก">

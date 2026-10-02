@@ -66,6 +66,12 @@ const OPS: Record<string, (...args: never[]) => Promise<unknown>> = {
   labOrders: actions.staffLabOrders,
   saveLabOrder: actions.staffSaveLabOrder,
   removeLabOrder: actions.staffRemoveLabOrder,
+  whoAmI: actions.staffWhoAmI,
+  signIn: actions.staffSignIn,
+  signOut: actions.staffSignOut,
+  users: actions.staffUsers,
+  saveUser: actions.staffSaveUser,
+  audit: actions.staffAudit,
   report: actions.staffReport,
   dfStatement: actions.staffDfStatement,
   cashierDay: actions.staffCashierDay,
@@ -94,7 +100,7 @@ const CORS = {
   // lets the Tauri webview (tauri://localhost) reach the API at all
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Staff-User",
 };
 
 export async function OPTIONS() {
@@ -117,7 +123,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unknown_action" }, { status: 400, headers: CORS });
   }
   try {
-    const result = await withStaffToken(() => fn(...(body.args ?? []) as never[]));
+    // the person signed in on that device (full edition) rides in its own header
+    const userToken = req.headers.get("x-staff-user") ?? "";
+    const result = await withStaffToken(() => fn(...(body.args ?? []) as never[]), userToken);
     return NextResponse.json({ ok: true, result }, { headers: CORS });
   } catch (e) {
     return NextResponse.json(

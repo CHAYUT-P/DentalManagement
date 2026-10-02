@@ -8,6 +8,7 @@ import { DEFAULT_BILLING_SETTINGS, baht, payMethodLabel, type BillingSettings } 
 import { addDays, fmtLong } from "@/lib/dates";
 import { useStaff } from "@/lib/staffStore";
 import { useT } from "@/i18n/lang";
+import { useStaffUser, NoAccess } from "@/lib/staffUser";
 import { EditionNotice } from "./DeviceGate";
 
 type Preset = "today" | "month" | "lastMonth" | "year" | "custom";
@@ -32,6 +33,7 @@ function rangeFor(p: Preset, today: string): [string, string] {
  */
 export function ReportsView() {
   const { edition, today, dentists, showToast } = useStaff();
+  const allowed = useStaffUser().can("reports");
   const dict = useT();
   const [preset, setPreset] = useState<Preset>("month");
   const [[from, to], setRange] = useState<[string, string]>(() => rangeFor("month", today));
@@ -65,6 +67,7 @@ export function ReportsView() {
   }, [statement]);
 
   if (edition !== "full") return <EditionNotice feature="รายงาน" />;
+  if (!allowed) return <NoAccess what="รายงาน" />;
 
   const name = (slug: string | null) => (slug ? (dentists.find((d) => d.slug === slug)?.text.th.name ?? slug) : "ไม่ระบุแพทย์");
   const pick = (p: Preset) => {

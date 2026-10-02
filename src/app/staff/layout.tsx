@@ -8,6 +8,7 @@ import { StaffSidebar } from "@/components/staff/StaffSidebar";
 import { StaffTopbar } from "@/components/staff/StaffTopbar";
 import { staffBootstrap } from "@/server/actions";
 import { isStaffAuthed } from "@/server/staffAuth";
+import { StaffUserGate } from "@/lib/staffUser";
 import { StaffProvider } from "@/lib/staffStore";
 import "./staff.css";
 
@@ -47,6 +48,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   return (
     <StaffProvider initial={initial} edition={edition}>
+      <StaffUserGate>
       <DeviceGate>
         <div className="staff-root">
           <StaffSidebar />
@@ -56,6 +58,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           </div>
         </div>
       </DeviceGate>
+      </StaffUserGate>
     </StaffProvider>
   );
 }

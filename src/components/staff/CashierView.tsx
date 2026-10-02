@@ -37,6 +37,7 @@ import { addDays, fmtLong } from "@/lib/dates";
 import { useStaff } from "@/lib/staffStore";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { useT } from "@/i18n/lang";
+import { useStaffUser, NoAccess } from "@/lib/staffUser";
 import { EditionNotice } from "./DeviceGate";
 import { PatientFileButton } from "./PatientFileView";
 import { PrintSheet, PromptPayQR } from "./ReceiptSheet";
@@ -67,6 +68,7 @@ const editable = (i: BillItem) => [i.treatmentKey, i.stockItemId ?? null, i.name
  */
 export function CashierView() {
   const { edition, today, dentists, showToast } = useStaff();
+  const allowed = useStaffUser().can("cashier");
   const dict = useT();
   const [tab, setTab] = useState<"pay" | "close" | "expenses">("pay");
   const [shelf, setShelf] = useState<StockItem[]>([]);
@@ -134,6 +136,7 @@ export function CashierView() {
   }, [print]);
 
   if (edition !== "full") return <EditionNotice feature="การเงิน" />;
+  if (!allowed) return <NoAccess what="หน้าการเงิน" />;
 
   const bills = day?.bills ?? [];
   const bill = bills.find((b) => b.id === selected) ?? null;

@@ -13,6 +13,7 @@ import {
 } from "@/lib/staffStore";
 import type { VisitItem } from "@/lib/staffTypes";
 import { PatientFileButton } from "./PatientFileView";
+import { NoAccess, useStaffUser } from "@/lib/staffUser";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -67,6 +68,7 @@ export function RoomPage({
     showToast,
   } = useStaff();
   const tr = useTreatments();
+  const allowed = useStaffUser().can("rooms");
 
   const dentist = slug ? dentists.find((d) => d.slug === slug) : undefined;
 
@@ -113,6 +115,8 @@ export function RoomPage({
     visitRecords.find((v) =>
       row.kind === "booking" ? v.appointmentId === row.appt.id : v.waitlistId === row.entry.id,
     );
+
+  if (!allowed) return <NoAccess what="ห้องตรวจ" />;
 
   /* ── room picker ─────────────────────────────────────────────────────── */
   if (!slug) {

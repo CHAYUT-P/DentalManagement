@@ -2,6 +2,7 @@ import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type { DfStatement, ReportData } from "@/server/reports";
+import type { AuditRow, Role, StaffUserInfo, WhoAmI } from "@/lib/roles";
 import type { Consumable, Expense, LabOrder, MoveKind, StockItem, StockMove, Supplier } from "@/lib/stock";
 import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, PayMethod } from "@/lib/billing";
 import type {
@@ -90,12 +91,17 @@ export async function staffLogin(pin: string): Promise<{ ok: boolean }> {
   return { ok: false };
 }
 
+/** the person signed in on this PC (full edition) — sent with every call */
+const USER_KEY = "dk:user-token";
+let userToken = localStorage.getItem(USER_KEY) ?? "";
+
 async function call<T>(action: string, args: unknown[] = []): Promise<T> {
   const res = await fetch(`${API}/api/staff`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      ...(userToken ? { "X-Staff-User": userToken } : {}),
     },
     body: JSON.stringify({ action, args }),
   });
@@ -238,6 +244,39 @@ export function staffAddDentistLeave(dentistSlug: string, start: string, end: st
 
 export function staffRemoveDentistLeave(id: number) {
   return call<void>("removeDentistLeave", [id]);
+}
+
+/* ── accounts (full edition) ──────────────────────────────────────────── */
+
+export function staffWhoAmI() {
+  return call<WhoAmI>("whoAmI", []);
+}
+
+export async function staffSignIn(userId: number, pin: string) {
+  const r = await call<{ ok: boolean; token?: string; user?: StaffUserInfo }>("signIn", [userId, pin]);
+  if (r.ok && r.token) {
+    userToken = r.token;
+    localStorage.setItem(USER_KEY, userToken);
+  }
+  return r;
+}
+
+export async function staffSignOut() {
+  userToken = "";
+  localStorage.removeItem(USER_KEY);
+  await call<void>("signOut", []).catch(() => {});
+}
+
+export function staffUsers() {
+  return call<StaffUserInfo[]>("users", []);
+}
+
+export function staffSaveUser(input: { id?: number | null; name: string; role: Role; pin?: string; dentistSlug?: string | null; isActive?: boolean }) {
+  return call<{ ok: boolean; error?: string }>("saveUser", [input]);
+}
+
+export function staffAudit() {
+  return call<AuditRow[]>("audit", []);
 }
 
 /* ── reports (full edition) ───────────────────────────────────────────── */

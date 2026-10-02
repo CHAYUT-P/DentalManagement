@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStaff } from "@/lib/staffStore";
+import { useStaffUser } from "@/lib/staffUser";
 import { railItems, RailLogo } from "./staffRail";
 
 /**
@@ -14,7 +15,8 @@ import { railItems, RailLogo } from "./staffRail";
 export function StaffSidebar() {
   const pathname = usePathname();
   const staff = useStaff();
-  const items = railItems(staff, "/staff");
+  const { can } = useStaffUser();
+  const items = railItems(staff, "/staff", can);
 
   return (
     <nav className="staff-rail" aria-label="เมนูหลัก">

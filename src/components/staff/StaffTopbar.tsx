@@ -2,6 +2,8 @@
 
 import React, { useMemo, useState } from "react";
 import { useTreatments } from "@/lib/treatmentsContext";
+import { useStaffUser } from "@/lib/staffUser";
+import { initial } from "@/lib/roles";
 import { useStaff, type StaffAppointment } from "@/lib/staffStore";
 import { BookingModal } from "./BookingModal";
 import { AddWaitlistModal } from "./AddWaitlistModal";
@@ -24,6 +26,7 @@ const STATUS_TH: Record<StaffAppointment["status"], string> = {
  * lives here once — pages no longer repeat them.
  */
 export function StaffTopbar() {
+  const { user, accounts, signOut } = useStaffUser();
   const { today, appointments, notifications, toast } = useStaff();
   const tr = useTreatments();
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -126,6 +129,12 @@ export function StaffTopbar() {
             <IconPlus size={17} />
             <span>นัดใหม่</span>
           </button>
+          {user && accounts ? (
+            <button type="button" className="staff-user-chip" title="ล็อกเครื่อง / สลับผู้ใช้" onClick={() => void signOut()}>
+              <span className="ug-avatar small">{initial(user.name)}</span>
+              <span>{user.name}</span>
+            </button>
+          ) : null}
           <div className="staff-bell-wrap">
             <button
               type="button"

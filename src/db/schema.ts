@@ -928,3 +928,37 @@ export const labOrder = pgTable(
   },
   (t) => [index("lab_order_status_idx").on(t.status)],
 );
+
+/* ────────────────────────────── staff accounts (full edition) ──────────── */
+
+/**
+ * Who is using the app. The clinic PIN still unlocks a device; on top of it
+ * each person signs in with their own short PIN, and their role decides what
+ * they can open. No rows = the app runs open, as before.
+ */
+export const staffUser = pgTable("staff_user", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** "owner" | "frontdesk" | "dentist" | "assistant" */
+  role: text("role").notNull().default("frontdesk"),
+  /** sha256 of a per-user salt + the PIN */
+  pinHash: text("pin_hash").notNull(),
+  salt: text("salt").notNull(),
+  dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** who did what — payments, cancellations, chart and settings changes */
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id"),
+    userName: text("user_name").notNull().default(""),
+    action: text("action").notNull(),
+    detail: text("detail").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("audit_log_at_idx").on(t.createdAt)],
+);

@@ -30,6 +30,7 @@ import {
 import { baht } from "@/lib/billing";
 import { useStaff } from "@/lib/staffStore";
 import { useTreatments } from "@/lib/treatmentsContext";
+import { useStaffUser, NoAccess } from "@/lib/staffUser";
 import { EditionNotice } from "./DeviceGate";
 import { IconAlertTriangle, IconPlus, IconSearch, IconX } from "./staffIcons";
 
@@ -43,6 +44,7 @@ type Tab = "items" | "moves" | "consumables" | "labs" | "suppliers";
  */
 export function StockView() {
   const { edition, showToast } = useStaff();
+  const allowed = useStaffUser().can("stock");
   const [tab, setTab] = useState<Tab>("items");
   const [items, setItems] = useState<StockItem[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -68,6 +70,7 @@ export function StockView() {
   }, [showToast]);
 
   if (edition !== "full") return <EditionNotice feature="คลังสินค้า" />;
+  if (!allowed) return <NoAccess what="คลังสินค้า" />;
 
   const low = items.filter((i) => i.low).length;
   const tabs: { key: Tab; label: string; badge?: number }[] = [

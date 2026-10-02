@@ -44,6 +44,7 @@ import { fmtLong } from "@/lib/dates";
 import { useStaff } from "@/lib/staffStore";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { useT } from "@/i18n/lang";
+import { useStaffUser } from "@/lib/staffUser";
 import { ClinicalPrint, type ClinicalPrintTarget } from "./ClinicalPrint";
 import { Odontogram } from "./Odontogram";
 import { PatientForm, formFromRecord, toPatientPayload } from "./PatientForm";
@@ -84,6 +85,7 @@ const VISIT_STATUS: Record<string, string> = {
  */
 export function PatientFileView({ childId, onBack }: { childId: number; onBack?: () => void }) {
   const { today, patients, updatePatient, dentists, showToast } = useStaff();
+  const { can } = useStaffUser();
   const dict = useT();
   const [file, setFile] = useState<PatientFileData | null>(null);
   const [missing, setMissing] = useState(false);
@@ -191,7 +193,7 @@ export function PatientFileView({ childId, onBack }: { childId: number; onBack?:
       ) : null}
 
       <nav className="pf-tabs" role="tablist">
-        {TABS.map((t) => (
+        {TABS.filter((t) => can("chart") || !["chart", "plans", "docs"].includes(t.key)).map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? "on" : ""} onClick={() => setTab(t.key)}>
             {t.label}
             {t.key === "plans" && file.plans.length ? <em>{file.plans.length}</em> : null}
@@ -264,7 +266,7 @@ export function PatientFileView({ childId, onBack }: { childId: number; onBack?:
                   : "ไม่ได้ตั้งรอบตรวจ"}
             </p>
           </section>
-          <DepositCard file={file} onDone={reload} />
+          {can("cashier") ? <DepositCard file={file} onDone={reload} /> : null}
         </div>
       ) : null}
 

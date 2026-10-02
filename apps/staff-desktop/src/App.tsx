@@ -16,6 +16,7 @@ import { ScheduleView } from "@/components/staff/ScheduleView";
 import { SetupView } from "@/components/staff/SetupView";
 import { StaffTopbar } from "@/components/staff/StaffTopbar";
 import { StaffProvider } from "@/lib/staffStore";
+import { StaffUserGate } from "@/lib/staffUser";
 import { LangProvider } from "@/i18n/lang";
 
 import PatientsPage from "@/app/staff/patients/page";
@@ -83,6 +84,7 @@ export default function App() {
     <LangProvider>
       <StaffProvider initial={initial} edition={STAFF_EDITION}>
         <HashRouter>
+          <StaffUserGate>
           <DeviceGate>
             <div className="staff-root">
               <StaffSidebar />
@@ -113,6 +115,7 @@ export default function App() {
               </div>
             </div>
           </DeviceGate>
+          </StaffUserGate>
         </HashRouter>
       </StaffProvider>
     </LangProvider>

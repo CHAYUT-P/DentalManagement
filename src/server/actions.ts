@@ -39,6 +39,7 @@ import {
 } from "@/server/queries";
 import type { WaitlistDTO } from "@/server/queries";
 import { todayISO } from "@/lib/dates";
+import type { Perm } from "@/lib/roles";
 import type { VisitRecordInput } from "@/lib/staffTypes";
 
 export type { VisitRecordInput } from "@/lib/staffTypes";
@@ -71,10 +72,24 @@ async function limited(scope: string, limit: number, windowSec: number): Promise
   return !(await checkRate(`${scope}:${ip}`, limit, windowSec));
 }
 
-/** gate every staff* action — see the NOTE ON AUTH above */
-async function guard() {
+/**
+ * gate every staff* action — see the NOTE ON AUTH above. Full-edition
+ * actions also name what they need (`perm`): the signed-in person's role
+ * must allow it. With no staff accounts set up, everyone may (as before).
+ */
+async function guard(perm?: Perm) {
   const { requireStaff } = await import("@/server/staffAuth");
   await requireStaff();
+  if (perm) {
+    const { requirePerm } = await import("@/server/users");
+    await requirePerm(perm);
+  }
+}
+
+/** remember who did something that matters (payments, cancellations, settings…) */
+async function logAction(action: string, detail = "") {
+  const { audit } = await import("@/server/users");
+  await audit(action, detail);
 }
 
 /* ── paths whose data these actions touch ────────────────────────────────── */
@@ -714,13 +729,13 @@ export async function staffMessageFamily(id: number, text: string): Promise<Fami
 type Clinical = typeof import("@/server/clinical");
 
 export async function staffPatientFile(childId: number) {
-  await guard();
+  await guard("patients");
   const { getPatientFile } = await import("@/server/clinical");
   return getPatientFile(childId);
 }
 
 export async function staffEnsurePatient(input: Parameters<Clinical["ensurePatient"]>[0]) {
-  await guard();
+  await guard("patients");
   const { ensurePatient } = await import("@/server/clinical");
   const id = await ensurePatient(input);
   revalidateAll();
@@ -728,98 +743,103 @@ export async function staffEnsurePatient(input: Parameters<Clinical["ensurePatie
 }
 
 export async function staffChildForAppointment(appointmentId: number) {
-  await guard();
+  await guard("patients");
   const { childForAppointment } = await import("@/server/clinical");
   return childForAppointment(appointmentId);
 }
 
 export async function staffSetTeeth(input: Parameters<Clinical["setTeeth"]>[0]) {
-  await guard();
+  await guard("chart");
   const { setTeeth } = await import("@/server/clinical");
   await setTeeth(input);
+  await logAction("บันทึกชาร์ตฟัน", `คนไข้ #${input.childId} · ซี่ ${input.teeth.join(" ")} · ${input.status}`);
 }
 
 export async function staffSavePlan(input: Parameters<Clinical["savePlan"]>[0]) {
-  await guard();
+  await guard("chart");
   const { savePlan } = await import("@/server/clinical");
   return savePlan(input);
 }
 
 export async function staffRemovePlan(id: number) {
-  await guard();
+  await guard("chart");
   const { removePlan } = await import("@/server/clinical");
   await removePlan(id);
 }
 
 export async function staffBillFromPlan(input: Parameters<Clinical["billFromPlan"]>[0]) {
-  await guard();
+  await guard("cashier");
   const { billFromPlan } = await import("@/server/clinical");
   return billFromPlan(input);
 }
 
 export async function staffTakeDeposit(input: Parameters<Clinical["takeDeposit"]>[0]) {
-  await guard();
+  await guard("cashier");
   const { takeDeposit } = await import("@/server/clinical");
-  return takeDeposit(input);
+  const id = await takeDeposit(input);
+  if (id) await logAction("รับมัดจำ", `คนไข้ #${input.childId} · ${input.amount} บาท`);
+  return id;
 }
 
 export async function staffSaveDoc(input: Parameters<Clinical["saveDoc"]>[0]) {
-  await guard();
+  await guard("chart");
   const { saveDoc } = await import("@/server/clinical");
   return saveDoc(input);
 }
 
 export async function staffRemoveDoc(id: number) {
-  await guard();
+  await guard("chart");
   const { removeDoc } = await import("@/server/clinical");
   await removeDoc(id);
+  await logAction("ลบเอกสาร", `#${id}`);
 }
 
 export async function staffMedications() {
-  await guard();
+  await guard("chart");
   const { listMedications } = await import("@/server/clinical");
   return listMedications();
 }
 
 export async function staffSaveMedication(input: Parameters<Clinical["saveMedication"]>[0]) {
-  await guard();
+  await guard("chart");
   const { saveMedication } = await import("@/server/clinical");
   await saveMedication(input);
 }
 
 export async function staffUploadFile(input: Parameters<Clinical["uploadFile"]>[0]) {
-  await guard();
+  await guard("patients");
   const { uploadFile } = await import("@/server/clinical");
   return uploadFile(input);
 }
 
 export async function staffFileBody(id: number) {
-  await guard();
+  await guard("patients");
   const { getFileBody } = await import("@/server/clinical");
   return getFileBody(id);
 }
 
 export async function staffRemoveFile(id: number) {
-  await guard();
+  await guard("chart");
   const { removeFile } = await import("@/server/clinical");
   await removeFile(id);
+  await logAction("ลบไฟล์คนไข้", `#${id}`);
 }
 
 export async function staffRecalls(filter: Parameters<Clinical["listRecalls"]>[0]) {
-  await guard();
+  await guard("patients");
   const { listRecalls } = await import("@/server/clinical");
   return listRecalls(filter);
 }
 
 export async function staffSetRecall(id: number, patch: Parameters<Clinical["setRecall"]>[1]) {
-  await guard();
+  await guard("patients");
   const { setRecall } = await import("@/server/clinical");
   await setRecall(id, patch);
 }
 
 /** a check-up reminder into the family's LINE chat */
 export async function staffRemindRecall(id: number, text: string): Promise<FamilyMessageResult> {
-  await guard();
+  await guard("patients");
   const { listRecalls, lineTargetForChild, setRecall } = await import("@/server/clinical");
   const r = (await listRecalls({})).find((x) => x.id === id);
   if (!r) return "failed";
@@ -838,87 +858,133 @@ export async function staffRemindRecall(id: number, text: string): Promise<Famil
 type Stock = typeof import("@/server/stock");
 
 export async function staffSuppliers() {
-  await guard();
+  await guard("stock");
   const { listSuppliers } = await import("@/server/stock");
   return listSuppliers();
 }
 
 export async function staffSaveSupplier(input: Parameters<Stock["saveSupplier"]>[0]) {
-  await guard();
+  await guard("stock");
   const { saveSupplier } = await import("@/server/stock");
   return saveSupplier(input);
 }
 
 export async function staffStock() {
-  await guard();
+  // the counter reads it too, for products it can sell
+  await guard("cashier").catch(() => guard("stock"));
   const { listStock } = await import("@/server/stock");
   return listStock();
 }
 
 export async function staffSaveStockItem(input: Parameters<Stock["saveStockItem"]>[0]) {
-  await guard();
+  await guard("stock");
   const { saveStockItem } = await import("@/server/stock");
   return saveStockItem(input);
 }
 
 export async function staffAddMove(input: Parameters<Stock["addMove"]>[0]) {
-  await guard();
+  await guard("stock");
   const { addMove } = await import("@/server/stock");
-  return addMove(input);
+  await addMove(input);
+  await logAction("ปรับคลัง", `สินค้า #${input.itemId} · ${input.kind} ${input.qty}`);
 }
 
 export async function staffMoves(filter: Parameters<Stock["listMoves"]>[0]) {
-  await guard();
+  await guard("stock");
   const { listMoves } = await import("@/server/stock");
   return listMoves(filter);
 }
 
 export async function staffConsumables() {
-  await guard();
+  await guard("stock");
   const { listConsumables } = await import("@/server/stock");
   return listConsumables();
 }
 
 export async function staffSetConsumables(treatmentKey: string, lines: { itemId: number; qty: number }[]) {
-  await guard();
+  await guard("stock");
   const { setConsumables } = await import("@/server/stock");
   return setConsumables(treatmentKey, lines);
 }
 
 export async function staffExpenses(from: string, to: string) {
-  await guard();
+  await guard("cashier");
   const { listExpenses } = await import("@/server/stock");
   return listExpenses(from, to);
 }
 
 export async function staffSaveExpense(input: Parameters<Stock["saveExpense"]>[0]) {
-  await guard();
+  await guard("cashier");
   const { saveExpense } = await import("@/server/stock");
-  return saveExpense(input);
+  await saveExpense(input);
+  await logAction("บันทึกค่าใช้จ่าย", `${input.category} ${input.amount} บาท`);
 }
 
 export async function staffRemoveExpense(id: number) {
-  await guard();
+  await guard("cashier");
   const { removeExpense } = await import("@/server/stock");
-  return removeExpense(id);
+  await removeExpense(id);
+  await logAction("ลบค่าใช้จ่าย", `#${id}`);
 }
 
 export async function staffLabOrders(filter: Parameters<Stock["listLabOrders"]>[0]) {
-  await guard();
+  await guard("stock");
   const { listLabOrders } = await import("@/server/stock");
   return listLabOrders(filter);
 }
 
 export async function staffSaveLabOrder(input: Parameters<Stock["saveLabOrder"]>[0]) {
-  await guard();
+  await guard("stock");
   const { saveLabOrder } = await import("@/server/stock");
   return saveLabOrder(input);
 }
 
 export async function staffRemoveLabOrder(id: number) {
-  await guard();
+  await guard("stock");
   const { removeLabOrder } = await import("@/server/stock");
   return removeLabOrder(id);
+}
+
+/* ═══════════════════════════ staff: accounts (full edition) ═════════════ */
+
+export async function staffWhoAmI() {
+  await guard();
+  const { whoAmI } = await import("@/server/users");
+  return whoAmI();
+}
+
+export async function staffSignIn(userId: number, pin: string) {
+  await guard();
+  if (await limited("staffuser", 10, 600)) return { ok: false };
+  const { signIn } = await import("@/server/users");
+  return signIn(userId, pin);
+}
+
+export async function staffSignOut() {
+  await guard();
+  const { signOut } = await import("@/server/users");
+  await signOut();
+}
+
+export async function staffUsers() {
+  await guard("users");
+  const { listUsers } = await import("@/server/users");
+  return listUsers();
+}
+
+/** with no accounts yet the app is open, so whoever sets it up makes the first (owner) */
+export async function staffSaveUser(input: Parameters<typeof import("@/server/users").saveUser>[0]) {
+  await guard("users");
+  const { saveUser } = await import("@/server/users");
+  const r = await saveUser(input);
+  if (r.ok) await logAction(input.id ? "แก้ไขผู้ใช้" : "เพิ่มผู้ใช้", `${input.name} · ${input.role}`);
+  return r;
+}
+
+export async function staffAudit() {
+  await guard("users");
+  const { listAudit } = await import("@/server/users");
+  return listAudit();
 }
 
 /* ═══════════════════════════ staff: reports (full edition) ══════════════ */
@@ -926,13 +992,13 @@ export async function staffRemoveLabOrder(id: number) {
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function staffReport(from: string, to: string) {
-  await guard();
+  await guard("reports");
   const { report } = await import("@/server/reports");
   return report(ISO.test(from) ? from : todayISO(), ISO.test(to) ? to : todayISO());
 }
 
 export async function staffDfStatement(dentistSlug: string, from: string, to: string) {
-  await guard();
+  await guard("reports");
   const { dfStatement } = await import("@/server/reports");
   return dfStatement(dentistSlug, ISO.test(from) ? from : todayISO(), ISO.test(to) ? to : todayISO());
 }
@@ -940,49 +1006,53 @@ export async function staffDfStatement(dentistSlug: string, from: string, to: st
 /* ═══════════════════════════ staff: billing (full edition) ══════════════ */
 
 export async function staffCashierDay(date: string) {
-  await guard();
+  await guard("cashier");
   const { cashierDay } = await import("@/server/billing");
   return cashierDay(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO());
 }
 
 export async function staffOpenBill(input: { appointmentId?: number | null; waitlistId?: number | null }) {
-  await guard();
+  await guard("cashier");
   const { openBillForVisit } = await import("@/server/billing");
   return openBillForVisit(input);
 }
 
 export async function staffOpenBlankBill(input: { patientName: string; phone: string }) {
-  await guard();
+  await guard("cashier");
   const { openBlankBill } = await import("@/server/billing");
   return openBlankBill(input);
 }
 
 export async function staffSaveBill(id: number, input: Parameters<typeof import("@/server/billing").saveBill>[1]) {
-  await guard();
+  await guard("cashier");
   const { saveBill } = await import("@/server/billing");
   return saveBill(id, input);
 }
 
 export async function staffAddPayment(id: number, input: Parameters<typeof import("@/server/billing").addPayment>[1]) {
-  await guard();
+  await guard("cashier");
   const { addPayment } = await import("@/server/billing");
-  return addPayment(id, input);
+  const r = await addPayment(id, input);
+  if (r.ok) await logAction("รับชำระ", `บิล #${id} · ${input.method} ${input.amount} บาท${r.receiptNo ? ` · ${r.receiptNo}` : ""}`);
+  return r;
 }
 
 export async function staffVoidBill(id: number, reason: string) {
-  await guard();
+  await guard("void");
   const { voidBill } = await import("@/server/billing");
-  return voidBill(id, reason);
+  const ok = await voidBill(id, reason);
+  if (ok) await logAction("ยกเลิกบิล", `บิล #${id} — ${reason}`);
+  return ok;
 }
 
 export async function staffDayClose(date: string) {
-  await guard();
+  await guard("cashier");
   const { dayClose } = await import("@/server/billing");
   return dayClose(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO());
 }
 
 export async function staffNextVisit(phone: string, after: string) {
-  await guard();
+  await guard("cashier");
   const { nextVisitFor } = await import("@/server/billing");
   return nextVisitFor(phone, after);
 }
@@ -995,21 +1065,24 @@ export async function staffBillingSettings() {
 }
 
 export async function staffSaveBillingSettings(input: Parameters<typeof import("@/server/billing").saveBillingSettings>[0]) {
-  await guard();
+  await guard("finance_settings");
   const { saveBillingSettings } = await import("@/server/billing");
   await saveBillingSettings(input);
+  await logAction("แก้ตั้งค่าใบเสร็จ");
 }
 
 export async function staffSaveDfRule(input: Parameters<typeof import("@/server/billing").saveDfRule>[0]) {
-  await guard();
+  await guard("finance_settings");
   const { saveDfRule } = await import("@/server/billing");
   await saveDfRule(input);
+  await logAction("แก้กฎค่าแพทย์", `${input.dentistSlug ?? "ทุกคน"} · ${input.treatmentKey ?? "ทุกบริการ"} · ${input.value}${input.mode === "percent" ? "%" : " บาท"}`);
 }
 
 export async function staffRemoveDfRule(id: number) {
-  await guard();
+  await guard("finance_settings");
   const { removeDfRule } = await import("@/server/billing");
   await removeDfRule(id);
+  await logAction("ลบกฎค่าแพทย์", `#${id}`);
 }
 
 /** a dentist's leave (ลา) — those days drop out of online booking */

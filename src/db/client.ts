@@ -25,7 +25,11 @@ if (!connectionString) {
   );
 }
 
-const client = postgres(connectionString, { prepare: false });
+// dev reloads this module on every edit — reuse one pool instead of leaking
+// a new one each time until Postgres runs out of connections
+const cache = globalThis as unknown as { __dkPostgres?: ReturnType<typeof postgres> };
+const client = cache.__dkPostgres ?? postgres(connectionString, { prepare: false });
+if (process.env.NODE_ENV !== "production") cache.__dkPostgres = client;
 
 export const db = drizzle(client, { schema });
 

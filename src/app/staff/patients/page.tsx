@@ -13,6 +13,7 @@ import {
   type PatientFormState,
 } from "@/components/staff/PatientForm";
 import { EditionNotice } from "@/components/staff/DeviceGate";
+import { NoAccess, useStaffUser } from "@/lib/staffUser";
 import { PatientFileButton } from "@/components/staff/PatientFileView";
 import { RecallList } from "@/components/staff/RecallList";
 import {
@@ -560,6 +561,8 @@ function StaffPatientsPageInner() {
  */
 export default function StaffPatientsPage() {
   const { edition } = useStaff();
+  const allowed = useStaffUser().can("patients");
   if (edition !== "full") return <EditionNotice feature="ประวัติคนไข้" />;
+  if (!allowed) return <NoAccess what="ทะเบียนคนไข้" />;
   return <StaffPatientsPageInner />;
 }

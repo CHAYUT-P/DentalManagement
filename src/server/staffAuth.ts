@@ -51,10 +51,11 @@ export async function isStaffAuthed(): Promise<boolean> {
  * sees the store and passes. Keeps a single implementation of each staff op;
  * the API never reimplements them.
  */
-const staffScope = new AsyncLocalStorage<boolean>();
+const staffScope = new AsyncLocalStorage<{ userToken: string }>();
 
-export function withStaffToken<T>(fn: () => Promise<T>): Promise<T> {
-  return staffScope.run(true, fn);
+/** `userToken` = the signed-in person on that device (full edition), if any */
+export function withStaffToken<T>(fn: () => Promise<T>, userToken = ""): Promise<T> {
+  return staffScope.run({ userToken }, fn);
 }
 
 /** throws — every staff action calls this before touching data */
@@ -100,4 +101,66 @@ export function staffTokenOk(token: string): boolean {
   const want = expected();
   if (!want || token.length !== want.length) return false;
   return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(want));
+}
+
+/* ── the person using the app (full edition) ───────────────────────────── */
+
+const USER_COOKIE = "dk_user";
+const USER_TTL = 60 * 60 * 14; // a working day, then sign in again
+
+function userSecret(): string {
+  return crypto
+    .createHash("sha256")
+    .update(`dk-user-v1:${process.env.STAFF_PIN ?? "dev-only-secret"}`)
+    .digest("hex");
+}
+
+/** a signed "who is this" token: base64url(json) + "." + hmac */
+export function signUserToken(userId: number): string {
+  const body = Buffer.from(JSON.stringify({ uid: userId, exp: Math.floor(Date.now() / 1000) + USER_TTL })).toString("base64url");
+  const mac = crypto.createHmac("sha256", userSecret()).update(body).digest("base64url");
+  return `${body}.${mac}`;
+}
+
+/** the user id inside a valid, unexpired token — null otherwise */
+export function readUserToken(token: string): number | null {
+  const [body, mac] = token.split(".");
+  if (!body || !mac) return null;
+  const want = crypto.createHmac("sha256", userSecret()).update(body).digest("base64url");
+  if (want.length !== mac.length || !crypto.timingSafeEqual(Buffer.from(want), Buffer.from(mac))) return null;
+  try {
+    const { uid, exp } = JSON.parse(Buffer.from(body, "base64url").toString()) as { uid: number; exp: number };
+    return exp > Date.now() / 1000 ? uid : null;
+  } catch {
+    return null;
+  }
+}
+
+/** this request's user token — the desktop sends a header, the web a cookie */
+export async function currentUserToken(): Promise<string> {
+  const scoped = staffScope.getStore();
+  if (scoped) return scoped.userToken;
+  try {
+    return (await cookies()).get(USER_COOKIE)?.value ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function setUserCookie(token: string): Promise<void> {
+  if (staffScope.getStore()) return; // desktop keeps its own copy
+  try {
+    const jar = await cookies();
+    if (token) {
+      jar.set(USER_COOKIE, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: USER_TTL,
+      });
+    } else jar.delete(USER_COOKIE);
+  } catch {
+    // no request scope (script)
+  }
 }

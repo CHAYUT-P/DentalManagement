@@ -2,6 +2,8 @@ import React from "react";
 import type { StaffContextType } from "@/lib/staffStore";
 import { IconBuilding, IconCalendar, IconClock, IconDollar, IconFilter, IconList, IconSettings, IconUsers } from "./staffIcons";
 
+import type { Perm } from "@/lib/roles";
+
 export interface RailItem {
   href: string;
   label: string;
@@ -20,6 +22,8 @@ export interface RailItem {
 export function railItems(
   s: Pick<StaffContextType, "edition" | "today" | "appointments" | "waitlist">,
   prefix: string,
+  /** the signed-in role's permissions (full edition) — the queue edition shows all */
+  allow: (perm: Perm) => boolean = () => true,
 ): RailItem[] {
   const at = (p: string) => `${prefix}${p}` || "/";
   const under = (pathname: string, ...paths: string[]) =>
@@ -31,7 +35,7 @@ export function railItems(
     s.appointments.filter((a) => a.date === s.today && (a.status === "arrived" || a.status === "in_chair")).length +
     s.waitlist.filter((w) => w.status === "waiting" || w.status === "in_chair").length;
 
-  const items: (RailItem & { full?: boolean })[] = [
+  const items: (RailItem & { full?: boolean; perm?: Perm })[] = [
     {
       href: at("") || "/",
       label: "วันนี้",
@@ -40,19 +44,20 @@ export function railItems(
       match: (p) => p === (at("") || "/") || under(p, "/queue"),
     },
     { href: at("/schedule"), label: "ตารางนัด", icon: IconCalendar, match: (p) => under(p, "/schedule", "/appointments") },
-    { href: at("/patients"), label: "คนไข้", icon: IconUsers, full: true, match: (p) => under(p, "/patients") },
-    { href: at("/rooms"), label: "ห้องตรวจ", icon: IconBuilding, full: true, match: (p) => under(p, "/rooms") },
-    { href: at("/cashier"), label: "การเงิน", icon: IconDollar, full: true, match: (p) => under(p, "/cashier") },
-    { href: at("/stock"), label: "คลัง & แลป", icon: IconList, full: true, match: (p) => under(p, "/stock") },
-    { href: at("/reports"), label: "รายงาน", icon: IconFilter, full: true, match: (p) => under(p, "/reports") },
+    { href: at("/patients"), label: "คนไข้", icon: IconUsers, full: true, perm: "patients", match: (p) => under(p, "/patients") },
+    { href: at("/rooms"), label: "ห้องตรวจ", icon: IconBuilding, full: true, perm: "rooms", match: (p) => under(p, "/rooms") },
+    { href: at("/cashier"), label: "การเงิน", icon: IconDollar, full: true, perm: "cashier", match: (p) => under(p, "/cashier") },
+    { href: at("/stock"), label: "คลัง & แลป", icon: IconList, full: true, perm: "stock", match: (p) => under(p, "/stock") },
+    { href: at("/reports"), label: "รายงาน", icon: IconFilter, full: true, perm: "reports", match: (p) => under(p, "/reports") },
     {
       href: at("/settings"),
       label: "ตั้งค่า",
       icon: IconSettings,
+      perm: "settings",
       match: (p) => under(p, "/settings", "/dentists", "/services", "/notifications"),
     },
   ];
-  return items.filter((i) => s.edition === "full" || !i.full);
+  return items.filter((i) => (s.edition === "full" || !i.full) && (!i.perm || allow(i.perm)));
 }
 
 export function RailLogo() {
