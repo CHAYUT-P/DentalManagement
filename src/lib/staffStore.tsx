@@ -556,6 +556,7 @@ export function StaffProvider({
       treatments: rec.treatments,
       detail: rec.detail,
       price: rec.price ?? null,
+      items: rec.items,
     }),
     [slugToId],
   );

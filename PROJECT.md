@@ -84,13 +84,13 @@ Mock appointments are stored as an offset in days from today, so they never rot;
 - **Website content**: promotions/banners, clinic information, price changes — everything the patient web shows.
 - **Patients (lighter scope)**: guardian + child records, contact, notes. Not a medical record system.
 - **Settings**: opening hours, holidays, slot rules, staff accounts and roles.
-- **Out of scope now**: billing, clinical charting, X-ray/imaging, stock. The existing clinic application keeps those.
+- **Out of scope for the queue edition**: billing, clinical charting, X-ray/imaging, stock. The full edition is growing into the whole clinic system (billing is in; charting, stock and reports follow), replacing the clinic's current program (FD by 9net) one part at a time.
 
 ### Editions — same codebase, two builds
 
 | | **Queue** (first install) | **Full** |
 | --- | --- | --- |
-| Scope | queue, bookings, dentist + treatment + clinic content | everything in Queue, plus patient records and per-dentist room pages |
+| Scope | queue, bookings, dentist + treatment + clinic content | everything in Queue, plus patient records, per-dentist room pages and การเงิน (bills, receipts, DF, day close) |
 | Desktop build | `pnpm --dir apps/staff-desktop build:app` | `pnpm --dir apps/staff-desktop build:app:full` (merges `src-tauri/tauri.full.conf.json`) |
 | Web console | default | `STAFF_EDITION=full` on the deploy |
 
@@ -102,14 +102,30 @@ Mock appointments are stored as an offset in days from today, so they never rot;
   (`/staff/rooms/[slug]` web, `#/rooms/:slug` desktop) — its waiting line plus
   the visit-record form. The gear floating button exits back to the desk.
 - Visit records (`visit_record` table) attach to an appointment OR a walk-in,
-  one per visit: treatments done, detail note, price. "เสร็จสิ้น & บันทึก"
+  one per visit: the treatments done as priced lines (`items`: treatment,
+  teeth, qty, price), a detail note, and the total. "เสร็จสิ้น & บันทึก"
   saves the record and frees the chair in one action.
+- **การเงิน** (`CashierView`, `/staff/cashier` · `#/cashier`, server code in
+  `src/server/billing.ts`, shared maths in `src/lib/billing.ts`):
+  - A bill (`invoice` + `invoice_item`) is opened from a visit and pre-filled
+    from the room's lines; the cashier can edit lines, add products, set line
+    or bill discounts and lab costs. Bills for no visit (product sales) too.
+  - Payments (`payment`) can be split across methods (cash with change,
+    PromptPay QR with the amount, transfer, card). The first payment gives the
+    receipt number `<prefix><พ.ศ. yy><mm>-<0001>`; a settled bill is locked —
+    cancel it with a reason (kept for the day close) and bill again.
+  - DF (`df_rule`): most specific rule wins — dentist + treatment →
+    treatment → dentist → clinic default; % of the line after its share of
+    the bill discount and its lab cost, or baht per unit. Frozen on the line.
+  - Day close: money in by method, bills owing, DF per dentist for settled
+    bills, cancelled bills with reasons; printable, like the receipt (A5 or
+    80 mm slip, Settings → การเงิน & DF).
 - All screens poll `staffBootstrap` every 20s — a check-in at the desk shows
   up on the room PC without a reload.
 
 ### Navigation (redesigned 2026-09-30)
 
-Three rail entries instead of eight (full edition adds คนไข้ and ห้องตรวจ);
+Three rail entries instead of eight (full edition adds คนไข้, ห้องตรวจ and การเงิน);
 entries come from `railItems()` in `src/components/staff/staffRail.tsx`, shared
 by the web sidebar and the desktop one.
 

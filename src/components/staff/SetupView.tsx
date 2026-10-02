@@ -4,10 +4,11 @@ import React, { useState } from "react";
 import DentistsPage from "@/app/staff/dentists/page";
 import ServicesPage from "@/app/staff/services/page";
 import { useStaff } from "@/lib/staffStore";
+import { BillingSettingsPanel } from "./BillingSettingsPanel";
 import { ClinicSettings, type SettingsTab } from "./ClinicSettings";
 import { IconExternal } from "./staffIcons";
 
-type Section = "dentists" | "services" | SettingsTab;
+type Section = "dentists" | "services" | "billing" | SettingsTab;
 
 /**
  * ตั้งค่า — everything the desk opens rarely, behind one menu entry: the
@@ -27,7 +28,10 @@ export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
     { key: "profile", label: "ข้อมูลคลินิก", sub: "ที่อยู่ เบอร์โทร LINE แผนที่" },
     { key: "staff_notif", label: "การแจ้งเตือน & บัญชี", sub: "เตือนนัดทาง LINE · ผู้ใช้" },
   ];
-  if (edition === "full") items.push({ key: "device", label: "หน้าจอเครื่องนี้", sub: "เคาน์เตอร์ หรือ ห้องตรวจ" });
+  if (edition === "full") {
+    items.splice(2, 0, { key: "billing", label: "การเงิน & DF", sub: "ใบเสร็จ พร้อมเพย์ ค่าแพทย์" });
+    items.push({ key: "device", label: "หน้าจอเครื่องนี้", sub: "เคาน์เตอร์ หรือ ห้องตรวจ" });
+  }
 
   return (
     <div className="setup-view">
@@ -56,6 +60,8 @@ export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
           <DentistsPage />
         ) : section === "services" ? (
           <ServicesPage />
+        ) : section === "billing" ? (
+          <BillingSettingsPanel />
         ) : (
           // one instance across groups, like the old tab strip — edits made in
           // one group survive a look at another before saving

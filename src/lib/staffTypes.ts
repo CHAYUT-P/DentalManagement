@@ -155,6 +155,16 @@ export interface PatientUpsertInput {
 }
 
 /** the wire shape for saving a visit record — what the actions/API accept */
+/** one billable line of a visit, as the dentist records it in the room */
+export interface VisitItem {
+  key: TreatmentKey;
+  /** tooth numbers as written, e.g. "54 55" */
+  teeth: string;
+  qty: number;
+  /** baht per unit */
+  price: number;
+}
+
 export interface VisitRecordInput {
   /** the booking this visit came from — XOR waitlistId */
   appointmentId?: number | null;
@@ -165,6 +175,7 @@ export interface VisitRecordInput {
   treatments: string[];
   detail: string;
   price?: number | null;
+  items?: VisitItem[];
 }
 
 /**
@@ -180,6 +191,8 @@ export interface VisitRecord {
   treatments: TreatmentKey[];
   detail: string;
   price?: number;
+  /** the visit as billable lines; empty on records made before lines existed */
+  items: VisitItem[];
   updatedAt: string;
 }
 

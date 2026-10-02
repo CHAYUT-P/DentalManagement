@@ -8,6 +8,7 @@ import { API_BASE, ensureStaffToken, hasStaffToken, staffBootstrap, type StaffBo
 import { STAFF_EDITION } from "./edition";
 
 import { DeviceGate } from "@/components/staff/DeviceGate";
+import { CashierView } from "@/components/staff/CashierView";
 import { RoomPage } from "@/components/staff/RoomPage";
 import { ScheduleView } from "@/components/staff/ScheduleView";
 import { SetupView } from "@/components/staff/SetupView";
@@ -94,6 +95,7 @@ export default function App() {
                       <Route path="/patients" element={<PatientsPage />} />
                       <Route path="/rooms" element={<RoomsRoute />} />
                       <Route path="/rooms/:slug" element={<RoomRoute />} />
+                      <Route path="/cashier" element={<CashierView />} />
                     </>
                   ) : null}
                   {/* addresses from the old eight-item menu land where their content moved */}

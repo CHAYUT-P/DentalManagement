@@ -10,6 +10,7 @@ import {
   smallint,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -479,6 +480,12 @@ export const visitRecord = pgTable(
     detail: text("detail").notNull().default(""),
     /** baht actually charged; null = not recorded */
     price: integer("price"),
+    /**
+     * VisitItem[] — the same visit as billable lines: treatment, teeth, qty,
+     * price each. The cashier builds the bill from these. `treatments` and
+     * `price` above stay in step (keys, sum) for older readers.
+     */
+    items: jsonb("items").notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -491,4 +498,115 @@ export const visitRecord = pgTable(
       .where(sql`waitlist_id IS NOT NULL`),
     index("visit_record_dentist_idx").on(t.dentistId),
   ],
+);
+
+/* ────────────────────────────── billing (full edition) ─────────────────── */
+
+/**
+ * A bill for one visit. `open` until the first payment, `partial` while a
+ * balance is left, `paid` when settled, `void` when cancelled (kept, with a
+ * reason, so cancelled receipts stay auditable). The receipt number is
+ * handed out on the first payment and never reused.
+ */
+export const invoice = pgTable(
+  "invoice",
+  {
+    id: serial("id").primaryKey(),
+    /** e.g. "RC2610-0001" — null until money is taken */
+    receiptNo: text("receipt_no"),
+    status: text("status").notNull().default("open"),
+    /** YYYY-MM-DD, clinic clock — the visit day the bill belongs to */
+    date: text("date").notNull(),
+    appointmentId: integer("appointment_id").references(() => appointment.id, { onDelete: "set null" }),
+    waitlistId: integer("waitlist_id").references(() => waitlistEntry.id, { onDelete: "set null" }),
+    childId: integer("child_id").references(() => child.id, { onDelete: "set null" }),
+    patientName: text("patient_name").notNull(),
+    phone: text("phone").notNull().default(""),
+    /** the dentist who saw the patient — each line can still name its own */
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    /** baht off the whole bill, on top of any line discounts */
+    discount: integer("discount").notNull().default(0),
+    note: text("note").notNull().default(""),
+    voidReason: text("void_reason").notNull().default(""),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    /** when the balance reached zero */
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("invoice_receipt_idx").on(t.receiptNo),
+    index("invoice_date_idx").on(t.date),
+    uniqueIndex("invoice_appt_idx")
+      .on(t.appointmentId)
+      .where(sql`appointment_id IS NOT NULL AND status <> 'void'`),
+    uniqueIndex("invoice_waitlist_idx")
+      .on(t.waitlistId)
+      .where(sql`waitlist_id IS NOT NULL AND status <> 'void'`),
+  ],
+);
+
+/** one line on a bill — price, discount and the dentist fee are frozen here */
+export const invoiceItem = pgTable(
+  "invoice_item",
+  {
+    id: serial("id").primaryKey(),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => invoice.id, { onDelete: "cascade" }),
+    /** null = a free-text line (a product, a lab fee…) */
+    treatmentKey: text("treatment_key"),
+    name: text("name").notNull(),
+    /** tooth numbers as the dentist wrote them, e.g. "54 55" */
+    teeth: text("teeth").notNull().default(""),
+    qty: integer("qty").notNull().default(1),
+    unitPrice: integer("unit_price").notNull().default(0),
+    /** baht off this line */
+    discount: integer("discount").notNull().default(0),
+    /** what the lab charged — taken off before a percentage DF */
+    labCost: integer("lab_cost").notNull().default(0),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    /** the doctor fee for this line, worked out when the line is saved */
+    df: integer("df").notNull().default(0),
+    sort: integer("sort").notNull().default(0),
+  },
+  (t) => [index("invoice_item_invoice_idx").on(t.invoiceId)],
+);
+
+/** money received against a bill — a bill can be paid in several parts/ways */
+export const payment = pgTable(
+  "payment",
+  {
+    id: serial("id").primaryKey(),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => invoice.id, { onDelete: "cascade" }),
+    /** "cash" | "transfer" | "promptpay" | "card" | "other" */
+    method: text("method").notNull(),
+    amount: integer("amount").notNull(),
+    /** YYYY-MM-DD, clinic clock — the day close counts it on this day */
+    date: text("date").notNull(),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("payment_invoice_idx").on(t.invoiceId), index("payment_date_idx").on(t.date)],
+);
+
+/**
+ * How a dentist is paid per treatment. The most specific rule wins:
+ * dentist + treatment → treatment (any dentist) → dentist (any treatment) →
+ * clinic default (both null). "percent" = % of the line after discounts and
+ * lab cost; "fixed" = baht per unit.
+ */
+export const dfRule = pgTable(
+  "df_rule",
+  {
+    id: serial("id").primaryKey(),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "cascade" }),
+    treatmentKey: text("treatment_key"),
+    mode: text("mode").notNull().default("percent"),
+    value: integer("value").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("df_rule_idx").on(t.dentistId, t.treatmentKey).nullsNotDistinct()],
 );

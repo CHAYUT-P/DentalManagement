@@ -1,6 +1,7 @@
 import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
+import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, PayMethod } from "@/lib/billing";
 import type {
   DentistLeave,
   EditableDentist,
@@ -224,6 +225,56 @@ export function staffAddDentistLeave(dentistSlug: string, start: string, end: st
 
 export function staffRemoveDentistLeave(id: number) {
   return call<void>("removeDentistLeave", [id]);
+}
+
+/* ── billing (full edition) ───────────────────────────────────────────── */
+
+export function staffCashierDay(date: string) {
+  return call<CashierDay>("cashierDay", [date]);
+}
+
+export function staffOpenBill(input: { appointmentId?: number | null; waitlistId?: number | null }) {
+  return call<number | null>("openBill", [input]);
+}
+
+export function staffOpenBlankBill(input: { patientName: string; phone: string }) {
+  return call<number>("openBlankBill", [input]);
+}
+
+export function staffSaveBill(id: number, input: { items: BillItem[]; discount: number; note: string; patientName?: string }) {
+  return call<boolean>("saveBill", [id, input]);
+}
+
+export function staffAddPayment(id: number, input: { method: PayMethod; amount: number; note?: string }) {
+  return call<{ ok: boolean; receiptNo?: string }>("addPayment", [id, input]);
+}
+
+export function staffVoidBill(id: number, reason: string) {
+  return call<boolean>("voidBill", [id, reason]);
+}
+
+export function staffDayClose(date: string) {
+  return call<DayClose>("dayClose", [date]);
+}
+
+export function staffNextVisit(phone: string, after: string) {
+  return call<{ date: string; time: string } | null>("nextVisit", [phone, after]);
+}
+
+export function staffBillingSettings() {
+  return call<{ settings: BillingSettings; dfRules: DfRule[] }>("billingSettings", []);
+}
+
+export function staffSaveBillingSettings(input: Partial<BillingSettings>) {
+  return call<void>("saveBillingSettings", [input]);
+}
+
+export function staffSaveDfRule(input: { dentistSlug: string | null; treatmentKey: string | null; mode: DfMode; value: number }) {
+  return call<void>("saveDfRule", [input]);
+}
+
+export function staffRemoveDfRule(id: number) {
+  return call<void>("removeDfRule", [id]);
 }
 
 export type FamilyMessageResult = "sent" | "no_line" | "not_configured" | "failed";

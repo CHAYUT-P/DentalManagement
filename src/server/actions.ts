@@ -38,6 +38,7 @@ import {
   type NewDentistInput,
 } from "@/server/queries";
 import type { WaitlistDTO } from "@/server/queries";
+import { todayISO } from "@/lib/dates";
 import type { VisitRecordInput } from "@/lib/staffTypes";
 
 export type { VisitRecordInput } from "@/lib/staffTypes";
@@ -700,6 +701,81 @@ export async function staffMessageFamily(id: number, text: string): Promise<Fami
   const { messageLog } = await import("@/db/schema");
   await db.insert(messageLog).values({ appointmentId: id, kind: "custom" });
   return "sent";
+}
+
+/* ═══════════════════════════ staff: billing (full edition) ══════════════ */
+
+export async function staffCashierDay(date: string) {
+  await guard();
+  const { cashierDay } = await import("@/server/billing");
+  return cashierDay(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO());
+}
+
+export async function staffOpenBill(input: { appointmentId?: number | null; waitlistId?: number | null }) {
+  await guard();
+  const { openBillForVisit } = await import("@/server/billing");
+  return openBillForVisit(input);
+}
+
+export async function staffOpenBlankBill(input: { patientName: string; phone: string }) {
+  await guard();
+  const { openBlankBill } = await import("@/server/billing");
+  return openBlankBill(input);
+}
+
+export async function staffSaveBill(id: number, input: Parameters<typeof import("@/server/billing").saveBill>[1]) {
+  await guard();
+  const { saveBill } = await import("@/server/billing");
+  return saveBill(id, input);
+}
+
+export async function staffAddPayment(id: number, input: Parameters<typeof import("@/server/billing").addPayment>[1]) {
+  await guard();
+  const { addPayment } = await import("@/server/billing");
+  return addPayment(id, input);
+}
+
+export async function staffVoidBill(id: number, reason: string) {
+  await guard();
+  const { voidBill } = await import("@/server/billing");
+  return voidBill(id, reason);
+}
+
+export async function staffDayClose(date: string) {
+  await guard();
+  const { dayClose } = await import("@/server/billing");
+  return dayClose(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO());
+}
+
+export async function staffNextVisit(phone: string, after: string) {
+  await guard();
+  const { nextVisitFor } = await import("@/server/billing");
+  return nextVisitFor(phone, after);
+}
+
+export async function staffBillingSettings() {
+  await guard();
+  const { getBillingSettings, listDfRules } = await import("@/server/billing");
+  const [settings, dfRules] = await Promise.all([getBillingSettings(), listDfRules()]);
+  return { settings, dfRules };
+}
+
+export async function staffSaveBillingSettings(input: Parameters<typeof import("@/server/billing").saveBillingSettings>[0]) {
+  await guard();
+  const { saveBillingSettings } = await import("@/server/billing");
+  await saveBillingSettings(input);
+}
+
+export async function staffSaveDfRule(input: Parameters<typeof import("@/server/billing").saveDfRule>[0]) {
+  await guard();
+  const { saveDfRule } = await import("@/server/billing");
+  await saveDfRule(input);
+}
+
+export async function staffRemoveDfRule(id: number) {
+  await guard();
+  const { removeDfRule } = await import("@/server/billing");
+  await removeDfRule(id);
 }
 
 /** a dentist's leave (ลา) — those days drop out of online booking */

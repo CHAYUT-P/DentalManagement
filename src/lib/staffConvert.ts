@@ -157,6 +157,7 @@ export function toUIVisitRecord(v: VisitRecordDTO): VisitRecord {
     treatments: v.treatments as IconKey[],
     detail: v.detail,
     price: v.price ?? undefined,
+    items: v.items as VisitRecord["items"],
     updatedAt: v.updatedAt,
   };
 }

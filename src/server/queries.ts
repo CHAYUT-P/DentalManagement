@@ -12,7 +12,7 @@ import type { IconKey } from "@/data/icons";
 import { isIconKey } from "@/data/icons";
 import { addDays, minutesOf, todayISO, weekday, weekdayIndex } from "@/lib/dates";
 import { newTreatmentKey, toTreatmentInfo, type TreatmentInfo, type TreatmentKey } from "@/lib/treatments";
-import type { PatientChildInput, PatientUpsertInput } from "@/lib/staffTypes";
+import type { PatientChildInput, PatientUpsertInput, VisitItem } from "@/lib/staffTypes";
 /**
  * The client instance is imported directly (not via "@/db", whose `server-only`
  * guard would also block the seed/verification scripts that legitimately reuse
@@ -168,6 +168,7 @@ export interface VisitRecordDTO {
   treatments: string[];
   detail: string;
   price: number | null;
+  items: VisitItem[];
   updatedAt: string;
 }
 
@@ -1361,6 +1362,7 @@ export async function listVisitRecordsForDate(date: string): Promise<VisitRecord
     treatments: Array.isArray(r.v.treatments) ? (r.v.treatments as string[]) : [],
     detail: r.v.detail,
     price: r.v.price,
+    items: Array.isArray(r.v.items) ? (r.v.items as VisitItem[]) : [],
     updatedAt: r.v.updatedAt.toISOString(),
   }));
 }
@@ -1378,18 +1380,29 @@ export async function upsertVisitRecord(input: {
   treatments: string[];
   detail: string;
   price?: number | null;
+  items?: VisitItem[];
 }): Promise<void> {
   const appointmentId = input.appointmentId ?? null;
   const waitlistId = input.waitlistId ?? null;
   if ((appointmentId === null) === (waitlistId === null)) return; // need exactly one
 
+  // lines, when given, are the truth — the keys and the total follow them
+  const items = (input.items ?? [])
+    .filter((i) => i && typeof i.key === "string" && i.key)
+    .map((i) => ({
+      key: i.key,
+      teeth: String(i.teeth ?? "").slice(0, 60),
+      qty: Math.max(1, Math.round(Number(i.qty) || 1)),
+      price: Math.max(0, Math.round(Number(i.price) || 0)),
+    }));
   const values = {
     appointmentId,
     waitlistId,
     dentistId: input.dentistId ?? null,
-    treatments: input.treatments,
+    treatments: items.length ? [...new Set(items.map((i) => i.key))] : input.treatments,
     detail: input.detail,
-    price: input.price ?? null,
+    price: items.length ? items.reduce((s, i) => s + i.qty * i.price, 0) : (input.price ?? null),
+    items,
     updatedAt: new Date(),
   };
 

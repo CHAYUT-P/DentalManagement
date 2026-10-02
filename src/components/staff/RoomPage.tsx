@@ -3,7 +3,6 @@
 import React, { useMemo, useState } from "react";
 import type { TreatmentKey } from "@/lib/treatments";
 import { useTreatments } from "@/lib/treatmentsContext";
-import type { IconKey } from "@/data/icons";
 import { normalizeName } from "@/lib/clinicSettings";
 import {
   useStaff,
@@ -12,6 +11,7 @@ import {
   type VisitRecord,
   type WaitlistEntry,
 } from "@/lib/staffStore";
+import type { VisitItem } from "@/lib/staffTypes";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -351,26 +351,36 @@ function VisitEditor({
   const bookedKey: TreatmentKey = row.kind === "booking" ? row.appt.treatmentKey : row.entry.treatmentKey;
   const name = row.kind === "booking" ? row.appt.childName : row.entry.childName;
   const phone = row.kind === "booking" ? row.appt.phone : row.entry.guardianPhone;
+  const tr = useTreatments();
+  const catalog = tr.list.filter((t) => t.key !== "more");
 
-  const [treatments, setTreatments] = useState<TreatmentKey[]>(
-    record?.treatments?.length ? record.treatments : [bookedKey],
-  );
+  /* the visit as lines — from the saved record, an older keys-only record, or the booking */
+  const [items, setItems] = useState<VisitItem[]>(() => {
+    if (record?.items?.length) return record.items;
+    const keys = record?.treatments?.length ? record.treatments : [bookedKey];
+    return keys.map((k) => ({
+      key: k,
+      teeth: "",
+      qty: 1,
+      price: keys.length === 1 && record?.price != null ? record.price : (defaultPrice(k) ?? 0),
+    }));
+  });
   const [detail, setDetail] = useState(record?.detail ?? "");
-  const [price, setPrice] = useState(
-    record?.price != null ? String(record.price) : (defaultPrice(bookedKey)?.toString() ?? ""),
-  );
+  const total = items.reduce((s, i) => s + i.qty * i.price, 0);
+
+  const setLine = (idx: number, patch: Partial<VisitItem>) =>
+    setItems((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  const addLine = (k: TreatmentKey) => setItems((ls) => [...ls, { key: k, teeth: "", qty: 1, price: defaultPrice(k) ?? 0 }]);
 
   const payload = (): Omit<VisitRecord, "id" | "updatedAt"> => ({
     appointmentId: row.kind === "booking" ? row.appt.id : undefined,
     waitlistId: row.kind === "walkin" ? row.entry.id : undefined,
     dentistSlug,
-    treatments,
+    treatments: [...new Set(items.map((i) => i.key))],
     detail: detail.trim(),
-    price: price.trim() && Number.isFinite(Number(price)) ? Number(price) : undefined,
+    price: items.length ? total : undefined,
+    items,
   });
-
-  const toggle = (k: IconKey) =>
-    setTreatments((ts) => (ts.includes(k) ? ts.filter((x) => x !== k) : [...ts, k]));
 
   const medical = child
     ? [
@@ -419,25 +429,71 @@ function VisitEditor({
         </div>
       ) : null}
 
-      {/* what was actually done — default-checked to the booked treatment */}
-      <div style={{ marginTop: "14px" }}>
-        <label style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--staff-ink-2)" }}>
-          หัตถการที่ทำจริง
-        </label>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
-          {(["checkup", "consult", "followup", "xray", "scaling", "fluoride", "sealant", "filling", "pulpotomy", "extraction", "brushing"] as IconKey[]).map(
-            (k) => (
-              <button
-                key={k}
-                type="button"
-                className={`staff-pill-btn ${treatments.includes(k) ? "active" : ""}`}
-                style={{ padding: "5px 12px", fontSize: "12px" }}
-                onClick={() => toggle(k)}
-              >
-                {serviceName(k)}
-              </button>
-            ),
-          )}
+      {/* what was actually done — one line per treatment, priced from the list */}
+      <div className="visit-lines">
+        <span className="vl-label">หัตถการที่ทำจริง</span>
+        {items.map((l, idx) => (
+          <div key={idx} className="vl-row">
+            <select
+              className="form-control"
+              aria-label="หัตถการ"
+              value={l.key}
+              onChange={(e) => setLine(idx, { key: e.target.value, price: defaultPrice(e.target.value) ?? l.price })}
+            >
+              {catalog.some((t) => t.key === l.key) ? null : <option value={l.key}>{serviceName(l.key)}</option>}
+              {catalog.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.name.th}
+                </option>
+              ))}
+            </select>
+            <input
+              className="form-control"
+              aria-label="ซี่ฟัน"
+              placeholder="ซี่ เช่น 54 55"
+              value={l.teeth}
+              onChange={(e) => setLine(idx, { teeth: e.target.value })}
+            />
+            <input
+              className="form-control num"
+              aria-label="จำนวน"
+              inputMode="numeric"
+              value={l.qty}
+              onChange={(e) => setLine(idx, { qty: Number(e.target.value.replace(/\D/g, "")) || 1 })}
+            />
+            <input
+              className="form-control num"
+              aria-label="ราคาต่อหน่วย"
+              inputMode="numeric"
+              placeholder="0"
+              value={l.price || ""}
+              onChange={(e) => setLine(idx, { price: Number(e.target.value.replace(/\D/g, "")) || 0 })}
+            />
+            <button
+              type="button"
+              className="btn-action-icon danger"
+              aria-label="ลบหัตถการ"
+              onClick={() => setItems((ls) => ls.filter((_, i) => i !== idx))}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <div className="vl-add">
+          <select
+            className="form-control"
+            aria-label="เพิ่มหัตถการ"
+            value=""
+            onChange={(e) => e.target.value && addLine(e.target.value)}
+          >
+            <option value="">+ เพิ่มหัตถการ…</option>
+            {catalog.map((t) => (
+              <option key={t.key} value={t.key}>
+                {t.name.th}
+              </option>
+            ))}
+          </select>
+          <span className="vl-total">รวม ฿{total.toLocaleString("th-TH")}</span>
         </div>
       </div>
 
@@ -453,17 +509,6 @@ function VisitEditor({
       </div>
 
       <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
-        <div className="form-group" style={{ margin: 0, width: "160px" }}>
-          <label>ค่ารักษา (บาท)</label>
-          <input
-            type="number"
-            className="form-control"
-            min={0}
-            placeholder="—"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
-        </div>
         <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
           <button
             type="button"
