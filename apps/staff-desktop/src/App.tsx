@@ -10,6 +10,7 @@ import { STAFF_EDITION } from "./edition";
 import { DeviceGate } from "@/components/staff/DeviceGate";
 import { CashierView } from "@/components/staff/CashierView";
 import { StockView } from "@/components/staff/StockView";
+import { ReportsView } from "@/components/staff/ReportsView";
 import { RoomPage } from "@/components/staff/RoomPage";
 import { ScheduleView } from "@/components/staff/ScheduleView";
 import { SetupView } from "@/components/staff/SetupView";
@@ -98,6 +99,7 @@ export default function App() {
                       <Route path="/rooms/:slug" element={<RoomRoute />} />
                       <Route path="/cashier" element={<CashierView />} />
                       <Route path="/stock" element={<StockView />} />
+                      <Route path="/reports" element={<ReportsView />} />
                     </>
                   ) : null}
                   {/* addresses from the old eight-item menu land where their content moved */}

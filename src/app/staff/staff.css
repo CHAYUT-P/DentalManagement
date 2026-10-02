@@ -5551,3 +5551,58 @@ label.btn-primary-staff.disabled {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ══ Full edition: รายงาน ══════════════════════════════════════════════ */
+.reports {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-range {
+  display: flex;
+  gap: 6px;
+}
+
+.report-range .form-control {
+  min-height: 38px;
+}
+
+.report-mini {
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+
+.day-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 160px;
+  padding-top: 8px;
+}
+
+.day-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+
+.day-bar i {
+  width: 100%;
+  max-width: 26px;
+  border-radius: 5px 5px 0 0;
+  background: var(--staff-rose);
+}
+
+.day-bar span {
+  font-size: 10.5px;
+  color: var(--staff-ink-muted);
+}
+
+.ct-row .owe {
+  color: var(--staff-status-cancelled-fg);
+}

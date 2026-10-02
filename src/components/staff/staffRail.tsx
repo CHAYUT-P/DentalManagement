@@ -1,6 +1,6 @@
 import React from "react";
 import type { StaffContextType } from "@/lib/staffStore";
-import { IconBuilding, IconCalendar, IconClock, IconDollar, IconList, IconSettings, IconUsers } from "./staffIcons";
+import { IconBuilding, IconCalendar, IconClock, IconDollar, IconFilter, IconList, IconSettings, IconUsers } from "./staffIcons";
 
 export interface RailItem {
   href: string;
@@ -44,6 +44,7 @@ export function railItems(
     { href: at("/rooms"), label: "ห้องตรวจ", icon: IconBuilding, full: true, match: (p) => under(p, "/rooms") },
     { href: at("/cashier"), label: "การเงิน", icon: IconDollar, full: true, match: (p) => under(p, "/cashier") },
     { href: at("/stock"), label: "คลัง & แลป", icon: IconList, full: true, match: (p) => under(p, "/stock") },
+    { href: at("/reports"), label: "รายงาน", icon: IconFilter, full: true, match: (p) => under(p, "/reports") },
     {
       href: at("/settings"),
       label: "ตั้งค่า",

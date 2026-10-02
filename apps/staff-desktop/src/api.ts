@@ -1,6 +1,7 @@
 import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
+import type { DfStatement, ReportData } from "@/server/reports";
 import type { Consumable, Expense, LabOrder, MoveKind, StockItem, StockMove, Supplier } from "@/lib/stock";
 import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, PayMethod } from "@/lib/billing";
 import type {
@@ -237,6 +238,16 @@ export function staffAddDentistLeave(dentistSlug: string, start: string, end: st
 
 export function staffRemoveDentistLeave(id: number) {
   return call<void>("removeDentistLeave", [id]);
+}
+
+/* ── reports (full edition) ───────────────────────────────────────────── */
+
+export function staffReport(from: string, to: string) {
+  return call<ReportData>("report", [from, to]);
+}
+
+export function staffDfStatement(dentistSlug: string, from: string, to: string) {
+  return call<DfStatement>("dfStatement", [dentistSlug, from, to]);
 }
 
 /* ── stock, expenses, labs (full edition) ─────────────────────────────── */

@@ -921,6 +921,22 @@ export async function staffRemoveLabOrder(id: number) {
   return removeLabOrder(id);
 }
 
+/* ═══════════════════════════ staff: reports (full edition) ══════════════ */
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function staffReport(from: string, to: string) {
+  await guard();
+  const { report } = await import("@/server/reports");
+  return report(ISO.test(from) ? from : todayISO(), ISO.test(to) ? to : todayISO());
+}
+
+export async function staffDfStatement(dentistSlug: string, from: string, to: string) {
+  await guard();
+  const { dfStatement } = await import("@/server/reports");
+  return dfStatement(dentistSlug, ISO.test(from) ? from : todayISO(), ISO.test(to) ? to : todayISO());
+}
+
 /* ═══════════════════════════ staff: billing (full edition) ══════════════ */
 
 export async function staffCashierDay(date: string) {
