@@ -1,0 +1,120 @@
+.cd {
+  min-height: 100dvh;
+  display: flex;
+  gap: 4vw;
+  align-items: center;
+  justify-content: center;
+  padding: 5vh 5vw;
+  background: linear-gradient(160deg, #fff4f8 0%, #fde7f1 55%, #f3e9fb 100%);
+  color: #332c5e;
+  font-family: var(--font-body), "Prompt", system-ui, sans-serif;
+}
+
+.cd-center {
+  flex-direction: column;
+  gap: 1.2vh;
+  text-align: center;
+}
+
+.cd h1 {
+  margin: 0;
+  font-family: var(--font-display), "Mitr", system-ui, sans-serif;
+  font-weight: 500;
+  font-size: clamp(28px, 4.5vw, 64px);
+}
+
+.cd p {
+  margin: 0;
+  font-size: clamp(18px, 2.2vw, 30px);
+  color: #6b6189;
+}
+
+.cd-tooth {
+  font-size: clamp(60px, 10vw, 140px);
+  line-height: 1;
+}
+
+.cd-bill {
+  flex: 1;
+  max-width: 760px;
+  padding: 4vh 3vw;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 30px 60px -30px rgba(51, 44, 94, 0.35);
+}
+
+.cd-bill header span {
+  font-size: clamp(14px, 1.4vw, 20px);
+  color: #b23a6f;
+}
+
+.cd-bill ul {
+  list-style: none;
+  margin: 3vh 0;
+  padding: 0;
+  font-size: clamp(16px, 1.8vw, 26px);
+}
+
+.cd-bill li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 1vh 0;
+  border-bottom: 1px dashed #e9e2f1;
+}
+
+.cd-bill dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1vh 16px;
+  margin: 0;
+  font-size: clamp(16px, 1.8vw, 26px);
+}
+
+.cd-bill dt,
+.cd-bill dd {
+  margin: 0;
+}
+
+.cd-bill dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-bill .big {
+  margin-top: 1vh;
+  font-family: var(--font-display), "Mitr", system-ui, sans-serif;
+  font-size: clamp(24px, 3.4vw, 52px);
+  color: #b23a6f;
+}
+
+.cd-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1vh;
+  padding: 3vh 2vw;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 30px 60px -30px rgba(51, 44, 94, 0.35);
+  font-size: clamp(16px, 1.8vw, 26px);
+}
+
+.cd-qr img {
+  width: min(34vw, 60vh);
+  height: auto;
+}
+
+.cd-qr span {
+  font-family: var(--font-display), "Mitr", system-ui, sans-serif;
+  font-size: clamp(24px, 3vw, 44px);
+}
+
+@media (max-width: 800px) {
+  .cd:not(.cd-center) {
+    flex-direction: column;
+  }
+  .cd-qr img {
+    width: 70vw;
+  }
+}

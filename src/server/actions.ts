@@ -1075,6 +1075,12 @@ export async function staffDayClose(date: string) {
   return dayClose(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO());
 }
 
+export async function staffSetDisplay(state: Parameters<typeof import("@/server/billing").setDisplay>[0]) {
+  await guard("cashier");
+  const { setDisplay } = await import("@/server/billing");
+  await setDisplay(state);
+}
+
 export async function staffNextVisit(phone: string, after: string) {
   await guard("cashier");
   const { nextVisitFor } = await import("@/server/billing");

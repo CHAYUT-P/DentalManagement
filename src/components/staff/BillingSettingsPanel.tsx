@@ -6,14 +6,14 @@ import { staffBillingSettings, staffRemoveDfRule, staffSaveBillingSettings, staf
 import { DEFAULT_BILLING_SETTINGS, type BillingSettings, type DfMode, type DfRule } from "@/lib/billing";
 import { useStaff } from "@/lib/staffStore";
 import { useTreatments } from "@/lib/treatmentsContext";
-import { PromptPayQR } from "./ReceiptSheet";
+import { LinkQR, PromptPayQR } from "./ReceiptSheet";
 import { IconCheck, IconPlus, IconX } from "./staffIcons";
 
 /**
  * ตั้งค่า › การเงิน & DF (full edition) — what the receipt says, where the
  * PromptPay QR pays, and how each dentist's fee is worked out.
  */
-export function BillingSettingsPanel() {
+export function BillingSettingsPanel({ patientWebUrl = "/" }: { patientWebUrl?: string }) {
   const { dentists, showToast } = useStaff();
   const tr = useTreatments();
   const catalog = tr.list.filter((t) => t.key !== "more");
@@ -51,6 +51,8 @@ export function BillingSettingsPanel() {
   }, [showToast]);
 
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const base = /^https?:/.test(patientWebUrl) ? patientWebUrl.replace(/\/$/, "") : typeof window !== "undefined" ? window.location.origin : "";
+  const displayUrl = `${base}/display?c=${saved.displayCode}`;
   const set = (patch: Partial<BillingSettings>) => setForm((f) => ({ ...f, ...patch }));
 
   const saveForm = async () => {
@@ -166,6 +168,33 @@ export function BillingSettingsPanel() {
             <span>{dirty ? "บันทึก" : "บันทึกแล้ว"}</span>
           </button>
         </div>
+      </section>
+
+      <section className="settings-card">
+        <h3>จอลูกค้า (จอที่ 2)</h3>
+        <p className="settings-help">
+          เปิดลิงก์นี้บนแท็บเล็ตหรือจอที่สองที่หันไปทางผู้ปกครอง แล้วเปิดสวิตช์ “จอลูกค้า” ที่หน้าการเงิน — จอจะแสดงรายการ ยอดที่ต้องชำระ
+          และ QR พร้อมเพย์ตามบิลที่กำลังเปิดอยู่
+        </p>
+        {saved.displayCode ? (
+          <div className="pp-setting">
+            <div className="form-group">
+              <input className="form-control" readOnly aria-label="ลิงก์จอลูกค้า" value={displayUrl} onFocus={(e) => e.target.select()} />
+              <button
+                type="button"
+                className="btn-secondary-staff"
+                style={{ alignSelf: "flex-start" }}
+                onClick={() => {
+                  void navigator.clipboard?.writeText(displayUrl);
+                  showToast("คัดลอกลิงก์แล้ว");
+                }}
+              >
+                คัดลอกลิงก์
+              </button>
+            </div>
+            <LinkQR url={displayUrl} />
+          </div>
+        ) : null}
       </section>
 
       <section className="settings-card">

@@ -85,6 +85,7 @@ const OPS: Record<string, (...args: never[]) => Promise<unknown>> = {
   voidBill: actions.staffVoidBill,
   dayClose: actions.staffDayClose,
   nextVisit: actions.staffNextVisit,
+  setDisplay: actions.staffSetDisplay,
   billingSettings: actions.staffBillingSettings,
   saveBillingSettings: actions.staffSaveBillingSettings,
   saveDfRule: actions.staffSaveDfRule,

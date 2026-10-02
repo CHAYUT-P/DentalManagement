@@ -31,6 +31,22 @@ export function PromptPayQR({ id, amount, size = 168 }: { id: string; amount: nu
   return <img className="pp-qr" src={src} width={size} height={size} alt={`พร้อมเพย์ ${baht(amount)}`} />;
 }
 
+/** a QR for a web link — scan it with the tablet to open the page */
+export function LinkQR({ url, size = 120 }: { url: string; size?: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    QRCode.toDataURL(url, { margin: 1, width: size * 2 })
+      .then((u) => live && setSrc(u))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [url, size]);
+  // eslint-disable-next-line @next/next/no-img-element
+  return src ? <img className="pp-qr" src={src} width={size} height={size} alt="QR เปิดจอลูกค้า" /> : null;
+}
+
 /**
  * What prints: a receipt, or the day-close summary. Only visible to the
  * printer (see .print-sheet in staff.css); the page sets @page for the paper.

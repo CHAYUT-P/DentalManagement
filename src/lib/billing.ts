@@ -140,6 +140,24 @@ export interface BillingSettings {
   receiptPrefix: string;
   paper: "a5" | "slip";
   footer: string;
+  /** pairs the customer-facing screen (จอลูกค้า) with this clinic */
+  displayCode: string;
+}
+
+/** what the customer-facing screen shows — no phone numbers, no notes */
+export interface DisplayState {
+  /** "idle" = welcome screen; "bill" = the bill being paid; "thanks" = just paid */
+  mode: "idle" | "bill" | "thanks";
+  clinicName: string;
+  patientName: string;
+  items: { name: string; qty: number; amount: number }[];
+  total: number;
+  paid: number;
+  balance: number;
+  /** the PromptPay QR to show (when paying that way) */
+  promptpayId: string;
+  qrAmount: number;
+  updatedAt: string;
 }
 
 export const DEFAULT_BILLING_SETTINGS: BillingSettings = {
@@ -151,6 +169,7 @@ export const DEFAULT_BILLING_SETTINGS: BillingSettings = {
   receiptPrefix: "RC",
   paper: "a5",
   footer: "ขอบคุณที่ไว้วางใจ Denta Kids",
+  displayCode: "",
 };
 
 export type DfMode = "percent" | "fixed";

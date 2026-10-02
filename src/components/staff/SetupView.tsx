@@ -67,7 +67,7 @@ export function SetupView({ patientWebUrl }: { patientWebUrl: string }) {
         ) : section === "services" ? (
           <ServicesPage />
         ) : section === "billing" ? (
-          <BillingSettingsPanel />
+          <BillingSettingsPanel patientWebUrl={patientWebUrl} />
         ) : section === "users" ? (
           <UsersPanel />
         ) : section === "data" ? (

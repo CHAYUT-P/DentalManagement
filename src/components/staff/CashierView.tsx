@@ -11,6 +11,7 @@ import {
   staffOpenBill,
   staffOpenBlankBill,
   staffSaveBill,
+  staffSetDisplay,
   staffVoidBill,
   staffExpenses,
   staffRemoveExpense,
@@ -55,6 +56,8 @@ import {
 
 type PrintTarget = { kind: "receipt"; bill: Bill } | { kind: "close"; close: DayClose };
 
+const idleDisplay = { mode: "idle" as const, patientName: "", items: [], total: 0, paid: 0, balance: 0, qrAmount: 0 };
+
 const fetchDay = (date: string) => Promise.all([staffCashierDay(date), staffDayClose(date)]);
 
 /** the fields a cashier edits — what "unsaved changes" compares */
@@ -79,6 +82,24 @@ export function CashierView() {
   const [settings, setSettings] = useState<BillingSettings>(DEFAULT_BILLING_SETTINGS);
   const [print, setPrint] = useState<{ target: PrintTarget; next: { date: string; time: string } | null } | null>(null);
   const [blank, setBlank] = useState<{ name: string; phone: string } | null>(null);
+  /** this PC drives the customer-facing screen (remembered per device) */
+  const [screen, setScreen] = useState(() => {
+    try {
+      return localStorage.getItem("dk:customer-screen") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleScreen = () => {
+    const next = !screen;
+    setScreen(next);
+    try {
+      localStorage.setItem("dk:customer-screen", next ? "1" : "0");
+    } catch {
+      // storage blocked — the switch just won't be remembered
+    }
+    if (!next) void staffSetDisplay(idleDisplay).catch(() => {});
+  };
 
   const dentistName = useCallback(
     (slug: string | null) => (slug ? (dentists.find((d) => d.slug === slug)?.text.th.name ?? slug) : "—"),
@@ -182,6 +203,9 @@ export function CashierView() {
               ค่าใช้จ่าย
             </button>
           </div>
+          <button type="button" className={`pay-chip ${screen ? "on" : ""}`} onClick={toggleScreen} title="ส่งบิลไปจอที่หันไปทางผู้ปกครอง">
+            จอลูกค้า {screen ? "เปิด" : "ปิด"}
+          </button>
           <div className="cashier-date">
             <button type="button" className="btn-date-nav" title="วันก่อนหน้า" onClick={() => setDate(addDays(date, -1))}>
               <IconChevronLeft size={16} />
@@ -300,6 +324,7 @@ export function CashierView() {
               <BillEditor
                 key={`${bill.id}-${bill.status}-${bill.payments.length}`}
                 bill={bill}
+                screen={screen}
                 shelf={shelf}
                 settings={settings}
                 dentistName={dentistName}
@@ -352,6 +377,7 @@ function emptyLine(dentistSlug: string | null): BillItem {
 
 function BillEditor({
   bill,
+  screen,
   shelf,
   settings,
   dentistName,
@@ -362,6 +388,7 @@ function BillEditor({
   onPrint,
 }: {
   bill: Bill;
+  screen: boolean;
   shelf: StockItem[];
   settings: BillingSettings;
   dentistName: (slug: string | null) => string;
@@ -399,6 +426,29 @@ function BillEditor({
   const dirty =
     JSON.stringify([items.map(editable), disc, note, name]) !==
     JSON.stringify([bill.items.map(editable), bill.discount, bill.note, bill.patientName]);
+
+  // the customer screen follows this bill as it is edited and paid
+  const shown = JSON.stringify(items.map((i) => [i.name, i.qty, lineNet(i)]));
+  useEffect(() => {
+    if (!screen || bill.status === "void") return;
+    if (bill.status === "paid") {
+      void staffSetDisplay({ ...idleDisplay, mode: "thanks", patientName: bill.patientName }).catch(() => {});
+      const t = setTimeout(() => void staffSetDisplay(idleDisplay).catch(() => {}), 10_000);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      void staffSetDisplay({
+        mode: "bill",
+        patientName: bill.patientName,
+        items: (JSON.parse(shown) as [string, number, number][]).map(([name, qty, amount]) => ({ name, qty, amount })),
+        total,
+        paid: bill.paid,
+        balance,
+        qrAmount: method === "promptpay" ? payAmount : 0,
+      }).catch(() => {});
+    }, 400);
+    return () => clearTimeout(t);
+  }, [screen, bill.status, bill.patientName, bill.paid, shown, total, balance, method, payAmount]);
 
   const setLine = (idx: number, patch: Partial<BillItem>) =>
     setItems((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));

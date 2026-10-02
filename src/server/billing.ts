@@ -4,6 +4,8 @@
  * queries.ts — no `server-only` here, only server code imports it.
  */
 
+import crypto from "node:crypto";
+
 import { and, asc, eq, inArray, like, ne, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db/client";
@@ -32,6 +34,7 @@ import {
   type DayClose,
   type DfMode,
   type DfRule,
+  type DisplayState,
   type PayMethod,
   type PendingVisit,
 } from "@/lib/billing";
@@ -61,11 +64,57 @@ async function catalog() {
 
 export async function getBillingSettings(): Promise<BillingSettings> {
   const rows = await db.select().from(clinicSetting).where(eq(clinicSetting.key, "billing"));
-  if (!rows[0]) return DEFAULT_BILLING_SETTINGS;
+  let s = DEFAULT_BILLING_SETTINGS;
   try {
-    return { ...DEFAULT_BILLING_SETTINGS, ...(JSON.parse(rows[0].value) as Partial<BillingSettings>) };
+    if (rows[0]) s = { ...DEFAULT_BILLING_SETTINGS, ...(JSON.parse(rows[0].value) as Partial<BillingSettings>) };
   } catch {
-    return DEFAULT_BILLING_SETTINGS;
+    // keep the defaults
+  }
+  // the customer screen's pairing code is made once, then kept
+  if (!s.displayCode) {
+    s = { ...s, displayCode: crypto.randomBytes(6).toString("base64url") };
+    await db
+      .insert(clinicSetting)
+      .values({ key: "billing", value: JSON.stringify(s) })
+      .onConflictDoUpdate({ target: clinicSetting.key, set: { value: JSON.stringify(s), updatedAt: new Date() } });
+  }
+  return s;
+}
+
+/** the customer screen: the counter writes it, the screen polls it by code */
+export async function setDisplay(state: Omit<DisplayState, "updatedAt" | "clinicName" | "promptpayId">): Promise<void> {
+  const s = await getBillingSettings();
+  const value: DisplayState = {
+    mode: state.mode === "bill" || state.mode === "thanks" ? state.mode : "idle",
+    clinicName: s.clinicName,
+    patientName: String(state.patientName ?? "").slice(0, 60),
+    items: (state.items ?? []).slice(0, 30).map((i) => ({ name: String(i.name).slice(0, 80), qty: int(i.qty), amount: int(i.amount) })),
+    total: int(state.total),
+    paid: int(state.paid),
+    balance: int(state.balance),
+    promptpayId: state.qrAmount > 0 ? s.promptpayId : "",
+    qrAmount: int(state.qrAmount),
+    updatedAt: new Date().toISOString(),
+  };
+  await db
+    .insert(clinicSetting)
+    .values({ key: `display:${s.displayCode}`, value: JSON.stringify(value) })
+    .onConflictDoUpdate({ target: clinicSetting.key, set: { value: JSON.stringify(value), updatedAt: new Date() } });
+}
+
+export async function getDisplay(code: string): Promise<DisplayState | null> {
+  if (!/^[A-Za-z0-9_-]{6,16}$/.test(code)) return null;
+  const rows = await db.select().from(clinicSetting).where(eq(clinicSetting.key, `display:${code}`));
+  if (!rows[0]) {
+    const s = await getBillingSettings();
+    return s.displayCode === code
+      ? { mode: "idle", clinicName: s.clinicName, patientName: "", items: [], total: 0, paid: 0, balance: 0, promptpayId: "", qrAmount: 0, updatedAt: "" }
+      : null;
+  }
+  try {
+    return JSON.parse(rows[0].value) as DisplayState;
+  } catch {
+    return null;
   }
 }
 
@@ -80,6 +129,7 @@ export async function saveBillingSettings(input: Partial<BillingSettings>): Prom
     receiptPrefix: String(input.receiptPrefix ?? cur.receiptPrefix).replace(/[^A-Za-z0-9]/g, "").slice(0, 6) || "RC",
     paper: input.paper === "slip" ? "slip" : input.paper === "a5" ? "a5" : cur.paper,
     footer: String(input.footer ?? cur.footer).slice(0, 200),
+    displayCode: cur.displayCode,
   };
   await db
     .insert(clinicSetting)
