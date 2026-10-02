@@ -12,6 +12,7 @@ import {
   type WaitlistEntry,
 } from "@/lib/staffStore";
 import type { VisitItem } from "@/lib/staffTypes";
+import { PatientFileButton } from "./PatientFileView";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -403,9 +404,12 @@ function VisitEditor({
         </span>
       </div>
 
-      <strong className="queue-name" style={{ fontSize: "17px" }}>
-        {name}
-      </strong>
+      <div className="room-patient-head">
+        <strong className="queue-name" style={{ fontSize: "17px" }}>
+          {name}
+        </strong>
+        <PatientFileButton childId={child ? Number(child.id) : undefined} phone={phone} name={name} label="แฟ้มคนไข้ / ชาร์ตฟัน" />
+      </div>
       <div className="queue-sub muted">
         <IconPhone size={11} /> {phone}
         {child?.hn ? ` · HN ${child.hn}` : ""}

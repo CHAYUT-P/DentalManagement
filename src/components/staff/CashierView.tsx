@@ -33,6 +33,7 @@ import { useStaff } from "@/lib/staffStore";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { useT } from "@/i18n/lang";
 import { EditionNotice } from "./DeviceGate";
+import { PatientFileButton } from "./PatientFileView";
 import { PrintSheet, PromptPayQR } from "./ReceiptSheet";
 import {
   IconAlertTriangle,
@@ -420,6 +421,9 @@ function BillEditor({
           ) : (
             <input className="bill-name-input" aria-label="ชื่อลูกค้า" value={name} onChange={(e) => setName(e.target.value)} />
           )}
+          {bill.childId || bill.phone ? (
+            <PatientFileButton childId={bill.childId} phone={bill.phone} name={bill.patientName} label="แฟ้มคนไข้" className="btn-secondary-staff bill-file-btn" />
+          ) : null}
           <span className="bill-sub">
             {bill.phone || "ไม่มีเบอร์"}
             {bill.dentistSlug ? ` · ${dentistName(bill.dentistSlug)}` : ""}
@@ -542,16 +546,21 @@ function BillEditor({
       {!locked && balance > 0 ? (
         <div className="bill-pay">
           <div className="pay-methods" role="radiogroup" aria-label="ช่องทางชำระ">
-            {PAY_METHODS.map((m) => (
+            {/* spending a deposit only makes sense when the patient has one */}
+            {PAY_METHODS.filter((m) => m.key !== "credit" || bill.credit > 0).map((m) => (
               <button
                 key={m.key}
                 type="button"
                 role="radio"
                 aria-checked={method === m.key}
                 className={`pay-chip ${method === m.key ? "on" : ""}`}
-                onClick={() => setMethod(m.key)}
+                onClick={() => {
+                  setMethod(m.key);
+                  if (m.key === "credit") setAmount(String(Math.min(balance, bill.credit)));
+                }}
               >
                 {m.label}
+                {m.key === "credit" ? ` (เหลือ ${baht(bill.credit)})` : ""}
               </button>
             ))}
           </div>

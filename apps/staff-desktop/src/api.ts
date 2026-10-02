@@ -3,6 +3,17 @@ import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, PayMethod } from "@/lib/billing";
 import type {
+  DocKind,
+  FileMeta,
+  Medication,
+  PatientFileData,
+  PlanItemRow,
+  PlanStatus,
+  RecallRow,
+  RecallStatus,
+  ToothStatus,
+} from "@/lib/clinical";
+import type {
   DentistLeave,
   EditableDentist,
   PatientChildInput,
@@ -225,6 +236,104 @@ export function staffAddDentistLeave(dentistSlug: string, start: string, end: st
 
 export function staffRemoveDentistLeave(id: number) {
   return call<void>("removeDentistLeave", [id]);
+}
+
+/* ── patient file (full edition) ──────────────────────────────────────── */
+
+export function staffPatientFile(childId: number) {
+  return call<PatientFileData | null>("patientFile", [childId]);
+}
+
+export function staffEnsurePatient(input: { phone: string; name: string; guardianName?: string }) {
+  return call<number | null>("ensurePatient", [input]);
+}
+
+export function staffChildForAppointment(appointmentId: number) {
+  return call<number | null>("childForAppointment", [appointmentId]);
+}
+
+export function staffSetTeeth(input: {
+  childId: number;
+  teeth: string[];
+  status: ToothStatus;
+  surfaces: string[];
+  note: string;
+  dentistSlug: string | null;
+}) {
+  return call<void>("setTeeth", [input]);
+}
+
+export function staffSavePlan(input: {
+  id?: number | null;
+  childId: number;
+  title: string;
+  kind: "plan" | "contract";
+  status: PlanStatus;
+  agreedTotal: number | null;
+  note: string;
+  dentistSlug: string | null;
+  items: PlanItemRow[];
+}) {
+  return call<number>("savePlan", [input]);
+}
+
+export function staffRemovePlan(id: number) {
+  return call<void>("removePlan", [id]);
+}
+
+export function staffBillFromPlan(input: { planId: number; itemIds: number[]; instalment?: number }) {
+  return call<number | null>("billFromPlan", [input]);
+}
+
+export function staffTakeDeposit(input: { childId: number; amount: number; method: PayMethod; note?: string }) {
+  return call<number | null>("takeDeposit", [input]);
+}
+
+export function staffSaveDoc(input: {
+  id?: number | null;
+  childId: number;
+  kind: DocKind;
+  date: string;
+  dentistSlug: string | null;
+  data: Record<string, unknown>;
+}) {
+  return call<number>("saveDoc", [input]);
+}
+
+export function staffRemoveDoc(id: number) {
+  return call<void>("removeDoc", [id]);
+}
+
+export function staffMedications() {
+  return call<Medication[]>("medications", []);
+}
+
+export function staffSaveMedication(input: Omit<Medication, "id"> & { id?: number | null }) {
+  return call<void>("saveMedication", [input]);
+}
+
+export function staffUploadFile(input: { childId: number; kind: FileMeta["kind"]; name: string; mime: string; body: string; note?: string }) {
+  return call<{ ok: boolean; error?: string }>("uploadFile", [input]);
+}
+
+export function staffFileBody(id: number) {
+  return call<{ mime: string; body: string } | null>("fileBody", [id]);
+}
+
+export function staffRemoveFile(id: number) {
+  return call<void>("removeFile", [id]);
+}
+
+export function staffRecalls(filter: { childId?: number; until?: string; open?: boolean }) {
+  return call<RecallRow[]>("recalls", [filter]);
+}
+
+export function staffSetRecall(id: number, patch: { status?: RecallStatus; contactNote?: string; dueDate?: string }) {
+  return call<void>("setRecall", [id, patch]);
+}
+
+export function staffRemindRecall(id: number, text: string) {
+  return call<FamilyMessageResult>("remindRecall", [id, text]);
 }
 
 /* ── billing (full edition) ───────────────────────────────────────────── */

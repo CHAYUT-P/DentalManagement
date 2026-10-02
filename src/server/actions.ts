@@ -563,6 +563,10 @@ export async function staffSetQueueStatus(
     ...(status === "arrived" ? { checkedInAt: clinicNowHHMM() } : {}),
     ...(status === "confirmed" ? { checkedInAt: null } : {}),
   });
+  if (status === "completed") {
+    const { scheduleRecallForAppointment } = await import("@/server/clinical");
+    await scheduleRecallForAppointment(id);
+  }
   revalidateAll();
 }
 
@@ -652,8 +656,10 @@ export async function staffFinishVisit(input: VisitRecordInput) {
   await guard();
   const { upsertVisitRecord, updateWaitlistStatus } = await import("@/server/queries");
   await upsertVisitRecord(input);
+  const clinical = await import("@/server/clinical");
   if (input.appointmentId != null) {
     await updateAppointment(input.appointmentId, { status: "completed" });
+    await clinical.scheduleRecallForAppointment(input.appointmentId);
   } else if (input.waitlistId != null) {
     await updateWaitlistStatus(input.waitlistId, "done");
   }
@@ -700,6 +706,130 @@ export async function staffMessageFamily(id: number, text: string): Promise<Fami
   if (!ok) return "failed";
   const { messageLog } = await import("@/db/schema");
   await db.insert(messageLog).values({ appointmentId: id, kind: "custom" });
+  return "sent";
+}
+
+/* ═══════════════════════════ staff: patient file (full edition) ═════════ */
+
+type Clinical = typeof import("@/server/clinical");
+
+export async function staffPatientFile(childId: number) {
+  await guard();
+  const { getPatientFile } = await import("@/server/clinical");
+  return getPatientFile(childId);
+}
+
+export async function staffEnsurePatient(input: Parameters<Clinical["ensurePatient"]>[0]) {
+  await guard();
+  const { ensurePatient } = await import("@/server/clinical");
+  const id = await ensurePatient(input);
+  revalidateAll();
+  return id;
+}
+
+export async function staffChildForAppointment(appointmentId: number) {
+  await guard();
+  const { childForAppointment } = await import("@/server/clinical");
+  return childForAppointment(appointmentId);
+}
+
+export async function staffSetTeeth(input: Parameters<Clinical["setTeeth"]>[0]) {
+  await guard();
+  const { setTeeth } = await import("@/server/clinical");
+  await setTeeth(input);
+}
+
+export async function staffSavePlan(input: Parameters<Clinical["savePlan"]>[0]) {
+  await guard();
+  const { savePlan } = await import("@/server/clinical");
+  return savePlan(input);
+}
+
+export async function staffRemovePlan(id: number) {
+  await guard();
+  const { removePlan } = await import("@/server/clinical");
+  await removePlan(id);
+}
+
+export async function staffBillFromPlan(input: Parameters<Clinical["billFromPlan"]>[0]) {
+  await guard();
+  const { billFromPlan } = await import("@/server/clinical");
+  return billFromPlan(input);
+}
+
+export async function staffTakeDeposit(input: Parameters<Clinical["takeDeposit"]>[0]) {
+  await guard();
+  const { takeDeposit } = await import("@/server/clinical");
+  return takeDeposit(input);
+}
+
+export async function staffSaveDoc(input: Parameters<Clinical["saveDoc"]>[0]) {
+  await guard();
+  const { saveDoc } = await import("@/server/clinical");
+  return saveDoc(input);
+}
+
+export async function staffRemoveDoc(id: number) {
+  await guard();
+  const { removeDoc } = await import("@/server/clinical");
+  await removeDoc(id);
+}
+
+export async function staffMedications() {
+  await guard();
+  const { listMedications } = await import("@/server/clinical");
+  return listMedications();
+}
+
+export async function staffSaveMedication(input: Parameters<Clinical["saveMedication"]>[0]) {
+  await guard();
+  const { saveMedication } = await import("@/server/clinical");
+  await saveMedication(input);
+}
+
+export async function staffUploadFile(input: Parameters<Clinical["uploadFile"]>[0]) {
+  await guard();
+  const { uploadFile } = await import("@/server/clinical");
+  return uploadFile(input);
+}
+
+export async function staffFileBody(id: number) {
+  await guard();
+  const { getFileBody } = await import("@/server/clinical");
+  return getFileBody(id);
+}
+
+export async function staffRemoveFile(id: number) {
+  await guard();
+  const { removeFile } = await import("@/server/clinical");
+  await removeFile(id);
+}
+
+export async function staffRecalls(filter: Parameters<Clinical["listRecalls"]>[0]) {
+  await guard();
+  const { listRecalls } = await import("@/server/clinical");
+  return listRecalls(filter);
+}
+
+export async function staffSetRecall(id: number, patch: Parameters<Clinical["setRecall"]>[1]) {
+  await guard();
+  const { setRecall } = await import("@/server/clinical");
+  await setRecall(id, patch);
+}
+
+/** a check-up reminder into the family's LINE chat */
+export async function staffRemindRecall(id: number, text: string): Promise<FamilyMessageResult> {
+  await guard();
+  const { listRecalls, lineTargetForChild, setRecall } = await import("@/server/clinical");
+  const r = (await listRecalls({})).find((x) => x.id === id);
+  if (!r) return "failed";
+  const to = await lineTargetForChild(r.childId);
+  if (!to) return "no_line";
+  if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) return "not_configured";
+  const { pushLineText } = await import("@/server/line");
+  const ok = await pushLineText(to, text.trim().slice(0, 2000)).catch(() => false);
+  if (!ok) return "failed";
+  await setRecall(id, { status: "contacted", contactNote: "ส่ง LINE เตือนแล้ว" });
   return "sent";
 }
 

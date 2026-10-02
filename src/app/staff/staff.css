@@ -4565,3 +4565,850 @@ button.tr-tick:disabled {
   text-align: center;
   font-size: 0.9em;
 }
+
+/* room mode (full edition): this PC is one dentist's room */
+.room-mode {
+  min-height: 100dvh;
+  background: var(--staff-bg);
+}
+
+.room-mode-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 24px;
+  background: var(--staff-primary);
+  color: #fff;
+}
+
+.rmb-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--staff-font-display);
+  font-size: 15px;
+}
+
+.rmb-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.room-mode-bar .btn-primary-staff {
+  background: #fff;
+  color: var(--staff-primary);
+}
+
+/* ══ Full edition: patient file ═══════════════════════════════════════ */
+:root {
+  --tooth-caries: #e0507e;
+  --tooth-caries-soft: #fcdeea;
+  --tooth-watch: #e5a224;
+  --tooth-watch-soft: #fdf0cf;
+  --tooth-filled: #4f7fd6;
+  --tooth-filled-soft: #dfe8fa;
+  --tooth-sealant: #3fa6a0;
+  --tooth-sealant-soft: #d9f1ef;
+  --tooth-done: #7b5cc7;
+  --tooth-done-soft: #ebe3fa;
+  --tooth-crown: #8a8f9c;
+  --tooth-crown-soft: #ecedf1;
+  --tooth-gone: #9a91b3;
+  --tooth-gone-soft: #f2eff6;
+  --tooth-sound: #ffffff;
+  --tooth-sound-soft: #ffffff;
+}
+
+.pf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  overflow: auto;
+  background: var(--staff-bg);
+  font-family: var(--staff-font);
+  color: var(--staff-ink);
+}
+
+.pf-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.pf-who {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-who h2 {
+  margin: 0;
+  font-family: var(--staff-font-display);
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.pf-nick {
+  font-size: 17px;
+  color: var(--staff-ink-muted);
+}
+
+.pf-who p {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  color: var(--staff-ink-2);
+  font-size: 14px;
+}
+
+.pf-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pf-tags span {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--staff-primary-light);
+}
+
+.pf-money {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pf-owing,
+.pf-credit {
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+.pf-owing {
+  background: var(--staff-status-cancelled-bg);
+  color: var(--staff-status-cancelled-fg);
+}
+
+.pf-credit {
+  background: var(--staff-status-completed-bg);
+  color: var(--staff-status-completed-fg);
+}
+
+.pf-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: var(--staff-status-cancelled-bg);
+  color: var(--staff-status-cancelled-fg);
+  font-size: 14px;
+}
+
+.pf-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--staff-border);
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.pf-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--staff-ink-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pf-tabs button.on {
+  color: var(--staff-ink);
+  border-bottom-color: var(--staff-primary);
+  font-weight: 500;
+}
+
+.pf-tabs em {
+  font-style: normal;
+  font-size: 11.5px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--staff-primary-light);
+}
+
+.pf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.pf-card {
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+}
+
+.pf-card.wide {
+  margin-bottom: 14px;
+}
+
+.pf-card h3 {
+  margin: 0 0 10px;
+  font-family: var(--staff-font-display);
+  font-size: 15.5px;
+  font-weight: 500;
+}
+
+.pf-card dl {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.pf-card dt {
+  color: var(--staff-ink-muted);
+}
+
+.pf-card dd {
+  margin: 0;
+}
+
+.pf-card dd.warn {
+  color: var(--staff-status-cancelled-fg);
+  font-weight: 500;
+}
+
+.pf-line {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.pf-deposit {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.pf-deposit .form-control {
+  min-height: 38px;
+  min-width: 0;
+}
+
+.pf-open-btn {
+  margin-right: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.room-patient-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bill-file-btn {
+  margin: 4px 0 2px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+/* history */
+.ph-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid #f1ecf6;
+  font-size: 14px;
+}
+
+.ph-date {
+  display: flex;
+  flex-direction: column;
+  color: var(--staff-ink-2);
+}
+
+.ph-date em {
+  font-style: normal;
+  font-size: 12.5px;
+  color: var(--staff-ink-muted);
+}
+
+.ph-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ph-item + .ph-item::before {
+  content: " · ";
+  color: var(--staff-ink-muted);
+}
+
+.ph-detail {
+  white-space: pre-wrap;
+  color: var(--staff-ink-2);
+  font-size: 13.5px;
+}
+
+.ph-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+
+.struck {
+  text-decoration: line-through;
+  color: var(--staff-ink-muted);
+}
+
+/* dental chart */
+.odo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.odo-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.odo-hint {
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+}
+
+.odo-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+.odo-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 12px;
+  border-radius: 16px;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  overflow-x: auto;
+}
+
+.odo-row {
+  display: flex;
+  gap: 4px;
+}
+
+.odo-tooth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 44px;
+  padding: 2px 0 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  color: #b7accb;
+  cursor: pointer;
+}
+
+.odo-tooth:hover {
+  background: var(--staff-surface-hover);
+}
+
+.odo-tooth.sel {
+  border-color: var(--staff-primary);
+  background: var(--staff-primary-light);
+  color: var(--staff-primary);
+}
+
+.odo-tag {
+  height: 14px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--staff-ink-2);
+}
+
+.tooth-svg {
+  width: 36px;
+  height: 36px;
+}
+
+.odo-num {
+  font-size: 11.5px;
+  color: var(--staff-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.odo-midline {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 720px;
+  font-size: 11.5px;
+  color: var(--staff-ink-muted);
+  border-top: 1px dashed var(--staff-border-strong);
+  padding-top: 4px;
+}
+
+.odo-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  justify-content: center;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--staff-ink-muted);
+}
+
+.odo-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.odo-legend i,
+.odo-status i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.odo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  position: sticky;
+  top: 12px;
+}
+
+.odo-statuses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.odo-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--staff-border);
+  background: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  color: var(--staff-ink-2);
+  cursor: pointer;
+}
+
+.odo-status.on {
+  border-color: var(--staff-primary);
+  background: var(--staff-primary-light);
+  color: var(--staff-ink);
+}
+
+.odo-faces {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--staff-ink-muted);
+}
+
+.odo-face {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--staff-border-strong);
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.odo-face.on {
+  background: var(--tooth-caries);
+  border-color: var(--tooth-caries);
+  color: #fff;
+}
+
+.odo-panel .form-control {
+  min-height: 38px;
+}
+
+.odo-panel-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.odo-history {
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+}
+
+.odo-history h4 {
+  margin: 0 0 6px;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.oh-row {
+  display: grid;
+  grid-template-columns: 90px 70px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid #f1ecf6;
+  font-size: 13.5px;
+}
+
+.oh-date {
+  color: var(--staff-ink-muted);
+}
+
+/* plans */
+.plans,
+.docs,
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plans-top {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.plan-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.plan-card h3 {
+  margin: 0;
+}
+
+.plan-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.plan-line {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto 100px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid #f1ecf6;
+  font-size: 14px;
+}
+
+.plan-line.done span:nth-child(2) {
+  color: var(--staff-ink-muted);
+}
+
+.plan-line.cancelled span:nth-child(2) {
+  text-decoration: line-through;
+  color: var(--staff-ink-muted);
+}
+
+.plan-dot {
+  width: 8px;
+  height: 8px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--staff-border-strong);
+}
+
+.plan-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid var(--staff-border);
+  font-size: 14px;
+}
+
+.plan-foot .owe {
+  color: var(--staff-status-cancelled-fg);
+}
+
+.plan-bill {
+  display: flex;
+  gap: 6px;
+}
+
+.plan-bill .form-control {
+  width: 130px;
+  min-height: 38px;
+}
+
+.pl-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 80px 56px 88px 76px 96px 80px 34px;
+  gap: 6px;
+  align-items: center;
+}
+
+.pl-row .form-control,
+.rx-row .form-control {
+  min-height: 38px;
+  padding: 6px 8px;
+  font-size: 13.5px;
+  min-width: 0;
+}
+
+.plan-edit,
+.doc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rx-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) 110px 70px 80px minmax(160px, 1.6fr) 34px;
+  gap: 6px;
+  align-items: center;
+}
+
+/* files */
+.files-kind {
+  width: 220px;
+  min-height: 40px;
+}
+
+label.btn-primary-staff {
+  cursor: pointer;
+}
+
+label.btn-primary-staff.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.file-tile {
+  margin: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+}
+
+.file-thumb {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  border: 0;
+  background: #f6f3fa;
+  cursor: zoom-in;
+  font: inherit;
+  color: var(--staff-ink-muted);
+}
+
+.file-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-tile figcaption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+
+.file-tile figcaption .btn-action-icon {
+  margin-left: auto;
+}
+
+.file-view {
+  display: flex;
+  flex-direction: column;
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #111;
+}
+
+.file-view img {
+  max-width: 92vw;
+  max-height: calc(92vh - 52px);
+  object-fit: contain;
+}
+
+.file-view iframe {
+  width: 88vw;
+  height: calc(92vh - 52px);
+  border: 0;
+  background: #fff;
+}
+
+.file-view-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #fff;
+  font-size: 13px;
+}
+
+/* recalls */
+.recalls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recalls-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: var(--staff-ink-muted);
+}
+
+.recalls-top p {
+  margin: 0;
+}
+
+.recall-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 200px auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
+  border-top: 1px solid #f1ecf6;
+  font-size: 14px;
+}
+
+.rr-who {
+  display: flex;
+  flex-direction: column;
+}
+
+.rr-due.late {
+  color: var(--staff-status-cancelled-fg);
+}
+
+.rr-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.rr-actions .btn-primary-staff,
+.rr-actions .btn-secondary-staff {
+  padding: 6px 12px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+/* printed paperwork */
+.ps-signature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 22px 0 6px auto;
+  width: 60%;
+  text-align: center;
+}
+
+.ps-two-sign {
+  display: flex;
+  gap: 16px;
+}
+
+.ps-two-sign .ps-signature {
+  width: 50%;
+  margin: 22px 0 6px;
+}
+
+.ps-rx {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.ps-rx li {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 1100px) {
+  .odo-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .odo-panel {
+    position: static;
+  }
+  .recall-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

@@ -3,45 +3,42 @@
 import React from "react";
 import { useStaff } from "@/lib/staffStore";
 import { RoomPage } from "./RoomPage";
-import { IconSettings } from "./staffIcons";
+import { IconArrowRight, IconBuilding } from "./staffIcons";
 
 /**
  * Per-PC mode switch (full edition). A room PC keeps a dentist's page open
  * all day — no sidebar, no desk tools, just that dentist's queue and record
- * forms. The setting lives in this device's localStorage; the small floating
- * button is the way back out (in-clinic machines, no auth wall by design).
+ * forms. The setting lives in this device's localStorage; the bar across the
+ * top always says so and holds the way back (in-clinic machines, no auth
+ * wall by design).
  */
 export function DeviceGate({ children }: { children: React.ReactNode }) {
-  const { edition, deviceMode, roomDentistSlug, setRoomDentistSlug, setDeviceMode } = useStaff();
+  const { edition, deviceMode, roomDentistSlug, setRoomDentistSlug, setDeviceMode, dentists } = useStaff();
 
   if (edition !== "full" || deviceMode !== "room") return <>{children}</>;
 
+  const dentist = dentists.find((d) => d.slug === roomDentistSlug);
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--staff-bg, #f4f6fb)" }}>
+    <div className="room-mode">
+      {/* always on screen: which room this PC is, and the two ways out */}
+      <header className="room-mode-bar">
+        <span className="rmb-title">
+          <IconBuilding size={16} />
+          เครื่องนี้: ห้องตรวจ{dentist ? ` · ${dentist.text.th.name}` : ""}
+        </span>
+        <span className="rmb-actions">
+          {roomDentistSlug ? (
+            <button type="button" className="btn-secondary-staff" onClick={() => setRoomDentistSlug(null)}>
+              เปลี่ยนห้อง
+            </button>
+          ) : null}
+          <button type="button" className="btn-primary-staff" onClick={() => setDeviceMode("frontdesk")}>
+            <IconArrowRight size={15} />
+            <span>กลับหน้าเคาน์เตอร์</span>
+          </button>
+        </span>
+      </header>
       <RoomPage slug={roomDentistSlug} onPickRoom={setRoomDentistSlug} />
-      <button
-        type="button"
-        title="ออกจากโหมดห้องตรวจ — กลับสู่หน้าพนักงาน"
-        onClick={() => setDeviceMode("frontdesk")}
-        style={{
-          position: "fixed",
-          right: "14px",
-          bottom: "14px",
-          width: "40px",
-          height: "40px",
-          borderRadius: "50%",
-          border: "1px solid var(--staff-border, #dde3f0)",
-          background: "#ffffff",
-          color: "var(--staff-ink-muted, #8a93ad)",
-          cursor: "pointer",
-          display: "grid",
-          placeItems: "center",
-          boxShadow: "0 2px 10px rgba(30,40,80,.12)",
-          zIndex: 50,
-        }}
-      >
-        <IconSettings size={17} />
-      </button>
     </div>
   );
 }

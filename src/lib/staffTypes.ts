@@ -94,6 +94,11 @@ export interface PatientChild {
   gender?: "male" | "female";
   hn?: string;
   bloodType?: "" | "A" | "B" | "O" | "AB";
+  /** เลขบัตรประชาชน */
+  idCard?: string;
+  tags?: string[];
+  /** months between check-ups (0 = none) */
+  recallMonths?: number;
   conditions?: string;
   medications?: string;
   allergies?: string;
@@ -135,6 +140,9 @@ export interface PatientChildInput {
   gender?: string;
   hn?: string;
   bloodType?: string;
+  idCard?: string;
+  tags?: string[];
+  recallMonths?: number;
   conditions?: string;
   medications?: string;
   allergies?: string;

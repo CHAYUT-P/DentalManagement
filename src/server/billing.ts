@@ -4,7 +4,7 @@
  * queries.ts — no `server-only` here, only server code imports it.
  */
 
-import { and, asc, eq, inArray, like, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, like, ne, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -14,6 +14,7 @@ import {
   dfRule,
   invoice,
   invoiceItem,
+  patientCredit,
   payment,
   treatment,
   visitRecord,
@@ -38,7 +39,7 @@ import { todayISO } from "@/lib/dates";
 import { toTreatmentInfo } from "@/lib/treatments";
 import type { VisitItem } from "@/lib/staffTypes";
 
-const METHODS: PayMethod[] = ["cash", "transfer", "promptpay", "card", "other"];
+const METHODS: PayMethod[] = ["cash", "transfer", "promptpay", "card", "other", "credit"];
 const int = (n: unknown) => Math.max(0, Math.round(Number(n) || 0));
 
 /* ── lookups ───────────────────────────────────────────────────────────── */
@@ -127,14 +128,18 @@ export async function removeDfRule(id: number): Promise<void> {
 
 /* ── reading bills ─────────────────────────────────────────────────────── */
 
-async function loadBills(where: ReturnType<typeof eq> | ReturnType<typeof and>): Promise<Bill[]> {
+export async function billsWhere(where: SQL): Promise<Bill[]> {
   const { toSlug } = await dentistMaps();
   const heads = await db.select().from(invoice).where(where).orderBy(asc(invoice.createdAt));
   if (heads.length === 0) return [];
   const ids = heads.map((h) => h.id);
-  const [items, pays] = await Promise.all([
+  const childIds = [...new Set(heads.map((h) => h.childId).filter((x): x is number => x != null))];
+  const [items, pays, credits] = await Promise.all([
     db.select().from(invoiceItem).where(inArray(invoiceItem.invoiceId, ids)).orderBy(asc(invoiceItem.sort), asc(invoiceItem.id)),
     db.select().from(payment).where(inArray(payment.invoiceId, ids)).orderBy(asc(payment.createdAt)),
+    childIds.length
+      ? db.select({ childId: patientCredit.childId, amount: patientCredit.amount }).from(patientCredit).where(inArray(patientCredit.childId, childIds))
+      : Promise.resolve([] as { childId: number; amount: number }[]),
   ]);
   return heads.map((h) => {
     const lines: BillItem[] = items
@@ -173,6 +178,10 @@ async function loadBills(where: ReturnType<typeof eq> | ReturnType<typeof and>):
       patientName: h.patientName,
       phone: h.phone,
       dentistSlug: h.dentistId != null ? (toSlug.get(h.dentistId) ?? null) : null,
+      childId: h.childId,
+      kind: h.kind === "deposit" ? "deposit" : "visit",
+      credit: h.childId != null ? credits.filter((c) => c.childId === h.childId).reduce((s, c) => s + c.amount, 0) : 0,
+      planId: h.planId,
       discount: h.discount,
       note: h.note,
       voidReason: h.voidReason,
@@ -189,12 +198,12 @@ async function loadBills(where: ReturnType<typeof eq> | ReturnType<typeof and>):
 }
 
 export async function getBill(id: number): Promise<Bill | null> {
-  return (await loadBills(eq(invoice.id, id)))[0] ?? null;
+  return (await billsWhere(eq(invoice.id, id)))[0] ?? null;
 }
 
 /** everything the cashier screen shows for one day */
 export async function cashierDay(date: string): Promise<CashierDay> {
-  const bills = await loadBills(eq(invoice.date, date));
+  const bills = await billsWhere(eq(invoice.date, date));
   const live = bills.filter((b) => b.status !== "void");
   const billedAppt = new Set(live.map((b) => b.appointmentId).filter((x): x is number => x != null));
   const billedWalk = new Set(live.map((b) => b.waitlistId).filter((x): x is number => x != null));
@@ -310,13 +319,16 @@ export async function openBillForVisit(input: { appointmentId?: number | null; w
         unitPrice: arr.length === 1 && rec?.price != null ? int(rec.price) : int(cat.get(k)?.price),
       }));
 
+  // tie the bill to the patient's file when there is one (deposits, history)
+  const clinical = await import("@/server/clinical");
+  const childId = head.childId ?? (await clinical.matchChild(head.phone, head.name));
   const [created] = await db
     .insert(invoice)
     .values({
       date: head.date,
       appointmentId: apptId,
       waitlistId: walkId,
-      childId: head.childId,
+      childId,
       patientName: head.name,
       phone: head.phone,
       dentistId,
@@ -332,12 +344,25 @@ export async function openBillForVisit(input: { appointmentId?: number | null; w
 }
 
 /** a bill with no visit behind it — a product sale, a family paying a balance */
-export async function openBlankBill(input: { patientName: string; phone: string }): Promise<number> {
+export async function openBlankBill(input: { patientName: string; phone: string; childId?: number | null }): Promise<number> {
+  const clinical = await import("@/server/clinical");
+  const childId = input.childId ?? (input.phone ? await clinical.matchChild(input.phone, input.patientName) : null);
   const [created] = await db
     .insert(invoice)
-    .values({ date: todayISO(), patientName: input.patientName.trim().slice(0, 80) || "ลูกค้าทั่วไป", phone: input.phone.trim().slice(0, 20) })
+    .values({
+      date: todayISO(),
+      childId,
+      patientName: input.patientName.trim().slice(0, 80) || "ลูกค้าทั่วไป",
+      phone: input.phone.trim().slice(0, 20),
+    })
     .returning({ id: invoice.id });
   return created.id;
+}
+
+/** DF and status again — after lines were written outside saveBill */
+export async function refreshBill(id: number): Promise<void> {
+  await refreshDf(id);
+  await settleStatus(id);
 }
 
 /** replace the lines, the bill discount and the note; DF is worked out again */
@@ -432,6 +457,14 @@ export async function addPayment(
   const method = METHODS.includes(input.method) ? input.method : "other";
   const today = todayISO();
 
+  // spending a deposit: only what the patient has, only on their own bill
+  if (method === "credit") {
+    if (!head.childId) return { ok: false };
+    const { creditBalance } = await import("@/server/clinical");
+    if ((await creditBalance(head.childId)) < amount) return { ok: false };
+    await db.insert(patientCredit).values({ childId: head.childId, amount: -amount, invoiceId: id, note: "ใช้มัดจำ" });
+  }
+
   await db.insert(payment).values({ invoiceId: id, method, amount, date: today, note: String(input.note ?? "").slice(0, 120) });
 
   let receiptNo = head.receiptNo;
@@ -456,10 +489,13 @@ export async function addPayment(
 export async function voidBill(id: number, reason: string): Promise<boolean> {
   const why = reason.trim().slice(0, 200);
   if (!why) return false;
-  await db
+  const done = await db
     .update(invoice)
     .set({ status: "void", voidReason: why, voidedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(invoice.id, id), ne(invoice.status, "void")));
+    .where(and(eq(invoice.id, id), ne(invoice.status, "void")))
+    .returning({ id: invoice.id });
+  // deposit spent on this bill goes back; a cancelled deposit receipt takes its deposit away
+  if (done.length) await db.delete(patientCredit).where(eq(patientCredit.invoiceId, id));
   return true;
 }
 
@@ -477,13 +513,14 @@ export async function dayClose(date: string): Promise<DayClose> {
     return { method: m, amount: rows.reduce((s, r) => s + r.amount, 0), count: rows.length };
   }).filter((r) => r.count > 0);
 
-  const bills = await loadBills(eq(invoice.date, date));
+  const bills = await billsWhere(eq(invoice.date, date));
   const live = bills.filter((b) => b.status !== "void");
   const settled = live.filter((b) => b.status === "paid");
   const owingBills = live.filter((b) => b.balance > 0);
 
   const per = new Map<string, { lines: number; revenue: number; labCost: number; df: number }>();
-  for (const b of settled) {
+  // deposits are money held, not treatment — they stay out of revenue and DF
+  for (const b of settled.filter((x) => x.kind !== "deposit")) {
     const nets = b.items.map((i) => Math.max(0, i.qty * i.unitPrice - i.discount));
     const sum = nets.reduce((s, n) => s + n, 0);
     b.items.forEach((it, idx) => {
@@ -501,7 +538,7 @@ export async function dayClose(date: string): Promise<DayClose> {
   return {
     date,
     byMethod,
-    received: byMethod.reduce((s, r) => s + r.amount, 0),
+    received: byMethod.filter((r) => r.method !== "credit").reduce((s, r) => s + r.amount, 0),
     billsPaid: settled.length,
     billsOwing: owingBills.length,
     owing: owingBills.reduce((s, b) => s + b.balance, 0),

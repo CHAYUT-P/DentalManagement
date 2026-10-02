@@ -152,6 +152,9 @@ export interface GuardianDTO {
     hn: string | null;
     gender: string | null;
     bloodType: string;
+    idCard: string;
+    tags: string[];
+    recallMonths: number;
   }[];
   registeredAt: string;
 }
@@ -1061,6 +1064,9 @@ function toGuardianDTO(
         hn: c.hn,
         gender: c.gender,
         bloodType: c.bloodType,
+        idCard: c.idCard,
+        tags: Array.isArray(c.tags) ? (c.tags as string[]) : [],
+        recallMonths: c.recallMonths,
       })),
     registeredAt: g.createdAt.toISOString().slice(0, 10),
   };
@@ -1175,6 +1181,9 @@ async function syncChildren(guardianId: number, children: PatientChildInput[]): 
       medications: c.medications ?? "",
       allergies: c.allergies ?? "",
       notes: c.notes ?? "",
+      ...(c.idCard !== undefined ? { idCard: c.idCard.replace(/\D/g, "").slice(0, 13) } : {}),
+      ...(c.tags !== undefined ? { tags: c.tags.map((t) => t.trim()).filter(Boolean).slice(0, 12) } : {}),
+      ...(c.recallMonths !== undefined ? { recallMonths: Math.max(0, Math.min(24, Math.round(c.recallMonths))) } : {}),
       updatedAt: new Date(),
     };
     const hit =

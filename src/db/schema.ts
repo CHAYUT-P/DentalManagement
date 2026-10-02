@@ -214,6 +214,12 @@ export const child = pgTable(
     medications: text("medications").notNull().default(""),
     allergies: text("allergies").notNull().default(""),
     notes: text("notes").notNull().default(""),
+    /** เลขบัตรประชาชน (13 digits) — typed for now, card reader later */
+    idCard: text("id_card").notNull().default(""),
+    /** free labels the desk filters by, e.g. ["จัดฟัน", "กลัวหมอฟัน"] */
+    tags: jsonb("tags").notNull().default([]),
+    /** months between check-ups; 0 = no automatic recall */
+    recallMonths: integer("recall_months").notNull().default(6),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -526,6 +532,10 @@ export const invoice = pgTable(
     dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
     /** baht off the whole bill, on top of any line discounts */
     discount: integer("discount").notNull().default(0),
+    /** the treatment plan / contract this bill pays towards (ortho instalments) */
+    planId: integer("plan_id"),
+    /** "visit" (treatment/products) | "deposit" (money kept on account — not revenue) */
+    kind: text("kind").notNull().default("visit"),
     note: text("note").notNull().default(""),
     voidReason: text("void_reason").notNull().default(""),
     voidedAt: timestamp("voided_at", { withTimezone: true }),
@@ -609,4 +619,190 @@ export const dfRule = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique("df_rule_idx").on(t.dentistId, t.treatmentKey).nullsNotDistinct()],
+);
+
+/* ────────────────────────────── clinical (full edition) ────────────────── */
+
+/**
+ * The dental chart — one row per tooth that has anything recorded, FDI
+ * numbering (11–48 permanent, 51–85 primary). `surfaces` holds the faces
+ * involved: M O D B L (I for front teeth).
+ */
+export const toothState = pgTable(
+  "tooth_state",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    tooth: text("tooth").notNull(),
+    /** "sound" "caries" "filled" "sealant" "pulpotomy" "rct" "crown" "ssc"
+     *  "missing" "extracted" "unerupted" "mobile" "impacted" "bridge" "implant" */
+    status: text("status").notNull(),
+    surfaces: jsonb("surfaces").notNull().default([]),
+    note: text("note").notNull().default(""),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("tooth_state_idx").on(t.childId, t.tooth)],
+);
+
+/** every change to a tooth, newest last — the chart's history */
+export const toothEvent = pgTable(
+  "tooth_event",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    tooth: text("tooth").notNull(),
+    status: text("status").notNull(),
+    surfaces: jsonb("surfaces").notNull().default([]),
+    note: text("note").notNull().default(""),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tooth_event_child_idx").on(t.childId)],
+);
+
+/**
+ * A treatment plan, which doubles as the estimate (ใบเสนอราคา) the family
+ * takes home. `kind: "contract"` is an agreed package price paid off over
+ * many visits (ortho) — bills carrying its id count towards it.
+ */
+export const treatmentPlan = pgTable(
+  "treatment_plan",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    kind: text("kind").notNull().default("plan"),
+    /** "draft" | "accepted" | "in_progress" | "done" | "cancelled" */
+    status: text("status").notNull().default("draft"),
+    /** contract only: the agreed price for the whole course */
+    agreedTotal: integer("agreed_total"),
+    note: text("note").notNull().default(""),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("treatment_plan_child_idx").on(t.childId)],
+);
+
+export const planItem = pgTable(
+  "plan_item",
+  {
+    id: serial("id").primaryKey(),
+    planId: integer("plan_id")
+      .notNull()
+      .references(() => treatmentPlan.id, { onDelete: "cascade" }),
+    treatmentKey: text("treatment_key"),
+    name: text("name").notNull(),
+    teeth: text("teeth").notNull().default(""),
+    qty: integer("qty").notNull().default(1),
+    unitPrice: integer("unit_price").notNull().default(0),
+    discount: integer("discount").notNull().default(0),
+    /** "planned" | "done" | "cancelled" */
+    status: text("status").notNull().default("planned"),
+    doneAt: text("done_at"),
+    sort: integer("sort").notNull().default(0),
+  },
+  (t) => [index("plan_item_plan_idx").on(t.planId)],
+);
+
+/**
+ * Money a family keeps with the clinic — a deposit in (+), spent on a bill
+ * (−). The balance is the sum. Spending it is the "credit" payment method.
+ */
+export const patientCredit = pgTable(
+  "patient_credit",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+    invoiceId: integer("invoice_id").references(() => invoice.id, { onDelete: "set null" }),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("patient_credit_child_idx").on(t.childId)],
+);
+
+/** the clinic's drug list — what a prescription picks from */
+export const medication = pgTable("medication", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** e.g. "250 mg/5 ml" */
+  strength: text("strength").notNull().default(""),
+  /** e.g. "ขวด", "เม็ด" */
+  unit: text("unit").notNull().default(""),
+  /** default directions, e.g. "รับประทานครั้งละ 5 ml วันละ 3 ครั้ง หลังอาหาร" */
+  sig: text("sig").notNull().default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Printed paperwork kept on the patient's file: prescriptions, medical
+ * certificates, referrals, consent forms. `data` holds the form's fields;
+ * `kind` says which form.
+ */
+export const clinicalDoc = pgTable(
+  "clinical_doc",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    /** "prescription" | "certificate" | "referral" | "consent" | "note" */
+    kind: text("kind").notNull(),
+    /** YYYY-MM-DD */
+    date: text("date").notNull(),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    data: jsonb("data").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("clinical_doc_child_idx").on(t.childId)],
+);
+
+/** photos, X-rays and scanned papers on a patient's file (base64 body) */
+export const patientFile = pgTable(
+  "patient_file",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    /** "photo" | "xray" | "document" */
+    kind: text("kind").notNull().default("photo"),
+    name: text("name").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    body: text("body").notNull(),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("patient_file_child_idx").on(t.childId)],
+);
+
+/** who is due back for a check-up, and what the desk did about it */
+export const recall = pgTable(
+  "recall",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => child.id, { onDelete: "cascade" }),
+    dueDate: text("due_date").notNull(),
+    reason: text("reason").notNull().default("ตรวจสุขภาพฟันตามรอบ"),
+    /** "due" | "contacted" | "booked" | "done" | "skipped" */
+    status: text("status").notNull().default("due"),
+    contactNote: text("contact_note").notNull().default(""),
+    contactedAt: timestamp("contacted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("recall_due_idx").on(t.dueDate), index("recall_child_idx").on(t.childId)],
 );

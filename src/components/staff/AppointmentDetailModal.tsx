@@ -18,6 +18,7 @@ import {
   IconDentist,
   IconDollar,
 } from "./staffIcons";
+import { PatientFileButton } from "./PatientFileView";
 
 /** quick reasons the desk can drop into the message to the family */
 const REASONS = ["คุณหมอติดธุระ", "คุณหมอลา", "คลินิกปิดทำการ"];
@@ -401,6 +402,8 @@ export function AppointmentDetailModal({
                 </div>
               </div>
 
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <PatientFileButton phone={appointment.phone} name={appointment.childName} />
               <a
                 href={`tel:${appointment.phone.replace(/[^0-9]/g, "")}`}
                 className="btn-secondary-staff"
@@ -422,6 +425,7 @@ export function AppointmentDetailModal({
                 <IconPhone size={15} />
                 <span>{appointment.phone}</span>
               </a>
+              </div>
             </div>
 
             {/* 4 detail tiles in a 2x2 grid */}

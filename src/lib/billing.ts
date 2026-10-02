@@ -3,7 +3,7 @@
  * (full edition). Everything is whole baht — Thai clinics don't bill satang.
  */
 
-export type PayMethod = "cash" | "transfer" | "promptpay" | "card" | "other";
+export type PayMethod = "cash" | "transfer" | "promptpay" | "card" | "other" | "credit";
 
 export const PAY_METHODS: { key: PayMethod; label: string }[] = [
   { key: "cash", label: "เงินสด" },
@@ -11,6 +11,7 @@ export const PAY_METHODS: { key: PayMethod; label: string }[] = [
   { key: "transfer", label: "โอนเงิน" },
   { key: "card", label: "บัตรเครดิต" },
   { key: "other", label: "อื่น ๆ" },
+  { key: "credit", label: "หักเงินมัดจำ" },
 ];
 
 export const payMethodLabel = (m: string) => PAY_METHODS.find((p) => p.key === m)?.label ?? m;
@@ -54,6 +55,14 @@ export interface Bill {
   patientName: string;
   phone: string;
   dentistSlug: string | null;
+  /** the patient file this bill belongs to, when known */
+  childId: number | null;
+  /** deposit the patient still has to spend ("credit" payments) */
+  credit: number;
+  /** a contract (ortho) this bill pays an instalment of */
+  planId: number | null;
+  /** "deposit" = money taken to keep on account, not a treatment sale */
+  kind: "visit" | "deposit";
   discount: number;
   note: string;
   voidReason: string;
@@ -101,8 +110,9 @@ export interface DayCloseDentist {
 
 export interface DayClose {
   date: string;
-  /** money received on this day, by method */
+  /** money received on this day, by method ("credit" = deposit spent, not new money) */
   byMethod: { method: PayMethod; amount: number; count: number }[];
+  /** new money in — deposits spent are not counted again */
   received: number;
   /** bills dated today that are settled */
   billsPaid: number;
