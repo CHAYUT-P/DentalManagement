@@ -123,6 +123,42 @@ Mock appointments are stored as an offset in days from today, so they never rot;
 - All screens poll `staffBootstrap` every 20s — a check-in at the desk shows
   up on the room PC without a reload.
 
+### Full edition modules (built 2026-10-02)
+
+The full edition is the whole clinic system (replacing FD by 9net), in
+these rail entries — all gated on `edition === "full"` and on the signed-in
+role (`src/lib/roles.ts`):
+
+| Entry | Holds | Server |
+|---|---|---|
+| คนไข้ | patient list, ถึงรอบตรวจ (recalls + LINE reminder); every row opens the **patient file** | `server/clinical.ts` |
+| ห้องตรวจ | a dentist's room: queue, visit lines (treatment · teeth · qty · price), patient file button | `queries.ts` (visit_record) |
+| การเงิน | รับชำระ (bills, split payments, PromptPay QR, deposits, receipts), ปิดยอด, ค่าใช้จ่าย | `server/billing.ts`, `server/stock.ts` |
+| คลัง & แลป | stock + movements, what each treatment uses, lab orders, suppliers & labs | `server/stock.ts` |
+| รายงาน | money, treatments, dentists + printable DF statement, appointments, receivables, voids | `server/reports.ts` |
+| ตั้งค่า | + การเงิน & DF, ผู้ใช้ & สิทธิ์ (accounts, roles, activity log), นำเข้า / ส่งออกข้อมูล (CSV) | `server/users.ts`, `server/dataio.ts` |
+
+- **Patient file** (`PatientFileView`, opened via `PatientFileButton` from
+  patients, room, cashier and the booking dialog — it makes a file from name
+  + phone if none exists): overview & alerts, FDI dental chart for baby and
+  permanent teeth with history (`tooth_state`/`tooth_event`), treatment
+  plans/estimates and instalment contracts (`treatment_plan`/`plan_item`;
+  bills carry `plan_id`), visit and bill history, paperwork
+  (`clinical_doc`: prescription, certificate, referral, consent — printable;
+  `medication` drug list), photos/X-rays (`patient_file`, base64, photos
+  shrunk client-side, ≤3 MB), deposits (`patient_credit`, spent with the
+  "credit" payment method, deposit receipts are `invoice.kind = 'deposit'`).
+- **Stock** moves on a bill becoming paid (sold products via
+  `invoice_item.stock_item_id`, treatment consumables via
+  `treatment_consumable`), reversed on void; once per bill.
+- **Accounts**: the clinic PIN still unlocks the device; each person then
+  signs in with their own PIN (`staff_user`), carried as a signed token
+  (header `X-Staff-User` on desktop, cookie `dk_user` on web). Full-edition
+  actions call `guard(perm)`; important ones write `audit_log`. No accounts =
+  open mode (everyone is owner).
+- Every new table is additive; **run `pnpm db:push` on production before
+  deploying** — the shared bootstrap reads `visit_record.items`.
+
 ### Navigation (redesigned 2026-09-30)
 
 Three rail entries instead of eight (full edition adds คนไข้, ห้องตรวจ and การเงิน);
