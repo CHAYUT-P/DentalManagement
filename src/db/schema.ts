@@ -541,6 +541,8 @@ export const invoice = pgTable(
     voidedAt: timestamp("voided_at", { withTimezone: true }),
     /** when the balance reached zero */
     paidAt: timestamp("paid_at", { withTimezone: true }),
+    /** when the after-visit LINE message (care advice / thanks) went out */
+    careSentAt: timestamp("care_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -685,6 +687,10 @@ export const treatmentPlan = pgTable(
     status: text("status").notNull().default("draft"),
     /** contract only: the agreed price for the whole course */
     agreedTotal: integer("agreed_total"),
+    /** the family's signature accepting the estimate (PNG data URL) */
+    signature: text("signature").notNull().default(""),
+    signedBy: text("signed_by").notNull().default(""),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
     note: text("note").notNull().default(""),
     dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

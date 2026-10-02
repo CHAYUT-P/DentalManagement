@@ -142,7 +142,23 @@ export interface BillingSettings {
   footer: string;
   /** pairs the customer-facing screen (จอลูกค้า) with this clinic */
   displayCode: string;
+  /** after a bill is paid, LINE the family the care advice for what was done */
+  sendAftercare: boolean;
+  /** …and a thank-you with the review link */
+  sendThanks: boolean;
+  /** e.g. the clinic's Google review link */
+  reviewUrl: string;
 }
+
+/** ready-made care advice the clinic can start from (it edits and saves its own) */
+export const AFTERCARE_EXAMPLES: Record<string, string> = {
+  fluoride: "งดกิน ดื่ม และบ้วนน้ำ 30 นาที หลังเคลือบฟลูออไรด์ และงดแปรงฟันจนถึงพรุ่งนี้เช้า",
+  sealant: "รับประทานอาหารได้ตามปกติ หลีกเลี่ยงลูกอมเหนียว ๆ และมาตรวจเคลือบหลุมร่องฟันตามนัด",
+  filling: "ถ้าใช้ยาชา งดกินอาหารจนกว่าอาการชาจะหาย (ประมาณ 1–2 ชม.) ระวังน้องกัดริมฝีปากหรือแก้ม",
+  extraction: "กัดผ้าก๊อซให้แน่น 30–60 นาที วันนี้ห้ามบ้วนน้ำแรง ๆ ห้ามดูดหลอด ทานอาหารอ่อน ไม่ร้อน ถ้าเลือดไม่หยุดโทรหาคลินิก",
+  pulpotomy: "งดกินอาหารจนยาชาหมดฤทธิ์ หลีกเลี่ยงอาหารแข็งด้านที่รักษา 1–2 วัน ถ้าปวดมากหรือบวมโทรหาคลินิก",
+  scaling: "อาจเสียวฟันหรือเหงือกระบม 1–2 วัน แปรงฟันเบา ๆ ด้วยแปรงขนนุ่ม",
+};
 
 /** what the customer-facing screen shows — no phone numbers, no notes */
 export interface DisplayState {
@@ -170,6 +186,9 @@ export const DEFAULT_BILLING_SETTINGS: BillingSettings = {
   paper: "a5",
   footer: "ขอบคุณที่ไว้วางใจ Denta Kids",
   displayCode: "",
+  sendAftercare: false,
+  sendThanks: false,
+  reviewUrl: "",
 };
 
 export type DfMode = "percent" | "fixed";

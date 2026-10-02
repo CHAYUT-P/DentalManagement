@@ -114,6 +114,10 @@ export interface PlanRow {
   /** money on bills linked to this plan (contracts) */
   paid: number;
   createdAt: string;
+  /** the family's signature accepting it (PNG data URL), when signed */
+  signature: string;
+  signedBy: string;
+  signedAt: string | null;
 }
 
 /* ── paperwork and files ───────────────────────────────────────────────── */

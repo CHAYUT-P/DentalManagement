@@ -16,6 +16,7 @@ import {
   staffSaveMedication,
   staffSavePlan,
   staffSetTeeth,
+  staffSignPlan,
   staffTakeDeposit,
   staffUploadFile,
 } from "@/server/actions";
@@ -47,6 +48,7 @@ import { useT } from "@/i18n/lang";
 import { useStaffUser } from "@/lib/staffUser";
 import { ClinicalPrint, type ClinicalPrintTarget } from "./ClinicalPrint";
 import { Odontogram } from "./Odontogram";
+import { SignaturePad } from "./SignaturePad";
 import { PatientForm, formFromRecord, toPatientPayload } from "./PatientForm";
 import {
   IconAlertTriangle,
@@ -444,7 +446,7 @@ function DepositCard({ file, onDone }: { file: PatientFileData; onDone: () => Pr
 
 /* ── plans, estimates, contracts ───────────────────────────────────────── */
 
-function blankPlan(): Omit<PlanRow, "id" | "itemsTotal" | "paid" | "createdAt"> & { id: number | null } {
+function blankPlan(): Omit<PlanRow, "id" | "itemsTotal" | "paid" | "createdAt" | "signature" | "signedBy" | "signedAt"> & { id: number | null } {
   return { id: null, title: "", kind: "plan", status: "draft", agreedTotal: null, note: "", dentistSlug: null, items: [] };
 }
 
@@ -465,6 +467,15 @@ function PlansTab({
   const [draft, setDraft] = useState<ReturnType<typeof blankPlan> | null>(null);
   const [picked, setPicked] = useState<Record<number, number[]>>({});
   const [instalment, setInstalment] = useState<Record<number, string>>({});
+  const [signing, setSigning] = useState<{ plan: PlanRow; png: string; name: string } | null>(null);
+
+  const sign = async () => {
+    if (!signing?.png) return;
+    const ok = await staffSignPlan(signing.plan.id, signing.png, signing.name);
+    showToast(ok ? "บันทึกลายเซ็นแล้ว — แผนนี้ตกลงแล้ว" : "บันทึกลายเซ็นไม่สำเร็จ");
+    setSigning(null);
+    await onChanged();
+  };
 
   const save = async () => {
     if (!draft) return;
@@ -616,6 +627,36 @@ function PlansTab({
 
   return (
     <div className="plans">
+      {signing ? (
+        <div className="modal-overlay" onClick={() => setSigning(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>ยอมรับแผนการรักษา · {signing.plan.title}</h3>
+            </div>
+            <div className="modal-body sign-body">
+              <p>
+                ราคา{signing.plan.kind === "contract" ? "ตกลง" : "ประมาณการ"}{" "}
+                <strong>{baht(signing.plan.kind === "contract" && signing.plan.agreedTotal != null ? signing.plan.agreedTotal : signing.plan.itemsTotal)}</strong>
+                {" · "}
+                {signing.plan.items.filter((i) => i.status !== "cancelled").map((i) => i.name).join(", ")}
+              </p>
+              <label className="sign-name">
+                ชื่อผู้เซ็น
+                <input className="form-control" value={signing.name} onChange={(e) => setSigning({ ...signing, name: e.target.value })} />
+              </label>
+              <SignaturePad onChange={(png) => setSigning((s) => (s ? { ...s, png } : s))} />
+              <div className="settings-save">
+                <button type="button" className="btn-secondary-staff" onClick={() => setSigning(null)}>
+                  ยกเลิก
+                </button>
+                <button type="button" className="btn-primary-staff" disabled={!signing.png || !signing.name.trim()} onClick={() => void sign()}>
+                  ยืนยันลายเซ็น
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="plans-top">
         <button type="button" className="btn-primary-staff" onClick={() => setDraft(blankPlan())}>
           <IconPlus size={14} /> แผน / ใบเสนอราคาใหม่
@@ -636,6 +677,19 @@ function PlansTab({
                 </span>
               </div>
               <div className="plan-actions">
+                {p.signature ? (
+                  <span className="plan-signed" title={p.signedAt ? new Date(p.signedAt).toLocaleString("th-TH") : ""}>
+                    ✓ เซ็นยอมรับแล้ว{p.signedBy ? ` · ${p.signedBy}` : ""}
+                  </span>
+                ) : p.status === "draft" || p.status === "accepted" ? (
+                  <button
+                    type="button"
+                    className="btn-secondary-staff"
+                    onClick={() => setSigning({ plan: p, png: "", name: file.guardian.fullName || file.guardian.name })}
+                  >
+                    ให้ผู้ปกครองเซ็น
+                  </button>
+                ) : null}
                 <button type="button" className="btn-secondary-staff" onClick={() => onPrint(p)}>
                   พิมพ์ใบเสนอราคา
                 </button>
@@ -880,6 +934,20 @@ function DocsTab({
             {field("risks", "ความเสี่ยง / ผลข้างเคียงที่แจ้งแล้ว", { area: true })}
             {field("alternatives", "ทางเลือกอื่น", { area: true })}
             {field("guardianName", "ชื่อผู้ยินยอม", { placeholder: file.guardian.fullName || file.guardian.name })}
+            <div className="form-group">
+              <label>ลายเซ็นผู้ยินยอม (เซ็นบนจอ หรือเว้นไว้เพื่อเซ็นบนกระดาษ)</label>
+              {typeof form.data.signature === "string" && form.data.signature ? (
+                <div className="sig-saved">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={form.data.signature} alt="ลายเซ็น" />
+                  <button type="button" className="btn-secondary-staff" onClick={() => set("signature", "")}>
+                    เซ็นใหม่
+                  </button>
+                </div>
+              ) : (
+                <SignaturePad onChange={(png) => set("signature", png)} />
+              )}
+            </div>
           </>
         ) : null}
 
@@ -952,6 +1020,76 @@ function DocsTab({
 
 /* ── photos, X-rays, scans ─────────────────────────────────────────────── */
 
+/** the PC's camera (webcam / intra-oral USB camera): look, snap, keep */
+function CameraCapture({ onClose, onShot }: { onClose: () => void; onShot: (jpeg: string) => Promise<void> }) {
+  const video = React.useRef<HTMLVideoElement>(null);
+  const [err, setErr] = useState("");
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState("");
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let live = true;
+    navigator.mediaDevices
+      ?.getUserMedia({ video: deviceId ? { deviceId: { exact: deviceId } } : { width: 1600, height: 1200 } })
+      .then(async (s) => {
+        if (!live) return s.getTracks().forEach((t) => t.stop());
+        stream = s;
+        if (video.current) video.current.srcObject = s;
+        const all = await navigator.mediaDevices.enumerateDevices();
+        if (live) setDevices(all.filter((d) => d.kind === "videoinput"));
+      })
+      .catch(() => live && setErr("เปิดกล้องไม่ได้ — ตรวจสอบว่าเสียบกล้องแล้วและอนุญาตให้แอปใช้กล้อง"));
+    return () => {
+      live = false;
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [deviceId]);
+
+  const snap = async () => {
+    const v = video.current;
+    if (!v || !v.videoWidth) return;
+    const scale = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(v.videoWidth * scale);
+    c.height = Math.round(v.videoHeight * scale);
+    c.getContext("2d")?.drawImage(v, 0, 0, c.width, c.height);
+    await onShot(c.toDataURL("image/jpeg", 0.86));
+    setCount((n) => n + 1);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="camera-box" onClick={(e) => e.stopPropagation()}>
+        {err ? <p className="ug-err">{err}</p> : <video ref={video} autoPlay playsInline muted />}
+        <div className="file-view-bar">
+          {devices.length > 1 ? (
+            <select className="form-control" aria-label="กล้อง" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
+              <option value="">กล้องเริ่มต้น</option>
+              {devices.map((d, i) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `กล้อง ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span>{count ? `ถ่ายแล้ว ${count} รูป` : "ถ่ายได้หลายรูปติดกัน"}</span>
+          )}
+          <span className="plan-actions">
+            <button type="button" className="btn-secondary-staff" onClick={onClose}>
+              ปิด
+            </button>
+            <button type="button" className="btn-primary-staff" disabled={!!err} onClick={() => void snap()}>
+              ถ่ายรูป
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** shrink a photo to at most 1600 px on its long side, as JPEG */
 async function shrink(file: File): Promise<{ body: string; mime: string }> {
   const asDataUrl = (blob: Blob) =>
@@ -983,6 +1121,7 @@ function FilesTab({ file, onChanged }: { file: PatientFileData; onChanged: () =>
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<{ meta: FileMeta; src: string } | null>(null);
   const [thumbs, setThumbs] = useState<Record<number, string>>({});
+  const [camera, setCamera] = useState(false);
 
   // fetch images for the grid, a few at a time
   useEffect(() => {
@@ -1030,6 +1169,9 @@ function FilesTab({ file, onChanged }: { file: PatientFileData; onChanged: () =>
           <option value="xray">ฟิล์ม X-ray</option>
           <option value="document">เอกสารสแกน (PDF/รูป)</option>
         </select>
+        <button type="button" className="btn-secondary-staff" onClick={() => setCamera(true)}>
+          ถ่ายรูปด้วยกล้อง
+        </button>
         <label className={`btn-primary-staff ${busy ? "disabled" : ""}`}>
           <IconPlus size={14} /> {busy ? "กำลังอัปโหลด…" : "เพิ่มไฟล์"}
           <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden disabled={busy} onChange={(e) => void upload(e.target.files)} />
@@ -1066,6 +1208,16 @@ function FilesTab({ file, onChanged }: { file: PatientFileData; onChanged: () =>
           </figure>
         ))}
       </div>
+      {camera ? (
+        <CameraCapture
+          onClose={() => setCamera(false)}
+          onShot={async (dataUrl) => {
+            const r = await staffUploadFile({ childId: file.childId, kind, name: `กล้อง ${new Date().toLocaleString("th-TH")}`, mime: "image/jpeg", body: dataUrl });
+            showToast(r.ok ? "บันทึกรูปแล้ว" : "บันทึกรูปไม่สำเร็จ");
+            await onChanged();
+          }}
+        />
+      ) : null}
       {view ? (
         <div className="modal-overlay" onClick={() => setView(null)}>
           <div className="file-view" onClick={(e) => e.stopPropagation()}>

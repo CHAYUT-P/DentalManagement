@@ -130,6 +130,9 @@ export async function saveBillingSettings(input: Partial<BillingSettings>): Prom
     paper: input.paper === "slip" ? "slip" : input.paper === "a5" ? "a5" : cur.paper,
     footer: String(input.footer ?? cur.footer).slice(0, 200),
     displayCode: cur.displayCode,
+    sendAftercare: input.sendAftercare ?? cur.sendAftercare,
+    sendThanks: input.sendThanks ?? cur.sendThanks,
+    reviewUrl: /^https?:\/\/\S+$/.test(String(input.reviewUrl ?? cur.reviewUrl)) ? String(input.reviewUrl ?? cur.reviewUrl).slice(0, 300) : "",
   };
   await db
     .insert(clinicSetting)
@@ -484,11 +487,76 @@ async function settleStatus(id: number): Promise<void> {
       updatedAt: new Date(),
     })
     .where(eq(invoice.id, id));
-  // settled: what was sold and what the treatments used leave the shelf
+  // settled: what was sold and what the treatments used leave the shelf,
+  // and the family gets the care advice / thanks on LINE (never blocks the sale)
   if (status === "paid") {
     const { applyStockForBill } = await import("@/server/stock");
     await applyStockForBill(id);
+    await sendAfterVisit(id).catch(() => {});
   }
+}
+
+/* ── after-visit LINE message ──────────────────────────────────────────── */
+
+export async function getAftercareNotes(): Promise<Record<string, string>> {
+  const rows = await db.select().from(clinicSetting).where(eq(clinicSetting.key, "aftercare"));
+  try {
+    return rows[0] ? (JSON.parse(rows[0].value) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function saveAftercareNote(treatmentKey: string, text: string): Promise<void> {
+  const notes = await getAftercareNotes();
+  const t = text.trim().slice(0, 600);
+  if (t) notes[treatmentKey] = t;
+  else delete notes[treatmentKey];
+  const value = JSON.stringify(notes);
+  await db
+    .insert(clinicSetting)
+    .values({ key: "aftercare", value })
+    .onConflictDoUpdate({ target: clinicSetting.key, set: { value, updatedAt: new Date() } });
+}
+
+/**
+ * Once a bill is paid: care advice for each treatment on it (as the clinic
+ * wrote it) and/or a thank-you with the review link — to the LINE account
+ * the family booked with. Sent once per bill; nothing without LINE.
+ */
+async function sendAfterVisit(id: number): Promise<void> {
+  const s = await getBillingSettings();
+  if (!s.sendAftercare && !s.sendThanks) return;
+  const head = (await db.select().from(invoice).where(eq(invoice.id, id)))[0];
+  if (!head || head.careSentAt || head.kind === "deposit") return;
+  const { lineTargetForAppointment } = await import("@/server/queries");
+  const clinical = await import("@/server/clinical");
+  const to = head.appointmentId
+    ? await lineTargetForAppointment(head.appointmentId)
+    : head.childId
+      ? await clinical.lineTargetForChild(head.childId)
+      : null;
+  if (!to) return;
+
+  const bill = await getBill(id);
+  const notes = s.sendAftercare ? await getAftercareNotes() : {};
+  const keys = [...new Set((bill?.items ?? []).map((i) => i.treatmentKey).filter((k): k is string => !!k))];
+  const advice = keys
+    .filter((k) => notes[k])
+    .map((k) => `• ${bill?.items.find((i) => i.treatmentKey === k)?.name ?? k}: ${notes[k]}`);
+  const parts = [
+    `${s.clinicName} ขอบคุณ${head.patientName ? `ที่พา${head.patientName}` : ""}มารับบริการวันนี้ค่ะ`,
+    advice.length ? `คำแนะนำหลังการรักษา\n${advice.join("\n")}` : "",
+    s.sendThanks && s.reviewUrl ? `ถ้าประทับใจ ช่วยรีวิวให้เราหน่อยนะคะ 🙏\n${s.reviewUrl}` : "",
+  ].filter(Boolean);
+  // a bare thank-you is only sent when thanks are switched on
+  if (!advice.length && !(s.sendThanks && s.reviewUrl)) return;
+
+  const { pushLineText } = await import("@/server/line");
+  if (!(await pushLineText(to, parts.join("\n\n")).catch(() => false))) return;
+  await db.update(invoice).set({ careSentAt: new Date() }).where(eq(invoice.id, id));
+  const { messageLog } = await import("@/db/schema");
+  await db.insert(messageLog).values({ appointmentId: head.appointmentId, kind: "aftercare" });
 }
 
 /** the next receipt number for this month: RC + พ.ศ. year + month + running */

@@ -401,6 +401,10 @@ export function staffSavePlan(input: {
   return call<number>("savePlan", [input]);
 }
 
+export function staffSignPlan(id: number, signature: string, signedBy: string) {
+  return call<boolean>("signPlan", [id, signature, signedBy]);
+}
+
 export function staffRemovePlan(id: number) {
   return call<void>("removePlan", [id]);
 }
@@ -508,6 +512,14 @@ export function staffSaveBillingSettings(input: Partial<BillingSettings>) {
 
 export function staffSaveDfRule(input: { dentistSlug: string | null; treatmentKey: string | null; mode: DfMode; value: number }) {
   return call<void>("saveDfRule", [input]);
+}
+
+export function staffAftercareNotes() {
+  return call<Record<string, string>>("aftercareNotes", []);
+}
+
+export function staffSaveAftercareNote(treatmentKey: string, text: string) {
+  return call<void>("saveAftercareNote", [treatmentKey, text]);
 }
 
 export function staffRemoveDfRule(id: number) {

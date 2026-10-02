@@ -2,8 +2,15 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 
-import { staffBillingSettings, staffRemoveDfRule, staffSaveBillingSettings, staffSaveDfRule } from "@/server/actions";
-import { DEFAULT_BILLING_SETTINGS, type BillingSettings, type DfMode, type DfRule } from "@/lib/billing";
+import {
+  staffAftercareNotes,
+  staffBillingSettings,
+  staffRemoveDfRule,
+  staffSaveAftercareNote,
+  staffSaveBillingSettings,
+  staffSaveDfRule,
+} from "@/server/actions";
+import { AFTERCARE_EXAMPLES, DEFAULT_BILLING_SETTINGS, type BillingSettings, type DfMode, type DfRule } from "@/lib/billing";
 import { useStaff } from "@/lib/staffStore";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { LinkQR, PromptPayQR } from "./ReceiptSheet";
@@ -21,6 +28,8 @@ export function BillingSettingsPanel({ patientWebUrl = "/" }: { patientWebUrl?: 
   const [form, setForm] = useState<BillingSettings>(DEFAULT_BILLING_SETTINGS);
   const [saved, setSaved] = useState<BillingSettings>(DEFAULT_BILLING_SETTINGS);
   const [rules, setRules] = useState<DfRule[]>([]);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [noteEdit, setNoteEdit] = useState<{ key: string; text: string } | null>(null);
   const [draft, setDraft] = useState<{ dentistSlug: string; treatmentKey: string; mode: DfMode; value: string }>({
     dentistSlug: "",
     treatmentKey: "",
@@ -45,6 +54,9 @@ export function BillingSettingsPanel({ patientWebUrl = "/" }: { patientWebUrl?: 
         setRules(r.dfRules);
       })
       .catch(() => showToast("โหลดการตั้งค่าการเงินไม่สำเร็จ"));
+    staffAftercareNotes()
+      .then((n) => live && setNotes(n))
+      .catch(() => {});
     return () => {
       live = false;
     };
@@ -168,6 +180,73 @@ export function BillingSettingsPanel({ patientWebUrl = "/" }: { patientWebUrl?: 
             <span>{dirty ? "บันทึก" : "บันทึกแล้ว"}</span>
           </button>
         </div>
+      </section>
+
+      <section className="settings-card">
+        <h3>ข้อความ LINE หลังรับบริการ</h3>
+        <p className="settings-help">
+          เมื่อบิลชำระครบ ระบบส่งข้อความถึงบัญชี LINE ที่ผู้ปกครองใช้จอง (ครั้งเดียวต่อบิล) — ครอบครัวที่ไม่ได้จองผ่าน LINE จะไม่ได้รับ
+        </p>
+        <label className="lc-check">
+          <input type="checkbox" checked={form.sendAftercare} onChange={(e) => set({ sendAftercare: e.target.checked })} />
+          <span>ส่งคำแนะนำหลังการรักษา ตามหัตถการที่ทำ</span>
+        </label>
+        <label className="lc-check">
+          <input type="checkbox" checked={form.sendThanks} onChange={(e) => set({ sendThanks: e.target.checked })} />
+          <span>ขอบคุณ และขอรีวิว</span>
+        </label>
+        {form.sendThanks ? (
+          <div className="form-group">
+            <label htmlFor="bs-review">ลิงก์รีวิว (เช่น Google Maps)</label>
+            <input id="bs-review" className="form-control" placeholder="https://g.page/r/…" value={form.reviewUrl} onChange={(e) => set({ reviewUrl: e.target.value })} />
+          </div>
+        ) : null}
+        <div className="settings-save">
+          <button type="button" className="btn-primary-staff" disabled={!dirty} onClick={() => void saveForm()}>
+            <IconCheck size={15} />
+            <span>{dirty ? "บันทึก" : "บันทึกแล้ว"}</span>
+          </button>
+        </div>
+        <h4 className="care-head">คำแนะนำหลังการรักษา แต่ละหัตถการ</h4>
+        {catalog.map((t) => (
+          <div key={t.key} className="care-row">
+            <strong>{t.name.th}</strong>
+            {noteEdit?.key === t.key ? (
+              <div className="care-edit">
+                <textarea className="form-control" rows={3} value={noteEdit.text} onChange={(e) => setNoteEdit({ ...noteEdit, text: e.target.value })} />
+                <div className="plan-actions">
+                  {AFTERCARE_EXAMPLES[t.key] && !noteEdit.text ? (
+                    <button type="button" className="btn-secondary-staff" onClick={() => setNoteEdit({ ...noteEdit, text: AFTERCARE_EXAMPLES[t.key] })}>
+                      ใช้ข้อความตัวอย่าง
+                    </button>
+                  ) : null}
+                  <button type="button" className="btn-secondary-staff" onClick={() => setNoteEdit(null)}>
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary-staff"
+                    onClick={async () => {
+                      await staffSaveAftercareNote(t.key, noteEdit.text);
+                      setNotes(await staffAftercareNotes());
+                      setNoteEdit(null);
+                      showToast("บันทึกคำแนะนำแล้ว");
+                    }}
+                  >
+                    บันทึก
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <span className="muted">{notes[t.key] || "— ไม่ส่งคำแนะนำ —"}</span>
+                <button type="button" className="btn-secondary-staff" onClick={() => setNoteEdit({ key: t.key, text: notes[t.key] ?? "" })}>
+                  แก้ไข
+                </button>
+              </>
+            )}
+          </div>
+        ))}
       </section>
 
       <section className="settings-card">

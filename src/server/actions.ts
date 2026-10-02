@@ -761,6 +761,14 @@ export async function staffSavePlan(input: Parameters<Clinical["savePlan"]>[0]) 
   return savePlan(input);
 }
 
+export async function staffSignPlan(id: number, signature: string, signedBy: string) {
+  await guard("patients");
+  const { signPlan } = await import("@/server/clinical");
+  const ok = await signPlan(id, signature, signedBy);
+  if (ok) await logAction("เซ็นยอมรับแผนการรักษา", `แผน #${id} · ${signedBy}`);
+  return ok;
+}
+
 export async function staffRemovePlan(id: number) {
   await guard("chart");
   const { removePlan } = await import("@/server/clinical");
@@ -1099,6 +1107,18 @@ export async function staffSaveBillingSettings(input: Parameters<typeof import("
   const { saveBillingSettings } = await import("@/server/billing");
   await saveBillingSettings(input);
   await logAction("แก้ตั้งค่าใบเสร็จ");
+}
+
+export async function staffAftercareNotes() {
+  await guard("finance_settings");
+  const { getAftercareNotes } = await import("@/server/billing");
+  return getAftercareNotes();
+}
+
+export async function staffSaveAftercareNote(treatmentKey: string, text: string) {
+  await guard("finance_settings");
+  const { saveAftercareNote } = await import("@/server/billing");
+  await saveAftercareNote(treatmentKey, text);
 }
 
 export async function staffSaveDfRule(input: Parameters<typeof import("@/server/billing").saveDfRule>[0]) {

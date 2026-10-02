@@ -90,9 +90,11 @@ export function ClinicalPrint({
         <div className="ps-two-sign">
           {sign(p.dentistSlug)}
           <div className="ps-signature">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {p.signature ? <img className="ps-sig-img" src={p.signature} alt="" /> : null}
             <span>ลงชื่อ ............................................</span>
-            <span>({patient.guardian.fullName || patient.guardian.name || "..........................................."})</span>
-            <span>ผู้ปกครอง / ผู้รับการรักษา</span>
+            <span>({p.signedBy || patient.guardian.fullName || patient.guardian.name || "..........................................."})</span>
+            <span>ผู้ปกครอง / ผู้รับการรักษา{p.signedAt ? ` · ${day(p.signedAt.slice(0, 10))}` : ""}</span>
           </div>
         </div>
       </>
@@ -194,7 +196,10 @@ export function ClinicalPrint({
           <p>ข้าพเจ้าเข้าใจและยินยอมให้ทำการรักษาดังกล่าว</p>
           <div className="ps-two-sign">
             <div className="ps-signature">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {s(data.signature) ? <img className="ps-sig-img" src={s(data.signature)} alt="" /> : null}
               <span>ลงชื่อ ............................................</span>
+              <span>({s(data.guardianName) || patient.guardian.fullName || patient.guardian.name || "..........................................."})</span>
               <span>ผู้ปกครอง / ผู้ยินยอม</span>
             </div>
             {sign(d.dentistSlug, "ทันตแพทย์ผู้ให้ข้อมูล")}

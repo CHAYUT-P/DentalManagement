@@ -331,6 +331,9 @@ export async function listPlans(childId: number): Promise<PlanRow[]> {
       itemsTotal: lines.filter((l) => l.status !== "cancelled").reduce((s, l) => s + lineNet(l), 0),
       paid: paidRows.filter((r) => r.planId === p.id).reduce((s, r) => s + r.amount, 0),
       createdAt: p.createdAt.toISOString(),
+      signature: p.signature,
+      signedBy: p.signedBy,
+      signedAt: p.signedAt ? p.signedAt.toISOString() : null,
     };
   });
 }
@@ -378,6 +381,16 @@ export async function savePlan(input: {
   }));
   if (lines.length) await db.insert(planItem).values(lines);
   return id!;
+}
+
+/** the family signs the estimate on screen — it becomes accepted */
+export async function signPlan(id: number, signature: string, signedBy: string): Promise<boolean> {
+  if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signature) || signature.length > 400_000) return false;
+  await db
+    .update(treatmentPlan)
+    .set({ signature, signedBy: signedBy.trim().slice(0, 80), signedAt: new Date(), status: "accepted", updatedAt: new Date() })
+    .where(and(eq(treatmentPlan.id, id), inArray(treatmentPlan.status, ["draft", "accepted"])));
+  return true;
 }
 
 export async function removePlan(id: number): Promise<void> {
@@ -503,8 +516,11 @@ export async function saveDoc(input: {
     kind: ["prescription", "certificate", "referral", "consent"].includes(input.kind) ? input.kind : "certificate",
     date: /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : todayISO(),
     dentistId: input.dentistSlug ? (toId.get(input.dentistSlug) ?? null) : null,
-    // the form's own fields — kept small
-    data: JSON.parse(JSON.stringify(input.data ?? {}).slice(0, 20000)),
+    // the form's own fields (a signature image makes it larger)
+    data: (() => {
+      const json = JSON.stringify(input.data ?? {});
+      return json.length <= 400_000 ? JSON.parse(json) : {};
+    })(),
   };
   if (input.id) {
     await db.update(clinicalDoc).set(values).where(eq(clinicalDoc.id, input.id));
