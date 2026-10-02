@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useTreatments } from "@/lib/treatmentsContext";
-import { useStaffUser } from "@/lib/staffUser";
+import { ClockButton, useStaffUser } from "@/lib/staffUser";
 import { initial } from "@/lib/roles";
 import { useStaff, type StaffAppointment } from "@/lib/staffStore";
 import { BookingModal } from "./BookingModal";
@@ -129,6 +129,7 @@ export function StaffTopbar() {
             <IconPlus size={17} />
             <span>นัดใหม่</span>
           </button>
+          <ClockButton />
           {user && accounts ? (
             <button type="button" className="staff-user-chip" title="ล็อกเครื่อง / สลับผู้ใช้" onClick={() => void signOut()}>
               <span className="ug-avatar small">{initial(user.name)}</span>

@@ -5,11 +5,12 @@
 
 import crypto from "node:crypto";
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { auditLog, dentist, staffUser } from "@/db/schema";
-import { can, type AuditRow, type Perm, type Role, type StaffUserInfo, type WhoAmI } from "@/lib/roles";
+import { auditLog, dentist, staffUser, timeClock } from "@/db/schema";
+import { todayISO } from "@/lib/dates";
+import { can, type AuditRow, type ClockRow, type Perm, type Role, type StaffUserInfo, type WhoAmI } from "@/lib/roles";
 import { currentUserToken, readUserToken, setUserCookie, signUserToken } from "@/server/staffAuth";
 
 const ROLES: Role[] = ["owner", "frontdesk", "dentist", "assistant"];
@@ -134,4 +135,45 @@ export async function audit(action: string, detail = "", who?: Pick<StaffUserInf
 export async function listAudit(limit = 300): Promise<AuditRow[]> {
   const r = await db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(Math.min(1000, limit));
   return r.map((x) => ({ id: x.id, at: x.createdAt.toISOString(), userName: x.userName, action: x.action, detail: x.detail }));
+}
+
+/* ── time clock ────────────────────────────────────────────────────────── */
+
+/**
+ * Clock in, or out if already in — checked with the person's own PIN, so a
+ * shared PC can't clock someone else.
+ */
+export async function punch(userId: number, pin: string): Promise<{ ok: boolean; action?: "in" | "out"; at?: string; name?: string }> {
+  const hit = (await rows()).find((r) => r.info.id === userId && r.info.isActive);
+  if (!hit) return { ok: false };
+  const want = Buffer.from(hit.raw.pinHash);
+  const got = Buffer.from(hash(hit.raw.salt, String(pin ?? "")));
+  if (want.length !== got.length || !crypto.timingSafeEqual(want, got)) return { ok: false };
+  const open = (await db.select().from(timeClock).where(and(eq(timeClock.userId, userId), isNull(timeClock.outAt))).orderBy(desc(timeClock.inAt)))[0];
+  const now = new Date();
+  if (open) {
+    await db.update(timeClock).set({ outAt: now }).where(eq(timeClock.id, open.id));
+    await audit("ลงเวลาออกงาน", "", hit.info);
+    return { ok: true, action: "out", at: now.toISOString(), name: hit.info.name };
+  }
+  await db.insert(timeClock).values({ userId, date: todayISO(now), inAt: now });
+  await audit("ลงเวลาเข้างาน", "", hit.info);
+  return { ok: true, action: "in", at: now.toISOString(), name: hit.info.name };
+}
+
+export async function listClock(from: string, to: string): Promise<ClockRow[]> {
+  const [entries, users] = await Promise.all([
+    db.select().from(timeClock).where(and(gte(timeClock.date, from), lte(timeClock.date, to))).orderBy(desc(timeClock.inAt)),
+    rows(),
+  ]);
+  const now = Date.now();
+  return entries.map((e) => ({
+    id: e.id,
+    userId: e.userId,
+    userName: users.find((u) => u.info.id === e.userId)?.info.name ?? "?",
+    date: e.date,
+    inAt: e.inAt.toISOString(),
+    outAt: e.outAt ? e.outAt.toISOString() : null,
+    minutes: Math.max(0, Math.round(((e.outAt ? e.outAt.getTime() : now) - e.inAt.getTime()) / 60000)),
+  }));
 }

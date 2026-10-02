@@ -156,6 +156,17 @@ role (`src/lib/roles.ts`):
   (header `X-Staff-User` on desktop, cookie `dk_user` on web). Full-edition
   actions call `guard(perm)`; important ones write `audit_log`. No accounts =
   open mode (everyone is owner).
+- FD parity extras: **จอลูกค้า** (`/display?c=<code>`, polls `/api/display`;
+  the cashier's switch pushes the open bill), on-screen **signatures**
+  (`SignaturePad`; plans store `signature`/`signed_by`/`signed_at`, consent
+  forms keep it in `clinical_doc.data`), **camera** capture into patient
+  files, **after-visit LINE** care advice / thanks + review link once per
+  paid bill (`invoice.care_sent_at`; advice per treatment in clinic_setting
+  `aftercare`), **ลงเวลาทำงาน** (`time_clock`, punch with own PIN; monthly
+  hours in ผู้ใช้ & สิทธิ์).
+- The dental chart draws real teeth — side view + five-surface top view —
+  with shape data from DentalPin (`src/lib/toothShapes.ts`, BSL 1.1 notice
+  kept; production use allowed except as a commercial clinic-management SaaS).
 - Every new table is additive; **run `pnpm db:push` on production before
   deploying** — the shared bootstrap reads `visit_record.items`.
 

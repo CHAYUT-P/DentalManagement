@@ -76,6 +76,8 @@ const OPS: Record<string, (...args: never[]) => Promise<unknown>> = {
   users: actions.staffUsers,
   saveUser: actions.staffSaveUser,
   audit: actions.staffAudit,
+  punch: actions.staffPunch,
+  clock: actions.staffClock,
   report: actions.staffReport,
   dfStatement: actions.staffDfStatement,
   cashierDay: actions.staffCashierDay,

@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { staffSignIn, staffSignOut, staffWhoAmI } from "@/server/actions";
+import { staffPunch, staffSignIn, staffSignOut, staffWhoAmI } from "@/server/actions";
 import { ROLE_LABEL, can as roleCan, initial, type Perm, type StaffUserInfo, type WhoAmI } from "@/lib/roles";
 import { useStaff } from "@/lib/staffStore";
 
@@ -77,6 +77,19 @@ function SignInScreen({ who, onDone }: { who: WhoAmI; onDone: () => Promise<void
   const [pin, setPin] = useState("");
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [punched, setPunched] = useState("");
+
+  const punch = async () => {
+    if (!picked || !pin) return;
+    setBusy(true);
+    const r = await staffPunch(picked.id, pin).catch(() => ({ ok: false }) as { ok: boolean; action?: string; at?: string });
+    setBusy(false);
+    setPin("");
+    if (!r.ok) return setErr(true);
+    const t = r.at ? new Date(r.at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
+    setPunched(`${picked.name} ${r.action === "in" ? "ลงเวลาเข้างาน" : "ลงเวลาออกงาน"} ${t} น.`);
+    setPicked(null);
+  };
 
   const go = async () => {
     if (!picked || !pin) return;
@@ -96,6 +109,7 @@ function SignInScreen({ who, onDone }: { who: WhoAmI; onDone: () => Promise<void
     <div className="user-gate">
       <div className="user-gate-card">
         <h1>ใครกำลังใช้งาน?</h1>
+        {punched ? <p className="ok-note">{punched}</p> : null}
         {!picked ? (
           <div className="user-gate-list">
             {who.users.map((u) => (
@@ -137,9 +151,14 @@ function SignInScreen({ who, onDone }: { who: WhoAmI; onDone: () => Promise<void
               <button type="button" className="btn-secondary-staff" onClick={() => setPicked(null)}>
                 เปลี่ยนคน
               </button>
-              <button type="submit" className="btn-primary-staff" disabled={busy || pin.length < 4}>
-                เข้าใช้งาน
-              </button>
+              <span className="plan-actions">
+                <button type="button" className="btn-secondary-staff" disabled={busy || pin.length < 4} onClick={() => void punch()}>
+                  ลงเวลาเข้า/ออกงาน
+                </button>
+                <button type="submit" className="btn-primary-staff" disabled={busy || pin.length < 4}>
+                  เข้าใช้งาน
+                </button>
+              </span>
             </div>
           </form>
         )}
@@ -156,5 +175,94 @@ export function NoAccess({ what }: { what: string }) {
         บัญชีนี้ไม่มีสิทธิ์เปิด{what} — ติดต่อเจ้าของคลินิก
       </div>
     </div>
+  );
+}
+
+/** ลงเวลาเข้า/ออกงาน from the top bar — anyone, with their own PIN */
+export function ClockButton() {
+  const { accounts } = useStaffUser();
+  const [open, setOpen] = useState(false);
+  const [users, setUsers] = useState<StaffUserInfo[]>([]);
+  const [picked, setPicked] = useState<StaffUserInfo | null>(null);
+  const [pin, setPin] = useState("");
+  const [msg, setMsg] = useState("");
+  if (!accounts) return null;
+
+  const show = async () => {
+    setOpen(true);
+    setPicked(null);
+    setMsg("");
+    setUsers((await staffWhoAmI()).users);
+  };
+  const punch = async () => {
+    if (!picked) return;
+    const r = await staffPunch(picked.id, pin).catch(() => ({ ok: false }) as { ok: boolean; action?: string; at?: string });
+    setPin("");
+    if (!r.ok) return setMsg("รหัสไม่ถูกต้อง");
+    const t = r.at ? new Date(r.at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
+    setMsg(`${picked.name} ${r.action === "in" ? "ลงเวลาเข้างาน" : "ลงเวลาออกงาน"} ${t} น. แล้ว`);
+    setPicked(null);
+  };
+
+  return (
+    <>
+      <button type="button" className="btn-secondary-staff btn-lg" onClick={() => void show()}>
+        ลงเวลา
+      </button>
+      {open ? (
+        <div className="modal-overlay" onClick={() => setOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>ลงเวลาเข้า / ออกงาน</h3>
+            </div>
+            <div className="modal-body sign-body">
+              {msg ? <p className={msg.includes("ไม่ถูกต้อง") ? "ug-err" : "ok-note"}>{msg}</p> : null}
+              {!picked ? (
+                <div className="user-gate-list">
+                  {users.map((u) => (
+                    <button key={u.id} type="button" className="user-gate-who" onClick={() => setPicked(u)}>
+                      <span className="ug-avatar">{initial(u.name)}</span>
+                      <span>
+                        <strong>{u.name}</strong>
+                        <em>{ROLE_LABEL[u.role]}</em>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <form
+                  className="user-gate-pin"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void punch();
+                  }}
+                >
+                  <p>
+                    <strong>{picked.name}</strong> — ใส่รหัส PIN
+                  </p>
+                  <input
+                    className="form-control"
+                    type="password"
+                    inputMode="numeric"
+                    autoFocus
+                    aria-label="รหัส PIN"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  />
+                  <div className="ug-actions">
+                    <button type="button" className="btn-secondary-staff" onClick={() => setPicked(null)}>
+                      เปลี่ยนคน
+                    </button>
+                    <button type="submit" className="btn-primary-staff" disabled={pin.length < 4}>
+                      ลงเวลา
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

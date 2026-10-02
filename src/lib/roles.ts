@@ -65,6 +65,17 @@ export interface WhoAmI {
   users: StaffUserInfo[];
 }
 
+export interface ClockRow {
+  id: number;
+  userId: number;
+  userName: string;
+  date: string;
+  inAt: string;
+  outAt: string | null;
+  /** worked minutes (to now, if still clocked in) */
+  minutes: number;
+}
+
 export interface AuditRow {
   id: number;
   at: string;

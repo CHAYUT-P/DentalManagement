@@ -2,7 +2,7 @@ import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type { DfStatement, ReportData } from "@/server/reports";
-import type { AuditRow, Role, StaffUserInfo, WhoAmI } from "@/lib/roles";
+import type { AuditRow, ClockRow, Role, StaffUserInfo, WhoAmI } from "@/lib/roles";
 import type { ImportField } from "@/lib/dataio";
 import type { Consumable, Expense, LabOrder, MoveKind, StockItem, StockMove, Supplier } from "@/lib/stock";
 import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, DisplayState, PayMethod } from "@/lib/billing";
@@ -288,6 +288,14 @@ export function staffUsers() {
 
 export function staffSaveUser(input: { id?: number | null; name: string; role: Role; pin?: string; dentistSlug?: string | null; isActive?: boolean }) {
   return call<{ ok: boolean; error?: string }>("saveUser", [input]);
+}
+
+export function staffPunch(userId: number, pin: string) {
+  return call<{ ok: boolean; action?: "in" | "out"; at?: string; name?: string }>("punch", [userId, pin]);
+}
+
+export function staffClock(from: string, to: string) {
+  return call<ClockRow[]>("clock", [from, to]);
 }
 
 export function staffAudit() {

@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 
-import { staffAudit, staffSaveUser, staffUsers } from "@/server/actions";
-import { PERM_LABEL, ROLE_LABEL, ROLE_PERMS, type AuditRow, type Perm, type Role, type StaffUserInfo } from "@/lib/roles";
+import { staffAudit, staffClock, staffSaveUser, staffUsers } from "@/server/actions";
+import { PERM_LABEL, ROLE_LABEL, ROLE_PERMS, type AuditRow, type ClockRow, type Perm, type Role, type StaffUserInfo } from "@/lib/roles";
 import { useStaff } from "@/lib/staffStore";
 import { useStaffUser } from "@/lib/staffUser";
 import { IconPlus } from "./staffIcons";
@@ -25,6 +25,19 @@ export function UsersPanel() {
   const { accounts, refresh } = useStaffUser();
   const [users, setUsers] = useState<StaffUserInfo[]>([]);
   const [log, setLog] = useState<AuditRow[]>([]);
+  const { today } = useStaff();
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [clock, setClock] = useState<ClockRow[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    staffClock(`${month}-01`, `${month}-31`)
+      .then((c) => live && setClock(c))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [month]);
   const [edit, setEdit] = useState<{ id?: number; name: string; role: Role; pin: string; dentistSlug: string; isActive: boolean } | null>(null);
   const [err, setErr] = useState("");
 
@@ -193,6 +206,47 @@ export function UsersPanel() {
             </React.Fragment>
           ))}
         </div>
+      </section>
+
+      <section className="settings-card">
+        <h3>ลงเวลาทำงาน</h3>
+        <div className="export-row">
+          <span>เดือน</span>
+          <input className="form-control" type="month" aria-label="เดือน" value={month} onChange={(e) => setMonth(e.target.value)} />
+        </div>
+        {clock.length === 0 ? <p className="cl-empty">ยังไม่มีการลงเวลาในเดือนนี้ (กด “ลงเวลา” ที่แถบด้านบน)</p> : null}
+        {Object.values(
+          clock.reduce<Record<number, { name: string; days: Set<string>; minutes: number; open: boolean }>>((m, c) => {
+            const r = (m[c.userId] ??= { name: c.userName, days: new Set(), minutes: 0, open: false });
+            r.days.add(c.date);
+            r.minutes += c.minutes;
+            r.open ||= !c.outAt;
+            return m;
+          }, {}),
+        ).map((r) => (
+          <div key={r.name} className="sup-row">
+            <strong>{r.name}</strong>
+            <span>{r.days.size} วัน</span>
+            <span>
+              {Math.floor(r.minutes / 60)} ชม. {r.minutes % 60} นาที
+            </span>
+            <span className="muted">{r.open ? "กำลังทำงาน" : ""}</span>
+            <span />
+          </div>
+        ))}
+        {clock.slice(0, 40).map((c) => (
+          <div key={c.id} className="oh-row audit-row">
+            <span className="oh-date">{c.date}</span>
+            <strong>{c.userName}</strong>
+            <span>
+              {new Date(c.inAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} –{" "}
+              {c.outAt ? new Date(c.outAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "ยังไม่ออก"}
+            </span>
+            <span className="muted">
+              {Math.floor(c.minutes / 60)}:{String(c.minutes % 60).padStart(2, "0")} ชม.
+            </span>
+          </div>
+        ))}
       </section>
 
       <section className="settings-card">

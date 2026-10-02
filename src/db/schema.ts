@@ -968,3 +968,19 @@ export const auditLog = pgTable(
   },
   (t) => [index("audit_log_at_idx").on(t.createdAt)],
 );
+
+/** ลงเวลาทำงาน — each person clocks in and out with their own PIN */
+export const timeClock = pgTable(
+  "time_clock",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => staffUser.id, { onDelete: "cascade" }),
+    /** YYYY-MM-DD the shift started, clinic clock */
+    date: text("date").notNull(),
+    inAt: timestamp("in_at", { withTimezone: true }).notNull().defaultNow(),
+    outAt: timestamp("out_at", { withTimezone: true }),
+  },
+  (t) => [index("time_clock_user_idx").on(t.userId), index("time_clock_date_idx").on(t.date)],
+);

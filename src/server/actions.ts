@@ -989,6 +989,20 @@ export async function staffSaveUser(input: Parameters<typeof import("@/server/us
   return r;
 }
 
+/** clock in/out — anyone at the PC, proven by their own PIN */
+export async function staffPunch(userId: number, pin: string) {
+  await guard();
+  if (await limited("punch", 20, 600)) return { ok: false };
+  const { punch } = await import("@/server/users");
+  return punch(userId, pin);
+}
+
+export async function staffClock(from: string, to: string) {
+  await guard("users");
+  const { listClock } = await import("@/server/users");
+  return listClock(from, to);
+}
+
 export async function staffAudit() {
   await guard("users");
   const { listAudit } = await import("@/server/users");
