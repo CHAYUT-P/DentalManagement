@@ -12,7 +12,12 @@ import {
   staffOpenBlankBill,
   staffSaveBill,
   staffVoidBill,
+  staffExpenses,
+  staffRemoveExpense,
+  staffSaveExpense,
+  staffStock,
 } from "@/server/actions";
+import { EXPENSE_CATEGORIES, type Expense, type StockItem } from "@/lib/stock";
 import {
   DEFAULT_BILLING_SETTINGS,
   PAY_METHODS,
@@ -52,7 +57,7 @@ type PrintTarget = { kind: "receipt"; bill: Bill } | { kind: "close"; close: Day
 const fetchDay = (date: string) => Promise.all([staffCashierDay(date), staffDayClose(date)]);
 
 /** the fields a cashier edits — what "unsaved changes" compares */
-const editable = (i: BillItem) => [i.treatmentKey, i.name, i.teeth, i.qty, i.unitPrice, i.discount, i.labCost, i.dentistSlug];
+const editable = (i: BillItem) => [i.treatmentKey, i.stockItemId ?? null, i.name, i.teeth, i.qty, i.unitPrice, i.discount, i.labCost, i.dentistSlug];
 
 /**
  * การเงิน (full edition) — the counter's money screen. รับชำระ lists who is
@@ -63,7 +68,8 @@ const editable = (i: BillItem) => [i.treatmentKey, i.name, i.teeth, i.qty, i.uni
 export function CashierView() {
   const { edition, today, dentists, showToast } = useStaff();
   const dict = useT();
-  const [tab, setTab] = useState<"pay" | "close">("pay");
+  const [tab, setTab] = useState<"pay" | "close" | "expenses">("pay");
+  const [shelf, setShelf] = useState<StockItem[]>([]);
   const [date, setDate] = useState(today);
   const [day, setDay] = useState<CashierDay | null>(null);
   const [close, setClose] = useState<DayClose | null>(null);
@@ -110,6 +116,10 @@ export function CashierView() {
   useEffect(() => {
     staffBillingSettings()
       .then((r) => setSettings(r.settings))
+      .catch(() => {});
+    // products the counter can sell
+    staffStock()
+      .then((s) => setShelf(s.filter((i) => i.isActive && i.sellable)))
       .catch(() => {});
   }, []);
 
@@ -164,6 +174,9 @@ export function CashierView() {
             </button>
             <button type="button" className={`staff-pill-btn ${tab === "close" ? "active" : ""}`} onClick={() => setTab("close")}>
               ปิดยอดประจำวัน
+            </button>
+            <button type="button" className={`staff-pill-btn ${tab === "expenses" ? "active" : ""}`} onClick={() => setTab("expenses")}>
+              ค่าใช้จ่าย
             </button>
           </div>
           <div className="cashier-date">
@@ -284,6 +297,7 @@ export function CashierView() {
               <BillEditor
                 key={`${bill.id}-${bill.status}-${bill.payments.length}`}
                 bill={bill}
+                shelf={shelf}
                 settings={settings}
                 dentistName={dentistName}
                 onChanged={load}
@@ -314,6 +328,8 @@ export function CashierView() {
             )}
           </section>
         </div>
+      ) : tab === "expenses" ? (
+        <ExpensesView date={date} onChanged={load} />
       ) : (
         <DayCloseView close={close} dentistName={dentistName} onPrint={() => close && setPrint({ target: { kind: "close", close }, next: null })} />
       )}
@@ -333,6 +349,7 @@ function emptyLine(dentistSlug: string | null): BillItem {
 
 function BillEditor({
   bill,
+  shelf,
   settings,
   dentistName,
   onSave,
@@ -342,6 +359,7 @@ function BillEditor({
   onPrint,
 }: {
   bill: Bill;
+  shelf: StockItem[];
   settings: BillingSettings;
   dentistName: (slug: string | null) => string;
   onSave: (input: { items: BillItem[]; discount: number; note: string; patientName?: string }) => Promise<boolean>;
@@ -383,9 +401,14 @@ function BillEditor({
     setItems((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
 
   const pickTreatment = (idx: number, key: string) => {
-    if (!key) return setLine(idx, { treatmentKey: null });
+    if (!key) return setLine(idx, { treatmentKey: null, stockItemId: null });
+    if (key.startsWith("stock:")) {
+      const item = shelf.find((i) => i.id === Number(key.slice(6)));
+      if (item) setLine(idx, { treatmentKey: null, stockItemId: item.id, name: item.name, unitPrice: item.price, dentistSlug: null });
+      return;
+    }
     const t = tr.get(key);
-    setLine(idx, { treatmentKey: key, name: t.name.th, unitPrice: t.price ?? items[idx].unitPrice });
+    setLine(idx, { treatmentKey: key, stockItemId: null, name: t.name.th, unitPrice: t.price ?? items[idx].unitPrice });
   };
 
   const save = async () => {
@@ -459,18 +482,29 @@ function BillEditor({
               <select
                 className="form-control"
                 aria-label="บริการ"
-                value={l.treatmentKey ?? ""}
+                value={l.stockItemId ? `stock:${l.stockItemId}` : (l.treatmentKey ?? "")}
                 disabled={locked}
                 onChange={(e) => pickTreatment(idx, e.target.value)}
               >
                 <option value="">— พิมพ์เอง —</option>
-                {catalog.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.name.th}
-                  </option>
-                ))}
+                <optgroup label="หัตถการ">
+                  {catalog.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.name.th}
+                    </option>
+                  ))}
+                </optgroup>
+                {shelf.length ? (
+                  <optgroup label="สินค้า">
+                    {shelf.map((i) => (
+                      <option key={i.id} value={`stock:${i.id}`}>
+                        {i.name} (เหลือ {i.qty})
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
-              {!l.treatmentKey ? (
+              {!l.treatmentKey && !l.stockItemId ? (
                 <input
                   className="form-control"
                   aria-label="ชื่อรายการ"
@@ -684,6 +718,11 @@ function DayCloseView({
           <span>DF รวม</span>
           <strong>{baht(dfTotal)}</strong>
         </div>
+        <div className="close-card">
+          <span>ค่าใช้จ่ายวันนี้</span>
+          <strong>{baht(close.expenses)}</strong>
+          <em>เงินเข้าสุทธิ {baht(close.received - close.expenses)}</em>
+        </div>
       </div>
 
       <div className="close-cols">
@@ -734,6 +773,114 @@ function DayCloseView({
         <button type="button" className="btn-primary-staff btn-lg" onClick={onPrint}>
           พิมพ์สรุปปิดยอด
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── expenses ──────────────────────────────────────────────────────────── */
+
+function ExpensesView({ date, onChanged }: { date: string; onChanged: () => Promise<void> }) {
+  const { showToast } = useStaff();
+  const month = date.slice(0, 7);
+  const [rows, setRows] = useState<Expense[] | null>(null);
+  const [f, setF] = useState({ date, category: EXPENSE_CATEGORIES[0], amount: "", method: "cash" as PayMethod, note: "" });
+
+  const range = (m: string): [string, string] => [`${m}-01`, `${m}-31`];
+  useEffect(() => {
+    let live = true;
+    staffExpenses(...range(month))
+      .then((r) => live && setRows(r))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [month]);
+
+  const add = async () => {
+    const amount = Number(f.amount);
+    if (!amount) return;
+    await staffSaveExpense({ date: f.date, category: f.category, amount, method: f.method, note: f.note });
+    setF({ ...f, amount: "", note: "" });
+    showToast("บันทึกค่าใช้จ่ายแล้ว");
+    setRows(await staffExpenses(...range(month)));
+    await onChanged();
+  };
+
+  const total = (rows ?? []).reduce((s, r) => s + r.amount, 0);
+  const byCat = Object.entries(
+    (rows ?? []).reduce<Record<string, number>>((m, r) => ((m[r.category] = (m[r.category] ?? 0) + r.amount), m), {}),
+  ).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <div className="close-view">
+      <section className="pf-card wide">
+        <h3>บันทึกค่าใช้จ่าย</h3>
+        <div className="move-form">
+          <input className="form-control" type="date" aria-label="วันที่" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
+          <select className="form-control" aria-label="หมวด" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
+            {EXPENSE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <input className="form-control num" inputMode="numeric" aria-label="จำนวนเงิน" placeholder="จำนวนเงิน" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/\D/g, "") })} />
+          <select className="form-control" aria-label="จ่ายด้วย" value={f.method} onChange={(e) => setF({ ...f, method: e.target.value as PayMethod })}>
+            {PAY_METHODS.filter((m) => m.key !== "credit").map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <input className="form-control" aria-label="รายละเอียด" placeholder="รายละเอียด" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+          <button type="button" className="btn-primary-staff" disabled={!Number(f.amount)} onClick={() => void add()}>
+            บันทึก
+          </button>
+        </div>
+      </section>
+      <div className="close-cols">
+        <section className="ledger-table close-table">
+          <h3>ค่าใช้จ่ายเดือนนี้ — {baht(total)}</h3>
+          {rows?.length === 0 ? <p className="cl-empty">ยังไม่มี</p> : null}
+          {rows?.map((r) => (
+            <div key={r.id} className="ct-row">
+              <span>
+                {r.category}
+                {r.note ? <span className="muted"> · {r.note}</span> : null}
+              </span>
+              <span className="muted">
+                {r.date} · {payMethodLabel(r.method)}
+              </span>
+              <span className="num">
+                <strong>{baht(r.amount)}</strong>
+                <button
+                  type="button"
+                  className="btn-action-icon danger"
+                  aria-label="ลบ"
+                  onClick={async () => {
+                    if (!window.confirm("ลบรายการนี้?")) return;
+                    await staffRemoveExpense(r.id);
+                    setRows(await staffExpenses(...range(month)));
+                    await onChanged();
+                  }}
+                >
+                  <IconX size={13} />
+                </button>
+              </span>
+            </div>
+          ))}
+        </section>
+        <section className="ledger-table close-table">
+          <h3>แยกตามหมวด</h3>
+          {byCat.map(([c, amt]) => (
+            <div key={c} className="ct-row">
+              <span>{c}</span>
+              <span className="muted">{total ? Math.round((amt / total) * 100) : 0}%</span>
+              <strong className="num">{baht(amt)}</strong>
+            </div>
+          ))}
+        </section>
       </div>
     </div>
   );

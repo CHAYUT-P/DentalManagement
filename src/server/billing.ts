@@ -155,6 +155,7 @@ export async function billsWhere(where: SQL): Promise<Bill[]> {
         labCost: i.labCost,
         dentistSlug: i.dentistId != null ? (toSlug.get(i.dentistId) ?? null) : null,
         df: i.df,
+        stockItemId: i.stockItemId,
       }));
     const paysOf = pays
       .filter((p) => p.invoiceId === h.id)
@@ -384,6 +385,7 @@ export async function saveBill(
     discount: int(i.discount),
     labCost: int(i.labCost),
     dentistId: i.dentistSlug ? (toId.get(i.dentistSlug) ?? null) : null,
+    stockItemId: i.stockItemId ?? null,
     sort: idx,
   }));
   await db.transaction(async (tx) => {
@@ -432,6 +434,11 @@ async function settleStatus(id: number): Promise<void> {
       updatedAt: new Date(),
     })
     .where(eq(invoice.id, id));
+  // settled: what was sold and what the treatments used leave the shelf
+  if (status === "paid") {
+    const { applyStockForBill } = await import("@/server/stock");
+    await applyStockForBill(id);
+  }
 }
 
 /** the next receipt number for this month: RC + พ.ศ. year + month + running */
@@ -456,6 +463,10 @@ export async function addPayment(
   if (!head || head.status === "void" || amount <= 0) return { ok: false };
   const method = METHODS.includes(input.method) ? input.method : "other";
   const today = todayISO();
+
+  // never more than is owed — a settled bill takes no more money
+  const current = await getBill(id);
+  if (!current || amount > current.balance) return { ok: false };
 
   // spending a deposit: only what the patient has, only on their own bill
   if (method === "credit") {
@@ -495,7 +506,11 @@ export async function voidBill(id: number, reason: string): Promise<boolean> {
     .where(and(eq(invoice.id, id), ne(invoice.status, "void")))
     .returning({ id: invoice.id });
   // deposit spent on this bill goes back; a cancelled deposit receipt takes its deposit away
-  if (done.length) await db.delete(patientCredit).where(eq(patientCredit.invoiceId, id));
+  if (done.length) {
+    await db.delete(patientCredit).where(eq(patientCredit.invoiceId, id));
+    const { reverseStockForBill } = await import("@/server/stock");
+    await reverseStockForBill(id);
+  }
   return true;
 }
 
@@ -548,6 +563,7 @@ export async function dayClose(date: string): Promise<DayClose> {
     voided: bills
       .filter((b) => b.status === "void")
       .map((b) => ({ receiptNo: b.receiptNo, patientName: b.patientName, total: b.total, reason: b.voidReason })),
+    expenses: (await import("@/server/stock").then((m) => m.listExpenses(date, date))).reduce((s, e) => s + e.amount, 0),
   };
 }
 

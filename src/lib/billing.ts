@@ -33,6 +33,8 @@ export interface BillItem {
   dentistSlug: string | null;
   /** the doctor fee, worked out by the server when the bill is saved */
   df: number;
+  /** a shelf product being sold — comes out of stock when the bill is paid */
+  stockItemId?: number | null;
 }
 
 export interface BillPayment {
@@ -122,6 +124,8 @@ export interface DayClose {
   /** DF for bills dated today that are settled */
   dentists: DayCloseDentist[];
   voided: { receiptNo: string | null; patientName: string; total: number; reason: string }[];
+  /** money paid out today (ค่าใช้จ่าย) */
+  expenses: number;
 }
 
 export interface BillingSettings {

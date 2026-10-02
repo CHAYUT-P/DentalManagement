@@ -5412,3 +5412,142 @@ label.btn-primary-staff.disabled {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+
+/* ══ Full edition: คลัง & แลป ═══════════════════════════════════════════ */
+.pf-tabs em.warn {
+  background: var(--staff-status-cancelled-bg);
+  color: var(--staff-status-cancelled-fg);
+}
+
+.close-cards {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.stock-row,
+.move-row,
+.lab-row,
+.sup-row {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 18px;
+  border-top: 1px solid #f1ecf6;
+  font-size: 14px;
+}
+
+.stock-row {
+  grid-template-columns: minmax(0, 1.6fr) 120px 120px 90px 90px 120px 80px;
+}
+
+.move-row {
+  grid-template-columns: 100px minmax(0, 1fr) 120px 110px minmax(0, 1.4fr);
+}
+
+.lab-row {
+  grid-template-columns: minmax(0, 1.8fr) 120px 96px 96px 90px 150px 72px;
+}
+
+.sup-row {
+  grid-template-columns: minmax(0, 1fr) 120px 140px minmax(0, 1fr) 72px;
+}
+
+.stock-row.inactive,
+.sup-row.inactive {
+  opacity: 0.55;
+}
+
+.stock-row .owe,
+.move-row .owe,
+.lab-row .owe {
+  color: var(--staff-status-cancelled-fg);
+}
+
+.move-row .ok {
+  color: var(--staff-status-completed-fg);
+}
+
+.lab-status {
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.stock-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stock-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 14px;
+}
+
+.stock-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--staff-ink-2);
+}
+
+.stock-form label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.stock-form .form-control,
+.move-form .form-control {
+  min-height: 38px;
+  min-width: 0;
+}
+
+.move-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.move-form .form-control {
+  flex: 1 1 140px;
+}
+
+.cons {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.cons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.cons-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 60px 34px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.cons-row .form-control {
+  min-height: 38px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .close-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cons {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

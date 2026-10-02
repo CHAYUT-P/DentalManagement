@@ -578,6 +578,8 @@ export const invoiceItem = pgTable(
     dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
     /** the doctor fee for this line, worked out when the line is saved */
     df: integer("df").notNull().default(0),
+    /** a product sold off the shelf — taken out of stock when the bill is paid */
+    stockItemId: integer("stock_item_id"),
     sort: integer("sort").notNull().default(0),
   },
   (t) => [index("invoice_item_invoice_idx").on(t.invoiceId)],
@@ -805,4 +807,124 @@ export const recall = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("recall_due_idx").on(t.dueDate), index("recall_child_idx").on(t.childId)],
+);
+
+/* ────────────────────────────── stock, expenses, labs (full edition) ───── */
+
+/** who the clinic buys from — suppliers, and dental labs (kind "lab") */
+export const supplier = pgTable("supplier", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** "supplier" | "lab" */
+  kind: text("kind").notNull().default("supplier"),
+  phone: text("phone").notNull().default(""),
+  contact: text("contact").notNull().default(""),
+  note: text("note").notNull().default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** something on the shelf: a material, a drug, or a product sold to families */
+export const stockItem = pgTable("stock_item", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** "material" | "drug" | "product" | "other" */
+  category: text("category").notNull().default("material"),
+  unit: text("unit").notNull().default("ชิ้น"),
+  /** baht per unit we pay */
+  cost: integer("cost").notNull().default(0),
+  /** baht per unit we charge (products) */
+  price: integer("price").notNull().default(0),
+  /** warn when the count falls to this */
+  minQty: integer("min_qty").notNull().default(0),
+  /** current count — kept in step with stock_move */
+  qty: integer("qty").notNull().default(0),
+  /** shows in the cashier's list to sell */
+  sellable: boolean("sellable").notNull().default(false),
+  supplierId: integer("supplier_id").references(() => supplier.id, { onDelete: "set null" }),
+  note: text("note").notNull().default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** every change to a count: received, used in treatment, sold, adjusted, expired */
+export const stockMove = pgTable(
+  "stock_move",
+  {
+    id: serial("id").primaryKey(),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => stockItem.id, { onDelete: "cascade" }),
+    /** + in, − out */
+    change: integer("change").notNull(),
+    /** "receive" | "use" | "sell" | "adjust" | "expire" | "return" */
+    kind: text("kind").notNull(),
+    unitCost: integer("unit_cost").notNull().default(0),
+    /** the bill that used or sold it */
+    invoiceId: integer("invoice_id").references(() => invoice.id, { onDelete: "set null" }),
+    lot: text("lot").notNull().default(""),
+    /** YYYY-MM-DD, received stock only */
+    expiry: text("expiry"),
+    note: text("note").notNull().default(""),
+    /** YYYY-MM-DD, clinic clock */
+    date: text("date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("stock_move_item_idx").on(t.itemId), index("stock_move_invoice_idx").on(t.invoiceId)],
+);
+
+/** what a treatment uses up — taken out of stock when its bill is paid */
+export const treatmentConsumable = pgTable(
+  "treatment_consumable",
+  {
+    id: serial("id").primaryKey(),
+    treatmentKey: text("treatment_key").notNull(),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => stockItem.id, { onDelete: "cascade" }),
+    qty: integer("qty").notNull().default(1),
+  },
+  (t) => [uniqueIndex("treatment_consumable_idx").on(t.treatmentKey, t.itemId)],
+);
+
+/** money going out: rent, salaries, supplies, utilities… */
+export const expense = pgTable(
+  "expense",
+  {
+    id: serial("id").primaryKey(),
+    /** YYYY-MM-DD */
+    date: text("date").notNull(),
+    category: text("category").notNull(),
+    amount: integer("amount").notNull(),
+    supplierId: integer("supplier_id").references(() => supplier.id, { onDelete: "set null" }),
+    method: text("method").notNull().default("cash"),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("expense_date_idx").on(t.date)],
+);
+
+/** work sent to a dental lab — crowns, space maintainers, retainers… */
+export const labOrder = pgTable(
+  "lab_order",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id").references(() => child.id, { onDelete: "set null" }),
+    patientName: text("patient_name").notNull(),
+    labId: integer("lab_id").references(() => supplier.id, { onDelete: "set null" }),
+    dentistId: integer("dentist_id").references(() => dentist.id, { onDelete: "set null" }),
+    work: text("work").notNull(),
+    teeth: text("teeth").notNull().default(""),
+    shade: text("shade").notNull().default(""),
+    /** YYYY-MM-DD dates */
+    sentDate: text("sent_date").notNull(),
+    dueDate: text("due_date"),
+    receivedDate: text("received_date"),
+    cost: integer("cost").notNull().default(0),
+    /** "sent" | "received" | "fitted" | "remake" | "cancelled" */
+    status: text("status").notNull().default("sent"),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("lab_order_status_idx").on(t.status)],
 );

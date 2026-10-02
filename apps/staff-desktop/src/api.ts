@@ -1,6 +1,7 @@
 import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
+import type { Consumable, Expense, LabOrder, MoveKind, StockItem, StockMove, Supplier } from "@/lib/stock";
 import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, PayMethod } from "@/lib/billing";
 import type {
   DocKind,
@@ -236,6 +237,64 @@ export function staffAddDentistLeave(dentistSlug: string, start: string, end: st
 
 export function staffRemoveDentistLeave(id: number) {
   return call<void>("removeDentistLeave", [id]);
+}
+
+/* ── stock, expenses, labs (full edition) ─────────────────────────────── */
+
+export function staffSuppliers() {
+  return call<Supplier[]>("suppliers", []);
+}
+
+export function staffSaveSupplier(input: Partial<Supplier> & { name: string }) {
+  return call<number | null>("saveSupplier", [input]);
+}
+
+export function staffStock() {
+  return call<StockItem[]>("stock", []);
+}
+
+export function staffSaveStockItem(input: Partial<StockItem> & { name: string }) {
+  return call<number | null>("saveStockItem", [input]);
+}
+
+export function staffAddMove(input: { itemId: number; kind: MoveKind; qty: number; unitCost?: number; lot?: string; expiry?: string | null; note?: string; date?: string }) {
+  return call<void>("addMove", [input]);
+}
+
+export function staffMoves(filter: { itemId?: number; from?: string; to?: string }) {
+  return call<StockMove[]>("moves", [filter]);
+}
+
+export function staffConsumables() {
+  return call<Consumable[]>("consumables", []);
+}
+
+export function staffSetConsumables(treatmentKey: string, lines: { itemId: number; qty: number }[]) {
+  return call<void>("setConsumables", [treatmentKey, lines]);
+}
+
+export function staffExpenses(from: string, to: string) {
+  return call<Expense[]>("expenses", [from, to]);
+}
+
+export function staffSaveExpense(input: Partial<Expense> & { category: string; amount: number }) {
+  return call<void>("saveExpense", [input]);
+}
+
+export function staffRemoveExpense(id: number) {
+  return call<void>("removeExpense", [id]);
+}
+
+export function staffLabOrders(filter: { open?: boolean; childId?: number }) {
+  return call<LabOrder[]>("labOrders", [filter]);
+}
+
+export function staffSaveLabOrder(input: Partial<LabOrder> & { patientName: string; work: string }) {
+  return call<void>("saveLabOrder", [input]);
+}
+
+export function staffRemoveLabOrder(id: number) {
+  return call<void>("removeLabOrder", [id]);
 }
 
 /* ── patient file (full edition) ──────────────────────────────────────── */

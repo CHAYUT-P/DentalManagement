@@ -833,6 +833,94 @@ export async function staffRemindRecall(id: number, text: string): Promise<Famil
   return "sent";
 }
 
+/* ═══════════════════════════ staff: stock, expenses, labs (full) ════════ */
+
+type Stock = typeof import("@/server/stock");
+
+export async function staffSuppliers() {
+  await guard();
+  const { listSuppliers } = await import("@/server/stock");
+  return listSuppliers();
+}
+
+export async function staffSaveSupplier(input: Parameters<Stock["saveSupplier"]>[0]) {
+  await guard();
+  const { saveSupplier } = await import("@/server/stock");
+  return saveSupplier(input);
+}
+
+export async function staffStock() {
+  await guard();
+  const { listStock } = await import("@/server/stock");
+  return listStock();
+}
+
+export async function staffSaveStockItem(input: Parameters<Stock["saveStockItem"]>[0]) {
+  await guard();
+  const { saveStockItem } = await import("@/server/stock");
+  return saveStockItem(input);
+}
+
+export async function staffAddMove(input: Parameters<Stock["addMove"]>[0]) {
+  await guard();
+  const { addMove } = await import("@/server/stock");
+  return addMove(input);
+}
+
+export async function staffMoves(filter: Parameters<Stock["listMoves"]>[0]) {
+  await guard();
+  const { listMoves } = await import("@/server/stock");
+  return listMoves(filter);
+}
+
+export async function staffConsumables() {
+  await guard();
+  const { listConsumables } = await import("@/server/stock");
+  return listConsumables();
+}
+
+export async function staffSetConsumables(treatmentKey: string, lines: { itemId: number; qty: number }[]) {
+  await guard();
+  const { setConsumables } = await import("@/server/stock");
+  return setConsumables(treatmentKey, lines);
+}
+
+export async function staffExpenses(from: string, to: string) {
+  await guard();
+  const { listExpenses } = await import("@/server/stock");
+  return listExpenses(from, to);
+}
+
+export async function staffSaveExpense(input: Parameters<Stock["saveExpense"]>[0]) {
+  await guard();
+  const { saveExpense } = await import("@/server/stock");
+  return saveExpense(input);
+}
+
+export async function staffRemoveExpense(id: number) {
+  await guard();
+  const { removeExpense } = await import("@/server/stock");
+  return removeExpense(id);
+}
+
+export async function staffLabOrders(filter: Parameters<Stock["listLabOrders"]>[0]) {
+  await guard();
+  const { listLabOrders } = await import("@/server/stock");
+  return listLabOrders(filter);
+}
+
+export async function staffSaveLabOrder(input: Parameters<Stock["saveLabOrder"]>[0]) {
+  await guard();
+  const { saveLabOrder } = await import("@/server/stock");
+  return saveLabOrder(input);
+}
+
+export async function staffRemoveLabOrder(id: number) {
+  await guard();
+  const { removeLabOrder } = await import("@/server/stock");
+  return removeLabOrder(id);
+}
+
 /* ═══════════════════════════ staff: billing (full edition) ══════════════ */
 
 export async function staffCashierDay(date: string) {
