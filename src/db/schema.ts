@@ -220,6 +220,8 @@ export const child = pgTable(
     tags: jsonb("tags").notNull().default([]),
     /** months between check-ups; 0 = no automatic recall */
     recallMonths: integer("recall_months").notNull().default(6),
+    /** who pays: "cash" | "sso" (ประกันสังคม) | "nhso" (บัตรทอง) | "gov" | "insurance" */
+    coverage: text("coverage").notNull().default("cash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -601,6 +603,8 @@ export const payment = pgTable(
     /** YYYY-MM-DD, clinic clock — the day close counts it on this day */
     date: text("date").notNull(),
     note: text("note").notNull().default(""),
+    /** claim payments (SSO / NHSO / insurer): "pending" | "submitted" | "paid" | "rejected" */
+    claimStatus: text("claim_status").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("payment_invoice_idx").on(t.invoiceId), index("payment_date_idx").on(t.date)],

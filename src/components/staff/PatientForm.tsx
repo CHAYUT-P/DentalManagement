@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import type { PatientChild, PatientRecord } from "@/lib/staffStore";
 import { IconPlus, IconX } from "@/components/staff/staffIcons";
+import { COVERAGE_LABEL } from "@/lib/billing";
 
 /**
  * The patient add/edit form (full edition) — guardian, then each child with
@@ -54,6 +55,7 @@ interface ChildForm {
   idCard: string;
   tags: string;
   recallMonths: string;
+  coverage: string;
   conditions: string;
   medications: string;
   allergies: string;
@@ -84,6 +86,7 @@ function blankChild(): ChildForm {
     idCard: "",
     tags: "",
     recallMonths: "6",
+    coverage: "cash",
     conditions: "",
     medications: "",
     allergies: "",
@@ -125,6 +128,7 @@ export function formFromRecord(p: PatientRecord): PatientFormState {
       idCard: c.idCard ?? "",
       tags: (c.tags ?? []).join(", "),
       recallMonths: String(c.recallMonths ?? 6),
+      coverage: c.coverage ?? "cash",
       conditions: c.conditions ?? "",
       medications: c.medications ?? "",
       allergies: c.allergies ?? "",
@@ -431,6 +435,14 @@ export function PatientForm({
               </div>
             </div>
             <div className="form-group">
+              <label>สิทธิการรักษา</label>
+              <select className="form-control" value={c.coverage} onChange={(e) => setChild(c.key, { coverage: e.target.value })}>
+                {Object.entries(COVERAGE_LABEL).map(([k, l]) => (
+                  <option key={k} value={k}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
               <label>ป้ายกำกับ (คั่นด้วยจุลภาค)</label>
               <input
                 type="text"
@@ -529,6 +541,7 @@ export const toPatientPayload = (s: PatientFormState): Omit<PatientRecord, "id" 
     idCard: c.idCard.replace(/\D/g, ""),
     tags: c.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
     recallMonths: Number(c.recallMonths) || 0,
+  coverage: c.coverage,
     conditions: c.conditions.trim() || undefined,
     medications: c.medications.trim() || undefined,
     allergies: c.allergies.trim() || undefined,

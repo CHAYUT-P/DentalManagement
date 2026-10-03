@@ -155,6 +155,7 @@ export interface GuardianDTO {
     idCard: string;
     tags: string[];
     recallMonths: number;
+    coverage: string;
   }[];
   registeredAt: string;
 }
@@ -1067,6 +1068,7 @@ function toGuardianDTO(
         idCard: c.idCard,
         tags: Array.isArray(c.tags) ? (c.tags as string[]) : [],
         recallMonths: c.recallMonths,
+        coverage: c.coverage,
       })),
     registeredAt: g.createdAt.toISOString().slice(0, 10),
   };
@@ -1184,6 +1186,7 @@ async function syncChildren(guardianId: number, children: PatientChildInput[]): 
       ...(c.idCard !== undefined ? { idCard: c.idCard.replace(/\D/g, "").slice(0, 13) } : {}),
       ...(c.tags !== undefined ? { tags: c.tags.map((t) => t.trim()).filter(Boolean).slice(0, 12) } : {}),
       ...(c.recallMonths !== undefined ? { recallMonths: Math.max(0, Math.min(24, Math.round(c.recallMonths))) } : {}),
+      ...(c.coverage !== undefined ? { coverage: ["cash", "sso", "nhso", "gov", "insurance"].includes(c.coverage) ? c.coverage : "cash" } : {}),
       updatedAt: new Date(),
     };
     const hit =

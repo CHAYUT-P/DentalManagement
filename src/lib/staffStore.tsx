@@ -452,6 +452,7 @@ export function StaffProvider({
           idCard: c.idCard,
           tags: c.tags,
           recallMonths: c.recallMonths,
+          coverage: c.coverage,
           conditions: c.conditions,
           medications: c.medications,
           allergies: c.allergies,

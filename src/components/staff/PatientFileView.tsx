@@ -23,6 +23,8 @@ import {
 import {
   DEFAULT_BILLING_SETTINGS,
   PAY_METHODS,
+  COVERAGE_LABEL,
+  asCoverage,
   baht,
   lineNet,
   payMethodLabel,
@@ -169,8 +171,9 @@ export function PatientFileView({ childId, onBack }: { childId: number; onBack?:
             <IconPhone size={12} /> {file.guardian.phone}
             {file.guardian.name ? ` · ${file.guardian.relation || "ผู้ปกครอง"} ${file.guardian.name}` : ""}
           </p>
-          {file.tags.length ? (
+          {file.tags.length || file.coverage !== "cash" ? (
             <div className="pf-tags">
+              {file.coverage !== "cash" ? <span className="cover">สิทธิ์ {COVERAGE_LABEL[asCoverage(file.coverage)]}</span> : null}
               {file.tags.map((t) => (
                 <span key={t}>{t}</span>
               ))}
@@ -429,7 +432,7 @@ function DepositCard({ file, onDone }: { file: PatientFileData; onDone: () => Pr
       <div className="pf-deposit">
         <input className="form-control num" inputMode="numeric" placeholder="จำนวนเงิน" aria-label="จำนวนเงินมัดจำ" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} />
         <select className="form-control" aria-label="ช่องทาง" value={method} onChange={(e) => setMethod(e.target.value as PayMethod)}>
-          {PAY_METHODS.filter((m) => m.key !== "credit").map((m) => (
+          {PAY_METHODS.filter((m) => m.kind === "money").map((m) => (
             <option key={m.key} value={m.key}>
               {m.label}
             </option>

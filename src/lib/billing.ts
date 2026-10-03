@@ -3,16 +3,59 @@
  * (full edition). Everything is whole baht — Thai clinics don't bill satang.
  */
 
-export type PayMethod = "cash" | "transfer" | "promptpay" | "card" | "other" | "credit";
+export type PayMethod = "cash" | "transfer" | "promptpay" | "card" | "other" | "credit" | "sso" | "nhso" | "insurance";
 
-export const PAY_METHODS: { key: PayMethod; label: string }[] = [
-  { key: "cash", label: "เงินสด" },
-  { key: "promptpay", label: "พร้อมเพย์" },
-  { key: "transfer", label: "โอนเงิน" },
-  { key: "card", label: "บัตรเครดิต" },
-  { key: "other", label: "อื่น ๆ" },
-  { key: "credit", label: "หักเงินมัดจำ" },
+/**
+ * How a bill is settled. "money" comes in at the counter; "deposit" spends
+ * money already taken; "claim" is paid later by a fund or insurer (the
+ * clinic files for it) — neither of the last two is new money today.
+ */
+export const PAY_METHODS: { key: PayMethod; label: string; kind: "money" | "deposit" | "claim" }[] = [
+  { key: "cash", label: "เงินสด", kind: "money" },
+  { key: "promptpay", label: "พร้อมเพย์", kind: "money" },
+  { key: "transfer", label: "โอนเงิน", kind: "money" },
+  { key: "card", label: "บัตรเครดิต", kind: "money" },
+  { key: "other", label: "อื่น ๆ", kind: "money" },
+  { key: "credit", label: "หักเงินมัดจำ", kind: "deposit" },
+  { key: "sso", label: "สิทธิ์ประกันสังคม", kind: "claim" },
+  { key: "nhso", label: "สิทธิ์บัตรทอง (สปสช.)", kind: "claim" },
+  { key: "insurance", label: "ประกัน / บริษัทเบิก", kind: "claim" },
 ];
+
+export const isMoney = (m: string) => PAY_METHODS.find((p) => p.key === m)?.kind === "money";
+export const isClaim = (m: string) => PAY_METHODS.find((p) => p.key === m)?.kind === "claim";
+
+/** the patient's cover — who pays for what they receive */
+export type Coverage = "cash" | "sso" | "nhso" | "gov" | "insurance";
+export const COVERAGE_LABEL: Record<Coverage, string> = {
+  cash: "ชำระเอง",
+  sso: "ประกันสังคม",
+  nhso: "บัตรทอง (30 บาท)",
+  gov: "ข้าราชการ (ชำระก่อน เบิกเอง)",
+  insurance: "ประกันเอกชน / บริษัท",
+};
+export const asCoverage = (v: unknown): Coverage => (["cash", "sso", "nhso", "gov", "insurance"].includes(String(v)) ? (v as Coverage) : "cash");
+
+export type ClaimStatus = "pending" | "submitted" | "paid" | "rejected";
+export const CLAIM_STATUS_LABEL: Record<ClaimStatus, string> = {
+  pending: "รอยื่นเบิก",
+  submitted: "ยื่นเบิกแล้ว",
+  paid: "ได้รับเงินแล้ว",
+  rejected: "ถูกปฏิเสธ",
+};
+
+export interface ClaimRow {
+  paymentId: number;
+  invoiceId: number;
+  method: PayMethod;
+  amount: number;
+  date: string;
+  status: ClaimStatus;
+  receiptNo: string | null;
+  patientName: string;
+  idCard: string;
+  items: string;
+}
 
 export const payMethodLabel = (m: string) => PAY_METHODS.find((p) => p.key === m)?.label ?? m;
 
@@ -63,6 +106,10 @@ export interface Bill {
   credit: number;
   /** a contract (ortho) this bill pays an instalment of */
   planId: number | null;
+  /** the patient's cover, and what of it is used this year */
+  coverage: Coverage;
+  ssoUsed: number;
+  nhsoVisits: number;
   /** "deposit" = money taken to keep on account, not a treatment sale */
   kind: "visit" | "deposit";
   discount: number;
@@ -126,6 +173,8 @@ export interface DayClose {
   voided: { receiptNo: string | null; patientName: string; total: number; reason: string }[];
   /** money paid out today (ค่าใช้จ่าย) */
   expenses: number;
+  /** settled by a fund/insurer today — to be claimed, not cash in hand */
+  claims: number;
 }
 
 export interface BillingSettings {
@@ -146,6 +195,10 @@ export interface BillingSettings {
   sendAftercare: boolean;
   /** …and a thank-you with the review link */
   sendThanks: boolean;
+  /** ประกันสังคม dental allowance per calendar year (baht) */
+  ssoYearLimit: number;
+  /** บัตรทอง dental visits per fiscal year (Oct–Sep) */
+  nhsoVisitLimit: number;
   /** e.g. the clinic's Google review link */
   reviewUrl: string;
 }
@@ -189,6 +242,8 @@ export const DEFAULT_BILLING_SETTINGS: BillingSettings = {
   sendAftercare: false,
   sendThanks: false,
   reviewUrl: "",
+  ssoYearLimit: 900,
+  nhsoVisitLimit: 3,
 };
 
 export type DfMode = "percent" | "fixed";

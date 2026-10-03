@@ -5,7 +5,7 @@ import type { DfStatement, ReportData } from "@/server/reports";
 import type { AuditRow, ClockRow, Role, StaffUserInfo, WhoAmI } from "@/lib/roles";
 import type { ImportField } from "@/lib/dataio";
 import type { Consumable, Expense, LabOrder, MoveKind, StockItem, StockMove, Supplier } from "@/lib/stock";
-import type { BillItem, BillingSettings, CashierDay, DayClose, DfMode, DfRule, DisplayState, PayMethod } from "@/lib/billing";
+import type { BillItem, BillingSettings, CashierDay, ClaimRow, ClaimStatus, DayClose, DfMode, DfRule, DisplayState, PayMethod } from "@/lib/billing";
 import type {
   DocKind,
   FileMeta,
@@ -500,6 +500,14 @@ export function staffVoidBill(id: number, reason: string) {
 
 export function staffDayClose(date: string) {
   return call<DayClose>("dayClose", [date]);
+}
+
+export function staffClaims(from: string, to: string) {
+  return call<ClaimRow[]>("claims", [from, to]);
+}
+
+export function staffSetClaimStatus(paymentIds: number[], status: ClaimStatus) {
+  return call<void>("setClaimStatus", [paymentIds, status]);
 }
 
 export function staffSetDisplay(state: Omit<DisplayState, "updatedAt" | "clinicName" | "promptpayId">) {

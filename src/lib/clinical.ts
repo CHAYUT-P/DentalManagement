@@ -212,6 +212,7 @@ export interface PatientFileData {
   notes: string;
   tags: string[];
   recallMonths: number;
+  coverage: string;
   guardian: { name: string; fullName: string; relation: string; phone: string; lineContact: string; address: string };
   visits: PatientVisit[];
   bills: Bill[];

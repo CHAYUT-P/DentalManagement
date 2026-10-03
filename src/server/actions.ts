@@ -1097,6 +1097,19 @@ export async function staffDayClose(date: string) {
   return dayClose(/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayISO());
 }
 
+export async function staffClaims(from: string, to: string) {
+  await guard("cashier");
+  const { listClaims } = await import("@/server/billing");
+  return listClaims(ISO.test(from) ? from : todayISO(), ISO.test(to) ? to : todayISO());
+}
+
+export async function staffSetClaimStatus(paymentIds: number[], status: import("@/lib/billing").ClaimStatus) {
+  await guard("cashier");
+  const { setClaimStatus } = await import("@/server/billing");
+  await setClaimStatus(paymentIds, status);
+  await logAction("อัปเดตสถานะเบิกสิทธิ์", `${paymentIds.length} รายการ → ${status}`);
+}
+
 export async function staffSetDisplay(state: Parameters<typeof import("@/server/billing").setDisplay>[0]) {
   await guard("cashier");
   const { setDisplay } = await import("@/server/billing");

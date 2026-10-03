@@ -234,6 +234,7 @@ export async function getPatientFile(childId: number): Promise<PatientFileData |
     notes: c.notes,
     tags: Array.isArray(c.tags) ? (c.tags as string[]) : [],
     recallMonths: c.recallMonths,
+    coverage: c.coverage,
     guardian: {
       name: g?.name ?? "",
       fullName: g?.fullName ?? "",

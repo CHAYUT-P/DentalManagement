@@ -11,6 +11,7 @@ import { and, asc, eq, inArray, like, ne, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   appointment,
+  child,
   clinicSetting,
   dentist,
   dfRule,
@@ -34,6 +35,11 @@ import {
   type DayClose,
   type DfMode,
   type DfRule,
+  type ClaimRow,
+  type ClaimStatus,
+  asCoverage,
+  isClaim,
+  isMoney,
   type DisplayState,
   type PayMethod,
   type PendingVisit,
@@ -42,7 +48,7 @@ import { todayISO } from "@/lib/dates";
 import { toTreatmentInfo } from "@/lib/treatments";
 import type { VisitItem } from "@/lib/staffTypes";
 
-const METHODS: PayMethod[] = ["cash", "transfer", "promptpay", "card", "other", "credit"];
+const METHODS: PayMethod[] = ["cash", "transfer", "promptpay", "card", "other", "credit", "sso", "nhso", "insurance"];
 const int = (n: unknown) => Math.max(0, Math.round(Number(n) || 0));
 
 /* ── lookups ───────────────────────────────────────────────────────────── */
@@ -132,6 +138,8 @@ export async function saveBillingSettings(input: Partial<BillingSettings>): Prom
     displayCode: cur.displayCode,
     sendAftercare: input.sendAftercare ?? cur.sendAftercare,
     sendThanks: input.sendThanks ?? cur.sendThanks,
+    ssoYearLimit: Math.max(0, Math.round(Number(input.ssoYearLimit ?? cur.ssoYearLimit) || 0)),
+    nhsoVisitLimit: Math.max(0, Math.round(Number(input.nhsoVisitLimit ?? cur.nhsoVisitLimit) || 0)),
     reviewUrl: /^https?:\/\/\S+$/.test(String(input.reviewUrl ?? cur.reviewUrl)) ? String(input.reviewUrl ?? cur.reviewUrl).slice(0, 300) : "",
   };
   await db
@@ -181,18 +189,45 @@ export async function removeDfRule(id: number): Promise<void> {
 
 /* ── reading bills ─────────────────────────────────────────────────────── */
 
+/**
+ * What a patient has used of their cover: ประกันสังคม baht this calendar
+ * year, บัตรทอง visits this fiscal year (Oct–Sep). Voided bills don't count.
+ */
+async function coverageUsage(childIds: number[]): Promise<Map<number, { sso: number; nhsoVisits: number }>> {
+  const out = new Map<number, { sso: number; nhsoVisits: number }>();
+  if (!childIds.length) return out;
+  const today = todayISO();
+  const year = today.slice(0, 4);
+  const fyStart = today.slice(5) >= "10-01" ? `${year}-10-01` : `${Number(year) - 1}-10-01`;
+  const rows = await db
+    .select({ childId: invoice.childId, invoiceId: invoice.id, method: payment.method, amount: payment.amount, date: payment.date })
+    .from(payment)
+    .innerJoin(invoice, eq(invoice.id, payment.invoiceId))
+    .where(and(inArray(invoice.childId, childIds), ne(invoice.status, "void"), inArray(payment.method, ["sso", "nhso"])));
+  for (const id of childIds) {
+    const mine = rows.filter((r) => r.childId === id);
+    out.set(id, {
+      sso: mine.filter((r) => r.method === "sso" && r.date.startsWith(year)).reduce((s, r) => s + r.amount, 0),
+      nhsoVisits: new Set(mine.filter((r) => r.method === "nhso" && r.date >= fyStart).map((r) => r.invoiceId)).size,
+    });
+  }
+  return out;
+}
+
 export async function billsWhere(where: SQL): Promise<Bill[]> {
   const { toSlug } = await dentistMaps();
   const heads = await db.select().from(invoice).where(where).orderBy(asc(invoice.createdAt));
   if (heads.length === 0) return [];
   const ids = heads.map((h) => h.id);
   const childIds = [...new Set(heads.map((h) => h.childId).filter((x): x is number => x != null))];
-  const [items, pays, credits] = await Promise.all([
+  const [items, pays, credits, kids, usage] = await Promise.all([
     db.select().from(invoiceItem).where(inArray(invoiceItem.invoiceId, ids)).orderBy(asc(invoiceItem.sort), asc(invoiceItem.id)),
     db.select().from(payment).where(inArray(payment.invoiceId, ids)).orderBy(asc(payment.createdAt)),
     childIds.length
       ? db.select({ childId: patientCredit.childId, amount: patientCredit.amount }).from(patientCredit).where(inArray(patientCredit.childId, childIds))
       : Promise.resolve([] as { childId: number; amount: number }[]),
+    childIds.length ? db.select({ id: child.id, coverage: child.coverage }).from(child).where(inArray(child.id, childIds)) : Promise.resolve([]),
+    coverageUsage(childIds),
   ]);
   return heads.map((h) => {
     const lines: BillItem[] = items
@@ -234,6 +269,9 @@ export async function billsWhere(where: SQL): Promise<Bill[]> {
       dentistSlug: h.dentistId != null ? (toSlug.get(h.dentistId) ?? null) : null,
       childId: h.childId,
       kind: h.kind === "deposit" ? "deposit" : "visit",
+      coverage: asCoverage(kids.find((k) => k.id === h.childId)?.coverage),
+      ssoUsed: h.childId != null ? (usage.get(h.childId)?.sso ?? 0) : 0,
+      nhsoVisits: h.childId != null ? (usage.get(h.childId)?.nhsoVisits ?? 0) : 0,
       credit: h.childId != null ? credits.filter((c) => c.childId === h.childId).reduce((s, c) => s + c.amount, 0) : 0,
       planId: h.planId,
       discount: h.discount,
@@ -559,6 +597,38 @@ async function sendAfterVisit(id: number): Promise<void> {
   await db.insert(messageLog).values({ appointmentId: head.appointmentId, kind: "aftercare" });
 }
 
+/* ── claims to file (ประกันสังคม / บัตรทอง / insurers) ──────────────────── */
+
+export async function listClaims(from: string, to: string): Promise<ClaimRow[]> {
+  const rows = await db
+    .select({ p: payment, i: invoice, idCard: child.idCard })
+    .from(payment)
+    .innerJoin(invoice, eq(invoice.id, payment.invoiceId))
+    .leftJoin(child, eq(child.id, invoice.childId))
+    .where(and(inArray(payment.method, ["sso", "nhso", "insurance"]), ne(invoice.status, "void"), sql`${payment.date} between ${from} and ${to}`))
+    .orderBy(asc(payment.date), asc(payment.id));
+  const items = rows.length
+    ? await db.select({ invoiceId: invoiceItem.invoiceId, name: invoiceItem.name, teeth: invoiceItem.teeth }).from(invoiceItem).where(inArray(invoiceItem.invoiceId, rows.map((r) => r.i.id)))
+    : [];
+  return rows.map(({ p, i, idCard }) => ({
+    paymentId: p.id,
+    invoiceId: i.id,
+    method: p.method as PayMethod,
+    amount: p.amount,
+    date: p.date,
+    status: (["pending", "submitted", "paid", "rejected"].includes(p.claimStatus) ? p.claimStatus : "pending") as ClaimStatus,
+    receiptNo: i.receiptNo,
+    patientName: i.patientName,
+    idCard: idCard ?? "",
+    items: items.filter((x) => x.invoiceId === i.id).map((x) => `${x.name}${x.teeth ? ` (${x.teeth})` : ""}`).join(", "),
+  }));
+}
+
+export async function setClaimStatus(paymentIds: number[], status: ClaimStatus): Promise<void> {
+  if (!["pending", "submitted", "paid", "rejected"].includes(status) || !paymentIds.length) return;
+  await db.update(payment).set({ claimStatus: status }).where(and(inArray(payment.id, paymentIds.slice(0, 500)), inArray(payment.method, ["sso", "nhso", "insurance"])));
+}
+
 /** the next receipt number for this month: RC + พ.ศ. year + month + running */
 async function nextReceiptNo(prefix: string, date: string): Promise<string> {
   const [y, m] = date.split("-");
@@ -594,7 +664,15 @@ export async function addPayment(
     await db.insert(patientCredit).values({ childId: head.childId, amount: -amount, invoiceId: id, note: "ใช้มัดจำ" });
   }
 
-  await db.insert(payment).values({ invoiceId: id, method, amount, date: today, note: String(input.note ?? "").slice(0, 120) });
+  await db.insert(payment).values({
+    invoiceId: id,
+    method,
+    amount,
+    date: today,
+    note: String(input.note ?? "").slice(0, 120),
+    // paid by a fund or insurer: the clinic still has to file for it
+    claimStatus: isClaim(method) ? "pending" : "",
+  });
 
   let receiptNo = head.receiptNo;
   if (!receiptNo) {
@@ -671,7 +749,8 @@ export async function dayClose(date: string): Promise<DayClose> {
   return {
     date,
     byMethod,
-    received: byMethod.filter((r) => r.method !== "credit").reduce((s, r) => s + r.amount, 0),
+    received: byMethod.filter((r) => isMoney(r.method)).reduce((s, r) => s + r.amount, 0),
+    claims: byMethod.filter((r) => isClaim(r.method)).reduce((s, r) => s + r.amount, 0),
     billsPaid: settled.length,
     billsOwing: owingBills.length,
     owing: owingBills.reduce((s, b) => s + b.balance, 0),

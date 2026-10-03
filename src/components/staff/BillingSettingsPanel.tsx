@@ -183,6 +183,29 @@ export function BillingSettingsPanel({ patientWebUrl = "/" }: { patientWebUrl?: 
       </section>
 
       <section className="settings-card">
+        <h3>สิทธิการรักษา</h3>
+        <p className="settings-help">
+          ตั้งสิทธิ์ของคนไข้แต่ละคนได้ในข้อมูลคนไข้ · หน้าการเงินจะบอกว่าใช้สิทธิ์ไปเท่าไรแล้ว และให้เลือกชำระด้วยสิทธิ์ได้ ยอดที่ชำระด้วยสิทธิ์จะไปรอที่แท็บ “เบิกสิทธิ์”
+        </p>
+        <div className="form-row-2">
+          <div className="form-group">
+            <label htmlFor="bs-sso">ประกันสังคม: วงเงินทำฟันต่อปี (บาท)</label>
+            <input id="bs-sso" className="form-control num" inputMode="numeric" value={form.ssoYearLimit} onChange={(e) => set({ ssoYearLimit: Number(e.target.value.replace(/\D/g, "")) || 0 })} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="bs-nhso">บัตรทอง: จำนวนครั้งต่อปีงบประมาณ</label>
+            <input id="bs-nhso" className="form-control num" inputMode="numeric" value={form.nhsoVisitLimit} onChange={(e) => set({ nhsoVisitLimit: Number(e.target.value.replace(/\D/g, "")) || 0 })} />
+          </div>
+        </div>
+        <div className="settings-save">
+          <button type="button" className="btn-primary-staff" disabled={!dirty} onClick={() => void saveForm()}>
+            <IconCheck size={15} />
+            <span>{dirty ? "บันทึก" : "บันทึกแล้ว"}</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="settings-card">
         <h3>ข้อความ LINE หลังรับบริการ</h3>
         <p className="settings-help">
           เมื่อบิลชำระครบ ระบบส่งข้อความถึงบัญชี LINE ที่ผู้ปกครองใช้จอง (ครั้งเดียวต่อบิล) — ครอบครัวที่ไม่ได้จองผ่าน LINE จะไม่ได้รับ

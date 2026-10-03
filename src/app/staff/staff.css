@@ -6000,3 +6000,56 @@ label.btn-primary-staff.disabled {
   flex-direction: column;
   gap: 6px;
 }
+
+/* coverage (ประกันสังคม / บัตรทอง) */
+.cover-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #e8f1fd;
+  color: #234a7d;
+  font-size: 13.5px;
+}
+
+.cover-note.nhso {
+  background: #e8f5ec;
+  color: #1f6b3a;
+}
+
+.claims-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--staff-primary-light);
+  font-size: 13.5px;
+}
+
+.claim-row {
+  display: grid;
+  grid-template-columns: 22px 96px minmax(0, 1fr) 150px 100px 120px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 18px;
+  border-top: 1px solid #f1ecf6;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.claim-items {
+  display: block;
+  font-size: 12.5px;
+}
+
+.month-input {
+  width: 170px;
+  min-height: 38px;
+}
+
+.pf-tags span.cover {
+  background: #e8f1fd;
+  color: #234a7d;
+}

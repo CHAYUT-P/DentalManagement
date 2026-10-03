@@ -9,13 +9,15 @@ import { and, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { appointment, child, expense, invoice, payment, stockItem } from "@/db/schema";
 import { billsWhere } from "@/server/billing";
-import type { PayMethod } from "@/lib/billing";
+import { isClaim, isMoney, type PayMethod } from "@/lib/billing";
 
 export interface ReportData {
   from: string;
   to: string;
   /** new money received in the range (deposits spent are not counted again) */
   received: number;
+  /** settled by funds/insurers in the range — still to be collected */
+  claimed: number;
   byMethod: { method: PayMethod; amount: number }[];
   byDay: { date: string; amount: number }[];
   /** treatment sales: settled visit bills dated in the range */
@@ -53,7 +55,8 @@ export async function report(from: string, to: string): Promise<ReportData> {
     billsWhere(ne(invoice.status, "void")),
   ]);
 
-  const live = pays.filter((p) => p.status !== "void" && p.method !== "credit");
+  const live = pays.filter((p) => p.status !== "void" && isMoney(p.method));
+  const claimed = pays.filter((p) => p.status !== "void" && isClaim(p.method)).reduce((s, p) => s + p.amount, 0);
   const methods = [...new Set(live.map((p) => p.method))] as PayMethod[];
   const days = new Map<string, number>();
   for (const p of live) days.set(p.date, (days.get(p.date) ?? 0) + p.amount);
@@ -91,6 +94,7 @@ export async function report(from: string, to: string): Promise<ReportData> {
     from,
     to,
     received: live.reduce((s, p) => s + p.amount, 0),
+    claimed,
     byMethod: methods.map((m) => ({ method: m, amount: live.filter((p) => p.method === m).reduce((s, p) => s + p.amount, 0) })),
     byDay: [...days.entries()].sort().map(([date, amount]) => ({ date, amount })),
     sales: settled.reduce((s, b) => s + b.total, 0),

@@ -99,6 +99,8 @@ export interface PatientChild {
   tags?: string[];
   /** months between check-ups (0 = none) */
   recallMonths?: number;
+  /** who pays — see COVERAGE_LABEL */
+  coverage?: string;
   conditions?: string;
   medications?: string;
   allergies?: string;
@@ -143,6 +145,7 @@ export interface PatientChildInput {
   idCard?: string;
   tags?: string[];
   recallMonths?: number;
+  coverage?: string;
   conditions?: string;
   medications?: string;
   allergies?: string;

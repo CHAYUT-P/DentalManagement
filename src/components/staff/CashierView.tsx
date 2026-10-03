@@ -14,6 +14,8 @@ import {
   staffSetDisplay,
   staffVoidBill,
   staffExpenses,
+  staffClaims,
+  staffSetClaimStatus,
   staffRemoveExpense,
   staffSaveExpense,
   staffStock,
@@ -22,6 +24,10 @@ import { EXPENSE_CATEGORIES, type Expense, type StockItem } from "@/lib/stock";
 import {
   DEFAULT_BILLING_SETTINGS,
   PAY_METHODS,
+  COVERAGE_LABEL,
+  CLAIM_STATUS_LABEL,
+  type ClaimRow,
+  type ClaimStatus,
   baht,
   billTotals,
   lineNet,
@@ -73,7 +79,7 @@ export function CashierView() {
   const { edition, today, dentists, showToast } = useStaff();
   const allowed = useStaffUser().can("cashier");
   const dict = useT();
-  const [tab, setTab] = useState<"pay" | "close" | "expenses">("pay");
+  const [tab, setTab] = useState<"pay" | "close" | "expenses" | "claims">("pay");
   const [shelf, setShelf] = useState<StockItem[]>([]);
   const [date, setDate] = useState(today);
   const [day, setDay] = useState<CashierDay | null>(null);
@@ -201,6 +207,9 @@ export function CashierView() {
             </button>
             <button type="button" className={`staff-pill-btn ${tab === "expenses" ? "active" : ""}`} onClick={() => setTab("expenses")}>
               ค่าใช้จ่าย
+            </button>
+            <button type="button" className={`staff-pill-btn ${tab === "claims" ? "active" : ""}`} onClick={() => setTab("claims")}>
+              เบิกสิทธิ์
             </button>
           </div>
           <button type="button" className={`pay-chip ${screen ? "on" : ""}`} onClick={toggleScreen} title="ส่งบิลไปจอที่หันไปทางผู้ปกครอง">
@@ -356,6 +365,8 @@ export function CashierView() {
             )}
           </section>
         </div>
+      ) : tab === "claims" ? (
+        <ClaimsView date={date} />
       ) : tab === "expenses" ? (
         <ExpensesView date={date} onChanged={load} />
       ) : (
@@ -406,7 +417,9 @@ function BillEditor({
   const [discount, setDiscount] = useState(String(bill.discount || ""));
   const [note, setNote] = useState(bill.note);
   const [name, setName] = useState(bill.patientName);
-  const [method, setMethod] = useState<PayMethod>("cash");
+  const claimMethod: PayMethod | null =
+    bill.coverage === "sso" ? "sso" : bill.coverage === "nhso" ? "nhso" : bill.coverage === "insurance" ? "insurance" : null;
+  const [method, setMethod] = useState<PayMethod>(claimMethod ?? "cash");
   const [amount, setAmount] = useState<string>("");
   const [tendered, setTendered] = useState("");
   const [busy, setBusy] = useState(false);
@@ -510,6 +523,27 @@ function BillEditor({
           {bill.status === "open" ? "ยังไม่ชำระ" : bill.status === "partial" ? "ชำระบางส่วน" : bill.status === "paid" ? "ชำระครบแล้ว" : "ยกเลิกแล้ว"}
         </span>
       </header>
+
+      {bill.coverage !== "cash" && !voided ? (
+        <div className={`cover-note ${bill.coverage}`}>
+          <strong>สิทธิ์: {COVERAGE_LABEL[bill.coverage]}</strong>
+          {bill.coverage === "sso" ? (
+            <span>
+              ใช้ไปแล้วปีนี้ {baht(bill.ssoUsed)} จาก {baht(settings.ssoYearLimit)} · เหลือ{" "}
+              <b>{baht(Math.max(0, settings.ssoYearLimit - bill.ssoUsed))}</b> — ส่วนที่เกินเก็บเงินจากผู้ปกครอง
+            </span>
+          ) : bill.coverage === "nhso" ? (
+            <span>
+              ใช้สิทธิ์ไปแล้ว {bill.nhsoVisits} จาก {settings.nhsoVisitLimit} ครั้งในปีงบประมาณนี้
+              {bill.nhsoVisits >= settings.nhsoVisitLimit ? " — ครบสิทธิ์แล้ว เก็บเงินตามปกติ" : ""}
+            </span>
+          ) : bill.coverage === "gov" ? (
+            <span>ผู้ปกครองชำระเอง แล้วนำใบเสร็จไปเบิกต้นสังกัด</span>
+          ) : (
+            <span>บันทึกส่วนที่ประกันจ่ายเป็น “ประกัน / บริษัทเบิก” แล้วติดตามที่แท็บเบิกสิทธิ์</span>
+          )}
+        </div>
+      ) : null}
 
       {voided ? (
         <div className="bill-void-note">
@@ -634,7 +668,7 @@ function BillEditor({
         <div className="bill-pay">
           <div className="pay-methods" role="radiogroup" aria-label="ช่องทางชำระ">
             {/* spending a deposit only makes sense when the patient has one */}
-            {PAY_METHODS.filter((m) => m.key !== "credit" || bill.credit > 0).map((m) => (
+            {PAY_METHODS.filter((m) => (m.kind === "money" ? true : m.kind === "deposit" ? bill.credit > 0 : m.key === claimMethod)).map((m) => (
               <button
                 key={m.key}
                 type="button"
@@ -644,6 +678,7 @@ function BillEditor({
                 onClick={() => {
                   setMethod(m.key);
                   if (m.key === "credit") setAmount(String(Math.min(balance, bill.credit)));
+                  if (m.key === "sso") setAmount(String(Math.min(balance, Math.max(0, settings.ssoYearLimit - bill.ssoUsed))));
                 }}
               >
                 {m.label}
@@ -776,6 +811,13 @@ function DayCloseView({
           <strong>{baht(close.expenses)}</strong>
           <em>เงินเข้าสุทธิ {baht(close.received - close.expenses)}</em>
         </div>
+        {close.claims > 0 ? (
+          <div className="close-card">
+            <span>รอเบิกจากสิทธิ์</span>
+            <strong>{baht(close.claims)}</strong>
+            <em>ประกันสังคม / บัตรทอง / ประกัน</em>
+          </div>
+        ) : null}
       </div>
 
       <div className="close-cols">
@@ -880,7 +922,7 @@ function ExpensesView({ date, onChanged }: { date: string; onChanged: () => Prom
           </select>
           <input className="form-control num" inputMode="numeric" aria-label="จำนวนเงิน" placeholder="จำนวนเงิน" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/\D/g, "") })} />
           <select className="form-control" aria-label="จ่ายด้วย" value={f.method} onChange={(e) => setF({ ...f, method: e.target.value as PayMethod })}>
-            {PAY_METHODS.filter((m) => m.key !== "credit").map((m) => (
+            {PAY_METHODS.filter((m) => m.kind === "money").map((m) => (
               <option key={m.key} value={m.key}>
                 {m.label}
               </option>
@@ -935,6 +977,129 @@ function ExpensesView({ date, onChanged }: { date: string; onChanged: () => Prom
           ))}
         </section>
       </div>
+    </div>
+  );
+}
+
+/* ── claims to file ────────────────────────────────────────────────────── */
+
+function ClaimsView({ date }: { date: string }) {
+  const { showToast } = useStaff();
+  const [month, setMonth] = useState(date.slice(0, 7));
+  const [rows, setRows] = useState<ClaimRow[] | null>(null);
+  const [picked, setPicked] = useState<number[]>([]);
+  const [only, setOnly] = useState<ClaimStatus | "all">("pending");
+
+  const fetchRows = useCallback(() => staffClaims(`${month}-01`, `${month}-31`), [month]);
+  useEffect(() => {
+    let live = true;
+    fetchRows()
+      .then((r) => live && setRows(r))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [fetchRows]);
+
+  const shown = (rows ?? []).filter((r) => only === "all" || r.status === only);
+  const sum = (s: ClaimStatus) => (rows ?? []).filter((r) => r.status === s).reduce((t, r) => t + r.amount, 0);
+
+  const mark = async (status: ClaimStatus) => {
+    await staffSetClaimStatus(picked, status);
+    setPicked([]);
+    setRows(await fetchRows());
+    showToast(`อัปเดต ${picked.length} รายการเป็น “${CLAIM_STATUS_LABEL[status]}”`);
+  };
+
+  const exportCsv = () => {
+    const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [
+      ["วันที่", "สิทธิ์", "ชื่อผู้รับบริการ", "เลขบัตรประชาชน", "รายการ", "จำนวนเงิน", "เลขที่ใบเสร็จ", "สถานะ"],
+      ...shown.map((r) => [r.date, payMethodLabel(r.method), r.patientName, r.idCard, r.items, r.amount, r.receiptNo ?? "", CLAIM_STATUS_LABEL[r.status]]),
+    ];
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + lines.map((l) => l.map(cell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `claims-${month}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  return (
+    <div className="close-view">
+      <div className="close-cards">
+        <div className="close-card">
+          <span>รอยื่นเบิก</span>
+          <strong>{baht(sum("pending"))}</strong>
+        </div>
+        <div className="close-card">
+          <span>ยื่นเบิกแล้ว รอเงิน</span>
+          <strong>{baht(sum("submitted"))}</strong>
+        </div>
+        <div className="close-card">
+          <span>ได้รับเงินแล้ว</span>
+          <strong>{baht(sum("paid"))}</strong>
+        </div>
+        <div className={`close-card ${sum("rejected") ? "warn" : ""}`}>
+          <span>ถูกปฏิเสธ</span>
+          <strong>{baht(sum("rejected"))}</strong>
+        </div>
+      </div>
+
+      <div className="staff-toolbar">
+        <input className="form-control month-input" type="month" aria-label="เดือน" value={month} onChange={(e) => setMonth(e.target.value)} />
+        <div className="staff-pill-group">
+          {(["pending", "submitted", "paid", "rejected", "all"] as const).map((k) => (
+            <button key={k} type="button" className={`staff-pill-btn ${only === k ? "active" : ""}`} onClick={() => setOnly(k)}>
+              {k === "all" ? "ทั้งหมด" : CLAIM_STATUS_LABEL[k]}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="btn-secondary-staff" style={{ marginLeft: "auto" }} disabled={!shown.length} onClick={exportCsv}>
+          ส่งออกรายการเบิก (CSV)
+        </button>
+      </div>
+
+      {picked.length ? (
+        <div className="claims-bar">
+          <span>เลือก {picked.length} รายการ →</span>
+          <button type="button" className="btn-secondary-staff" onClick={() => void mark("submitted")}>
+            ยื่นเบิกแล้ว
+          </button>
+          <button type="button" className="btn-primary-staff" onClick={() => void mark("paid")}>
+            ได้รับเงินแล้ว
+          </button>
+          <button type="button" className="btn-secondary-staff danger-soft" onClick={() => void mark("rejected")}>
+            ถูกปฏิเสธ
+          </button>
+        </div>
+      ) : null}
+
+      <section className="ledger-table">
+        {rows === null ? <p className="cl-empty" style={{ padding: "12px 18px" }}>กำลังโหลด…</p> : null}
+        {rows && shown.length === 0 ? <p className="cl-empty" style={{ padding: "12px 18px" }}>ไม่มีรายการในเดือนนี้</p> : null}
+        {shown.map((r) => (
+          <label key={r.paymentId} className="claim-row">
+            <input
+              type="checkbox"
+              checked={picked.includes(r.paymentId)}
+              onChange={(e) => setPicked((p) => (e.target.checked ? [...p, r.paymentId] : p.filter((x) => x !== r.paymentId)))}
+            />
+            <span className="muted">{r.date}</span>
+            <span>
+              <strong>{r.patientName}</strong>
+              <span className="muted"> · {r.idCard || "ไม่มีเลขบัตร"}</span>
+              <span className="muted claim-items">{r.items}</span>
+            </span>
+            <span>{payMethodLabel(r.method)}</span>
+            <strong className="num">{baht(r.amount)}</strong>
+            <span className={`cl-tag ${r.status === "paid" ? "paid" : r.status === "rejected" ? "void" : "open"}`}>{CLAIM_STATUS_LABEL[r.status]}</span>
+          </label>
+        ))}
+      </section>
+      <p className="settings-help">
+        ระบบเก็บรายการให้ครบพร้อมเลขบัตรประชาชน — นำไฟล์ CSV ไปยื่นในระบบของสำนักงานประกันสังคม / สปสช. แล้วกลับมาอัปเดตสถานะที่นี่
+      </p>
     </div>
   );
 }

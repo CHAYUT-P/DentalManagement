@@ -105,6 +105,7 @@ export function toUIPatient(g: GuardianDTO): PatientRecord {
       idCard: c.idCard || undefined,
       tags: c.tags,
       recallMonths: c.recallMonths,
+      coverage: c.coverage,
       conditions: c.conditions || undefined,
       medications: c.medications || undefined,
       allergies: c.allergies || undefined,
