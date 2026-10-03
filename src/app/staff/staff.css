@@ -6053,3 +6053,30 @@ label.btn-primary-staff.disabled {
   background: #e8f1fd;
   color: #234a7d;
 }
+
+/* Thai ID card reader */
+.form-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--staff-ink);
+}
+
+.id-read-btn {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.id-read-err {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--staff-status-arrived-bg);
+  color: var(--staff-status-arrived-fg);
+  font-size: 13px;
+}

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import type { PatientChild, PatientRecord } from "@/lib/staffStore";
 import { IconPlus, IconX } from "@/components/staff/staffIcons";
 import { COVERAGE_LABEL } from "@/lib/billing";
+import { idCardReaderAvailable, readIdCard, thaiFullName } from "@/lib/idCard";
 
 /**
  * The patient add/edit form (full edition) — guardian, then each child with
@@ -161,6 +162,32 @@ export function PatientForm({
       children: prev.children.map((c) => (c.key === key ? { ...c, ...patch } : c)),
     }));
 
+  /* a USB card reader on this PC (desktop app) fills the details in from the card */
+  const reader = idCardReaderAvailable();
+  const [reading, setReading] = useState(false);
+  const [cardErr, setCardErr] = useState("");
+  const fromCard = async (childKey: string | null) => {
+    setReading(true);
+    setCardErr("");
+    try {
+      const card = await readIdCard();
+      if (childKey === null) {
+        set({ guardianFullName: thaiFullName(card), ...(card.address && !s.address ? { address: card.address } : {}) });
+      } else {
+        setChild(childKey, {
+          fullName: thaiFullName(card),
+          idCard: card.cid,
+          ...(card.birthdate ? { birthdate: card.birthdate } : {}),
+          ...(card.gender ? { gender: card.gender } : {}),
+        });
+      }
+    } catch (e) {
+      setCardErr(e instanceof Error ? e.message : "อ่านบัตรไม่สำเร็จ");
+    } finally {
+      setReading(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!s.guardianFullName.trim() || !s.phone.trim()) {
@@ -188,9 +215,15 @@ export function PatientForm({
     <form onSubmit={handleSubmit}>
       <div className="modal-body">
         {/* Guardian */}
-        <div style={{ fontSize: "13.5px", fontWeight: 800, color: "var(--staff-ink)", marginBottom: "2px" }}>
-          ข้อมูลผู้ปกครอง
+        <div className="form-section-head">
+          <span>ข้อมูลผู้ปกครอง</span>
+          {reader ? (
+            <button type="button" className="btn-secondary-staff id-read-btn" disabled={reading} onClick={() => void fromCard(null)}>
+              {reading ? "กำลังอ่านบัตร…" : "อ่านบัตรประชาชนผู้ปกครอง"}
+            </button>
+          ) : null}
         </div>
+        {cardErr ? <div className="id-read-err">{cardErr}</div> : null}
         <div className="form-row-2">
           <div className="form-group">
             <label>ชื่อ-นามสกุลจริง *</label>
@@ -296,6 +329,11 @@ export function PatientForm({
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <strong style={{ fontSize: "13px" }}>เด็กคนที่ {i + 1}</strong>
+              {reader ? (
+                <button type="button" className="btn-secondary-staff id-read-btn" style={{ marginLeft: "auto", marginRight: "8px" }} disabled={reading} onClick={() => void fromCard(c.key)}>
+                  {reading ? "กำลังอ่าน…" : "อ่านบัตรประชาชนเด็ก"}
+                </button>
+              ) : null}
               {s.children.length > 1 || s.guardianRelation === "ตนเอง" ? (
                 <button
                   type="button"
