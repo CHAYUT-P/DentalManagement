@@ -124,8 +124,8 @@ export function RoomPage({
       <div className="staff-container">
         <div className="staff-page-header">
           <div>
-            <h2>ห้องตรวจ (Treatment Rooms)</h2>
-            <p>เลือกหมอประจำห้อง — เครื่องนี้จะแสดงคิวและบันทึกการรักษาของหมอท่านนั้น</p>
+            <h2>ห้องตรวจ</h2>
+            <p>เลือกห้องของหมอ — จะเห็นคิวที่รอหมอท่านนั้น เรียกเข้าตรวจ และบันทึกการรักษาได้ที่นี่</p>
           </div>
         </div>
         <div className="patient-grid">

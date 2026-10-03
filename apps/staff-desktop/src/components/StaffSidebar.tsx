@@ -23,16 +23,18 @@ export function StaffSidebar() {
         const active = item.match(pathname);
         const Icon = item.icon;
         return (
-          <NavLink
-            key={item.href}
-            to={item.href}
-            className={`staff-rail-item ${active ? "active" : ""}`}
-            aria-current={active ? "page" : undefined}
-          >
-            <Icon size={22} />
-            <span>{item.label}</span>
-            {item.badge ? <span className="staff-rail-badge">{item.badge}</span> : null}
-          </NavLink>
+          <React.Fragment key={item.href}>
+            {item.divider ? <span className="staff-rail-divider" aria-hidden="true" /> : null}
+            <NavLink
+              to={item.href}
+              className={`staff-rail-item ${active ? "active" : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon size={22} />
+              <span>{item.label}</span>
+              {item.badge ? <span className="staff-rail-badge">{item.badge}</span> : null}
+            </NavLink>
+          </React.Fragment>
         );
       })}
       <div className="staff-rail-foot">หน้าเคาน์เตอร์</div>

@@ -3,6 +3,10 @@
 import React, { useState } from "react";
 import { useStaff, type PatientChild, type PatientRecord } from "@/lib/staffStore";
 import { normalizeName } from "@/lib/clinicSettings";
+import { useT } from "@/i18n/lang";
+import { fmtLong } from "@/lib/dates";
+import { COVERAGE_LABEL, asCoverage } from "@/lib/billing";
+import { initial } from "@/lib/roles";
 import { BookingModal } from "@/components/staff/BookingModal";
 import {
   PatientForm,
@@ -19,15 +23,14 @@ import { RecallList } from "@/components/staff/RecallList";
 import {
   IconSearch,
   IconPlus,
-  IconPhone,
   IconCalendar,
   IconX,
-  IconAlertTriangle,
   IconEdit,
 } from "@/components/staff/staffIcons";
 
 function StaffPatientsPageInner() {
   const { today, patients, createPatient, updatePatient, appointments, showToast } = useStaff();
+  const dict = useT();
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,7 +42,6 @@ function StaffPatientsPageInner() {
     forSelf?: boolean;
   } | null>(null);
   const [tab, setTab] = useState<"all" | "child" | "self">("all");
-  const [view, setView] = useState<"list" | "card">("list");
   const [mode, setMode] = useState<"records" | "recalls">("records");
 
   /** patient-centric rows: one row per patient (child), plus one row per
@@ -130,8 +132,8 @@ function StaffPatientsPageInner() {
     <div className="staff-container">
       <div className="staff-page-header">
         <div>
-          <h2>ทะเบียนประวัติคนไข้และครอบครัว (Patient Records)</h2>
-          <p>ชื่อจริง วันเกิด แพ้ยา โรคประจำตัว และประวัติการรักษา — จองออนไลน์เข้ามาแค่ชื่อกับเบอร์ ที่เหลือกรอกที่นี่</p>
+          <h2>คนไข้</h2>
+          <p>แตะชื่อเพื่อเปิดแฟ้ม (ชาร์ตฟัน แผนการรักษา ประวัติ เอกสาร) — คนที่จองออนไลน์มามีแค่ชื่อเล่นกับเบอร์ เปิดแฟ้มแล้วกรอกเพิ่มได้</p>
         </div>
 
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -190,310 +192,66 @@ function StaffPatientsPageInner() {
             ผู้ใหญ่จองเอง ({selfCount})
           </button>
         </div>
-        <div className="staff-pill-group" style={{ width: "fit-content", marginLeft: "auto" }}>
-          <button
-            type="button"
-            className={`staff-pill-btn ${view === "list" ? "active" : ""}`}
-            onClick={() => setView("list")}
-          >
-            รายการ
-          </button>
-          <button
-            type="button"
-            className={`staff-pill-btn ${view === "card" ? "active" : ""}`}
-            onClick={() => setView("card")}
-          >
-            การ์ด
-          </button>
-        </div>
       </div>
 
-      {/* Patient rows — one row per patient, guardian info attached */}
+      {/* one row per patient — tap it to open their file */}
       {filteredRows.length === 0 ? (
-        <div className="staff-empty">ไม่พบข้อมูลคนไข้ที่ค้นหา</div>
-      ) : view === "list" ? (
-        <div className="staff-table-wrap">
-          <table className="staff-table">
-            <thead>
-              <tr>
-                <th>คนไข้</th>
-                <th>อายุ / HN</th>
-                <th>ผู้ปกครอง / ติดต่อ</th>
-                <th>มาตรวจ</th>
-                <th>สถานะ</th>
-                <th style={{ textAlign: "right" }}>จัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map(({ family: p, child: c }) => {
-                const visits = visitsFor(p, c);
-                const lastVisit = visits.reduce<string | null>(
-                  (best, a) => (!best || a.date > best ? a.date : best),
-                  null,
-                );
-                const incomplete = rowIncomplete(p, c);
-                const age = c ? ageOf(c, today) : undefined;
-                return (
-                  <tr key={c ? `${p.id}:${c.id}` : `${p.id}:self`}>
-                    <td>
-                      <strong>{c ? c.fullName || c.name : p.guardianFullName || p.guardianName}</strong>
-                      {c?.nickname ? (
-                        <span style={{ color: "var(--staff-ink-muted)" }}> ({c.nickname})</span>
-                      ) : null}
-                      {c == null ? (
-                        <span className="status-pill completed" style={{ marginLeft: "6px", fontSize: "10px" }}>
-                          ผู้ใหญ่
-                        </span>
-                      ) : null}
-                      {c && c.name !== (c.fullName || c.name) ? (
-                        <div style={{ fontSize: "11px", color: "var(--staff-ink-muted)" }}>
-                          เรียก: {c.name}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td>
-                      {c ? (
-                        <>
-                          <div>{age != null ? `${age} ขวบ` : "—"}</div>
-                          <div style={{ fontSize: "11px", color: "var(--staff-ink-muted)" }}>
-                            {c.hn ? `HN ${c.hn}` : ""}
-                          </div>
-                        </>
-                      ) : (
-                        <span style={{ color: "var(--staff-ink-muted)" }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div>
-                        {p.guardianFullName || p.guardianName}
-                        {p.guardianRelation ? (
-                          <span style={{ color: "var(--staff-ink-muted)" }}> ({p.guardianRelation})</span>
-                        ) : null}
-                      </div>
-                      <div style={{ fontSize: "11px", color: "var(--staff-ink-muted)" }}>
-                        {p.phone}{p.lineId ? ` · ${p.lineId}` : ""}
-                      </div>
-                    </td>
-                    <td>
-                      <div>{visits.length} ครั้ง</div>
-                      <div style={{ fontSize: "11px", color: "var(--staff-ink-muted)" }}>
-                        ล่าสุด {lastVisit || "—"}
-                      </div>
-                    </td>
-                    <td>
-                      {incomplete ? (
-                        <span className="status-pill cancelled" style={{ fontSize: "11px" }}>
-                          ไม่สมบูรณ์
-                        </span>
-                      ) : (
-                        <span className="status-pill completed" style={{ fontSize: "11px" }}>
-                          สมบูรณ์
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      <PatientFileButton
-                        childId={c ? Number(c.id) : undefined}
-                        phone={p.phone}
-                        name={c ? c.name : p.guardianFullName || p.guardianName}
-                        label="เปิดแฟ้ม"
-                        className="btn-secondary-staff pf-open-btn"
-                      />
-                      <button
-                        type="button"
-                        className="btn-action-icon"
-                        title="นัดตรวจ"
-                        onClick={() => bookFor(p, c, age)}
-                      >
-                        <IconCalendar size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-action-icon"
-                        title="แก้ไขประวัติ"
-                        onClick={() => setEditingId(p.id)}
-                      >
-                        <IconEdit size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="staff-empty">
+          {search.trim() ? "ไม่พบคนไข้ที่ค้นหา" : "ยังไม่มีคนไข้ — กด “ลงทะเบียนคนไข้ใหม่” หรือนำเข้าจากโปรแกรมเดิมในตั้งค่า"}
         </div>
       ) : (
-        <div className="patient-grid">
+        <div className="pt-list" role="list">
           {filteredRows.map(({ family: p, child: c }) => {
             const visits = visitsFor(p, c);
-            const lastVisit = visits.reduce<string | null>(
-              (best, a) => (!best || a.date > best ? a.date : best),
-              null,
-            );
-            const incomplete = rowIncomplete(p, c);
+            const last = visits.reduce<string | null>((best, a) => (a.status !== "cancelled" && (!best || a.date > best) ? a.date : best), null);
             const age = c ? ageOf(c, today) : undefined;
-            const rowKey = c ? `${p.id}:${c.id}` : `${p.id}:self`;
-
+            const name = c ? c.name : p.guardianFullName || p.guardianName;
+            const allergy = c?.allergies && c.allergies !== "ไม่มี" ? c.allergies : "";
+            const cover = c?.coverage && c.coverage !== "cash" ? COVERAGE_LABEL[asCoverage(c.coverage)] : "";
             return (
-              <div key={rowKey} className="patient-card">
-                {/* Patient header */}
-                <div className="patient-card-head">
-                  <div>
-                    <div className="patient-guardian">
-                      {c ? c.fullName || c.name : p.guardianFullName || p.guardianName}
-                      {c?.nickname ? (
-                        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--staff-ink-muted)", marginLeft: "6px" }}>
-                          ({c.nickname})
-                        </span>
-                      ) : null}
-                      {c == null ? (
-                        <span
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            color: "var(--staff-primary)",
-                            background: "var(--staff-primary-light)",
-                            padding: "2px 9px",
-                            borderRadius: "999px",
-                            marginLeft: "8px",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          ผู้ใหญ่จองเอง
-                        </span>
-                      ) : null}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "var(--staff-ink-muted)", marginTop: "2px" }}>
-                      {c ? (
-                        [c.name !== (c.fullName || c.name) ? `เรียก: ${c.name}` : "",
-                          age != null ? `อายุ ${age} ขวบ` : "",
-                          c.gender ? (c.gender === "male" ? "ชาย" : "หญิง") : "",
-                          c.hn ? `HN ${c.hn}` : "",
-                          c.bloodType ? `กรุ๊ป ${c.bloodType}` : "",
-                        ].filter(Boolean).join(" · ") || "—"
-                      ) : (
-                        <>คนไข้ผู้ใหญ่ · โทร {p.phone}{p.lineId ? ` · LINE ${p.lineId}` : ""}</>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
-                    <span className="patient-since">สมาชิกตั้งแต่ {p.registeredAt}</span>
-                    <button
-                      type="button"
-                      className="btn-secondary-staff"
-                      style={{ padding: "5px 12px", fontSize: "12px" }}
-                      onClick={() => setEditingId(p.id)}
-                    >
-                      <IconEdit size={13} />
-                      <span>แก้ไขประวัติ</span>
-                    </button>
-                  </div>
-                </div>
-
-                {incomplete ? (
-                  <div
-                    style={{
-                      margin: "0 16px",
-                      background: "#fff9db",
-                      border: "1px solid #ffd43b",
-                      borderRadius: "8px",
-                      padding: "8px 12px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "#8a6d00",
-                    }}
-                  >
-                    ประวัตินี้ยังไม่สมบูรณ์ (ขาดชื่อจริง / วันเกิด) — กด “แก้ไขประวัติ” เพื่อกรอกให้ครบตอนมาครั้งแรก
-                  </div>
-                ) : null}
-
-                {/* Guardian info */}
-                <div className="patient-children">
-                  <div className="patient-section-label">ผู้ปกครอง / ผู้ติดต่อ:</div>
-                  <div style={{ fontSize: "13px", color: "var(--staff-ink)" }}>
-                    <strong>{p.guardianFullName || p.guardianName}</strong>
-                    {p.guardianRelation ? (
-                      <span style={{ color: "var(--staff-ink-muted)" }}> ({p.guardianRelation})</span>
-                    ) : null}
-                    {p.guardianFullName && p.guardianName !== p.guardianFullName ? (
-                      <span style={{ color: "var(--staff-ink-muted)" }}> · เรียก: {p.guardianName}</span>
-                    ) : null}
-                  </div>
-                  <div className="patient-phone" style={{ marginTop: "2px" }}>
-                    <IconPhone size={12} />
-                    <span>{p.phone}</span>
-                    {p.lineId ? <span style={{ marginLeft: "8px" }}>LINE: {p.lineId}</span> : null}
-                  </div>
-                  {p.address ? (
-                    <div style={{ fontSize: "12px", color: "var(--staff-ink-muted)" }}>{p.address}</div>
-                  ) : null}
-                  {c && p.children.length > 1 ? (
-                    <div style={{ fontSize: "12px", color: "var(--staff-ink-muted)", marginTop: "2px" }}>
-                      พี่น้องใน پروندهนี้: {p.children.filter((x) => x.id !== c.id).map((x) => x.name).join(", ") || "—"}
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Medical (child rows only) */}
-                {c ? (
-                  <div className="patient-children" style={{ paddingTop: 0 }}>
-                    {c.conditions ? (
-                      <div className="patient-note">โรคประจำตัว: {c.conditions}</div>
-                    ) : null}
-                    {c.medications ? (
-                      <div className="patient-note">ยาประจำ: {c.medications}</div>
-                    ) : null}
-                    {c.allergies && c.allergies !== "ไม่มี" && (
-                      <div className="patient-allergy">
-                        <IconAlertTriangle size={12} color="var(--staff-status-cancelled-fg)" />
-                        <span>แพ้ยา: {c.allergies}</span>
-                      </div>
-                    )}
-                    {c.notes && <div className="patient-note">{c.notes}</div>}
-                    {!c.conditions && !c.medications && (!c.allergies || c.allergies === "ไม่มี") && !c.notes ? (
-                      <div style={{ fontSize: "12px", color: "var(--staff-ink-muted)" }}>— ไม่มีข้อมูลการแพทย์ —</div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {/* Footer: this patient's own visits + actions */}
-                <div className="patient-foot">
-                  <span>
-                    มาตรวจ: <strong>{visits.length} ครั้ง</strong>
+              <div key={c ? `${p.id}:${c.id}` : `${p.id}:self`} className="pt-row" role="listitem">
+                <PatientFileButton
+                  childId={c ? Number(c.id) : undefined}
+                  phone={p.phone}
+                  name={name}
+                  className="pt-open"
+                >
+                  <span className="pt-avatar" aria-hidden="true">
+                    {initial(name)}
                   </span>
-                  <span>
-                    ล่าสุด: <strong>{lastVisit || "—"}</strong>
+                  <span className="pt-main">
+                    <strong>{name}</strong>
+                    <em>
+                      {[c?.fullName, age != null ? `${age} ปี` : "", c?.hn ? `HN ${c.hn}` : ""].filter(Boolean).join(" · ") || "ยังไม่มีชื่อจริง / วันเกิด"}
+                    </em>
                   </span>
-                  <button
-                    type="button"
-                    className="btn-secondary-staff patient-book-btn"
-                    onClick={() =>
-                      c
-                        ? setBookingForChild({
-                            childName: c.name,
-                            childAge: age,
-                            guardianName: p.guardianName,
-                            phone: p.phone,
-                          })
-                        : setBookingForChild({
-                            childName: p.guardianFullName || p.guardianName,
-                            childAge: undefined,
-                            guardianName: p.guardianFullName || p.guardianName,
-                            phone: p.phone,
-                            forSelf: true,
-                          })
-                    }
-                  >
-                    <IconCalendar size={12} />
-                    <span>นัดตรวจ</span>
+                  <span className="pt-guard">
+                    {c ? `${p.guardianFullName || p.guardianName}${p.guardianRelation ? ` (${p.guardianRelation})` : ""}` : "จองให้ตัวเอง"}
+                    <em>{p.phone}</em>
+                  </span>
+                  <span className="pt-visits">
+                    {visits.length ? `มา ${visits.length} ครั้ง` : "ยังไม่เคยมา"}
+                    <em>{last ? `ล่าสุด ${fmtLong(dict, last, "th")}` : ""}</em>
+                  </span>
+                  <span className="pt-flags">
+                    {allergy ? <span className="pt-flag danger">แพ้ {allergy}</span> : null}
+                    {cover ? <span className="pt-flag cover">{cover}</span> : null}
+                    {rowIncomplete(p, c) ? <span className="pt-flag todo">ข้อมูลยังไม่ครบ</span> : null}
+                  </span>
+                </PatientFileButton>
+                <span className="pt-actions">
+                  <button type="button" className="btn-secondary-staff" onClick={() => bookFor(p, c, age)}>
+                    <IconCalendar size={14} /> นัด
                   </button>
-                </div>
+                  <button type="button" className="btn-secondary-staff" onClick={() => setEditingId(p.id)}>
+                    <IconEdit size={14} /> แก้ไข
+                  </button>
+                </span>
               </div>
             );
           })}
         </div>
       )}
-
       </div>
 
       {/* Add Patient Modal */}

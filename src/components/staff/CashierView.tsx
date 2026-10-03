@@ -47,6 +47,7 @@ import { useT } from "@/i18n/lang";
 import { useStaffUser, NoAccess } from "@/lib/staffUser";
 import { EditionNotice } from "./DeviceGate";
 import { PatientFileButton } from "./PatientFileView";
+import { staffQuery } from "@/lib/staffNav";
 import { PrintSheet, PromptPayQR } from "./ReceiptSheet";
 import {
   IconAlertTriangle,
@@ -150,6 +151,35 @@ export function CashierView() {
     staffStock()
       .then((s) => setShelf(s.filter((i) => i.isActive && i.sellable)))
       .catch(() => {});
+  }, []);
+
+  // sent here for one visit (วันนี้ › รับชำระ): open that bill straight away
+  useEffect(() => {
+    const v = staffQuery("visit");
+    const m = v?.match(/^([aw])-(\d+)$/);
+    if (!m) return;
+    let live = true;
+    staffOpenBill(m[1] === "a" ? { appointmentId: Number(m[2]) } : { waitlistId: Number(m[2]) })
+      .then(async (id) => {
+        if (!live || id == null) return;
+        setSelected(id);
+        setTab("pay");
+        // the first background refresh may land after this with older data —
+        // fetch again once it has settled
+        for (const wait of [0, 1500]) {
+          await new Promise((r) => setTimeout(r, wait));
+          const [d, c] = await fetchDay(date);
+          if (!live) return;
+          setDay(d);
+          setClose(c);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // only on arrival
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // print once the sheet is on the page, then drop it

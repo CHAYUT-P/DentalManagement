@@ -88,4 +88,4 @@ export interface AuditRow {
 
 /** the letter in an avatar — skip a leading title such as คุณ / น้อง / ทพ. */
 export const initial = (name: string) =>
-  (name.replace(/^(คุณ|น้อง|ทพญ?\.|ทพ\.|ดร\.)\s*/, "").trim() || name).slice(0, 1);
+  (name.replace(/^(คุณ|น้อง|ด\.ช\.|ด\.ญ\.|ทพญ?\.|ทพ\.|ดร\.)\s*/, "").trim() || name).replace(/^[เแโใไ]/, "").slice(0, 1);

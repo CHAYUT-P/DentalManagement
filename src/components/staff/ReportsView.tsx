@@ -131,11 +131,19 @@ export function ReportsView() {
               <strong>{baht(data.df)}</strong>
             </div>
             <div className={`close-card ${profit < 0 ? "warn" : ""}`}>
-              <span>คงเหลือ (รับ − จ่าย − DF)</span>
+              <span>กำไรโดยประมาณ</span>
               <strong>{baht(profit)}</strong>
+              <em>รับเงิน − ค่าใช้จ่าย − DF</em>
             </div>
+            {data.claimed > 0 ? (
+              <div className="close-card">
+                <span>รอเบิกจากสิทธิ์</span>
+                <strong>{baht(data.claimed)}</strong>
+                <em>ประกันสังคม / บัตรทอง / ประกัน</em>
+              </div>
+            ) : null}
             <div className={`close-card ${data.owing.length ? "warn" : ""}`}>
-              <span>ลูกหนี้ค้างชำระ (ทั้งหมด)</span>
+              <span>ค้างชำระ (ทุกวัน)</span>
               <strong>{baht(data.owing.reduce((s, o) => s + o.balance, 0))}</strong>
               <em>{data.owing.length} บิล</em>
             </div>
@@ -228,7 +236,7 @@ export function ReportsView() {
               ) : null}
             </section>
             <section className="ledger-table close-table">
-              <h3>ช่องทางรับเงิน &amp; ค่าใช้จ่าย</h3>
+              <h3>รับเงินช่องทางไหน &amp; จ่ายอะไรไป</h3>
               {data.byMethod.map((m) => (
                 <div key={m.method} className="ct-row">
                   <span>{payMethodLabel(m.method)}</span>
@@ -253,7 +261,7 @@ export function ReportsView() {
 
           <div className="close-cols">
             <section className="ledger-table close-table">
-              <h3>ลูกหนี้ค้างชำระ</h3>
+              <h3>คนไข้ที่ยังค้างชำระ</h3>
               {data.owing.length === 0 ? <p className="cl-empty">ไม่มี</p> : null}
               {data.owing.map((o) => (
                 <div key={o.id} className="ct-row">

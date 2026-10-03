@@ -164,6 +164,18 @@ role (`src/lib/roles.ts`):
   paid bill (`invoice.care_sent_at`; advice per treatment in clinic_setting
   `aftercare`), **ลงเวลาทำงาน** (`time_clock`, punch with own PIN; monthly
   hours in ผู้ใช้ & สิทธิ์).
+- More FD parity: **สิทธิการรักษา** (`child.coverage`; payment methods
+  `sso`/`nhso`/`insurance` are claims with `payment.claim_status`, kept out
+  of cash totals; การเงิน › เบิกสิทธิ์ lists and exports them), **Thai ID
+  card reader** (desktop only: `src-tauri/src/idcard.rs` over PC/SC, called
+  through `src/lib/idCard.ts`), **แชท LINE** (`line_contact`/`line_message`;
+  the webhook saves incoming, `pushLineText` records outgoing; unread count
+  rides the bootstrap as `lineUnread`), **PDPA** consent document.
+- Ease of use: วันนี้ shows each arrived visit's stage (รอตรวจ → กำลังตรวจ →
+  ตรวจเสร็จ·รอชำระ → ชำระแล้ว) with รับชำระ jumping to that bill
+  (`goStaff('/cashier?visit=a-<id>')`, read back with `staffQuery`); the rail
+  separates daily work from the back office; ตั้งค่า opens on a
+  เริ่มต้นใช้งาน checklist with grouped sections — all full edition only.
 - The dental chart draws real teeth — side view + five-surface top view —
   with shape data from DentalPin (`src/lib/toothShapes.ts`, BSL 1.1 notice
   kept; production use allowed except as a commercial clinic-management SaaS).

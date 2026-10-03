@@ -6,6 +6,10 @@ import { useStaff, type StaffAppointment, type WaitlistEntry } from "@/lib/staff
 import { useT } from "@/i18n/lang";
 import { fmtLong } from "@/lib/dates";
 import { AppointmentDetailModal } from "@/components/staff/AppointmentDetailModal";
+import { staffCashierDay } from "@/server/actions";
+import type { CashierDay } from "@/lib/billing";
+import { goStaff } from "@/lib/staffNav";
+import { useStaffUser } from "@/lib/staffUser";
 import { IconCheck, IconPhone, IconWalkIn } from "@/components/staff/staffIcons";
 
 /**
@@ -41,8 +45,59 @@ type Row =
 /** statuses that mean the family is (or was) here today */
 const HERE: StaffAppointment["status"][] = ["arrived", "in_chair", "completed"];
 
+/** where a visit stands after arrival (full edition): exam room, then the counter */
+type Stage = { label: string; tone: "wait" | "chair" | "pay" | "paid"; bill?: number };
+
 export default function StaffTodayPage() {
-  const { today, appointments, waitlist, dentists, setQueueStatus, showToast } = useStaff();
+  const { today, appointments, waitlist, dentists, setQueueStatus, showToast, edition } = useStaff();
+  const canPay = useStaffUser().can("cashier");
+  const full = edition === "full";
+
+  /* bills for today, so each visit shows whether it is paid (full edition) */
+  const [bills, setBills] = useState<CashierDay | null>(null);
+  useEffect(() => {
+    if (!full || !canPay) return;
+    let live = true;
+    const tick = () =>
+      staffCashierDay(today)
+        .then((d) => live && setBills(d))
+        .catch(() => {});
+    void tick();
+    const id = setInterval(() => void tick(), 20_000);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [full, canPay, today, appointments, waitlist]);
+
+  const stageOf = (status: string, apptId?: string, walkId?: string): Stage => {
+    const bill = bills?.bills.find(
+      (b) => b.status !== "void" && (apptId ? String(b.appointmentId) === apptId : String(b.waitlistId) === walkId),
+    );
+    if (bill?.status === "paid") return { label: "ชำระแล้ว", tone: "paid" };
+    if (status === "completed" || status === "done")
+      return { label: bill ? `ตรวจเสร็จ · ค้าง ${bill.balance.toLocaleString("th-TH")} บาท` : "ตรวจเสร็จ · รอชำระ", tone: "pay", bill: bill?.id };
+    if (status === "in_chair") return { label: "กำลังตรวจ", tone: "chair", bill: bill?.id };
+    return { label: "รอตรวจ", tone: "wait", bill: bill?.id };
+  };
+
+  const stageStrip = (st: Stage, visit: string) => (
+    <span className="tr-stage">
+      <span className={`stage-chip ${st.tone}`}>{st.label}</span>
+      {canPay && st.tone !== "paid" ? (
+        <button
+          type="button"
+          className={st.tone === "pay" ? "btn-primary-staff stage-pay" : "btn-secondary-staff stage-pay"}
+          onClick={(e) => {
+            e.stopPropagation();
+            goStaff(`/cashier?visit=${visit}`);
+          }}
+        >
+          รับชำระ
+        </button>
+      ) : null}
+    </span>
+  );
   const dict = useT();
   const tr = useTreatments();
   const [opened, setOpened] = useState<StaffAppointment | null>(null);
@@ -110,7 +165,7 @@ export default function StaffTodayPage() {
           if (r.kind === "walkin") {
             const w = r.entry;
             return (
-              <div key={`w-${w.id}`} className="today-row here" role="listitem">
+              <div key={`w-${w.id}`} className={`today-row here ${full ? "staged" : ""}`} role="listitem">
                 <span className="tr-time">{w.arrivedAt}</span>
                 <div className="tr-main">
                   <span className="tr-name">{w.childName}</span>
@@ -128,6 +183,7 @@ export default function StaffTodayPage() {
                     ) : null}
                   </span>
                 </div>
+                {full ? stageStrip(stageOf(w.status, undefined, w.id), `w-${w.id}`) : null}
                 <span className="tr-tick done" aria-label={`มาแล้ว ${w.arrivedAt} น.`}>
                   <IconCheck size={20} />
                   <span>มาแล้ว {w.arrivedAt}</span>
@@ -143,7 +199,7 @@ export default function StaffTodayPage() {
           return (
             <div
               key={a.id}
-              className={`today-row ${here ? "here" : ""} ${noShow ? "noshow" : ""}`}
+              className={`today-row ${here ? "here" : ""} ${noShow ? "noshow" : ""} ${full && here ? "staged" : ""}`}
               role="listitem"
             >
               <span className="tr-time">{a.time}</span>
@@ -162,6 +218,7 @@ export default function StaffTodayPage() {
                   <span className="tr-ref">{a.ref}</span>
                 </span>
               </button>
+              {full && here ? stageStrip(stageOf(a.status, a.id), `a-${a.id}`) : null}
               {noShow ? (
                 <span className="tr-tick off">ไม่มา</span>
               ) : (

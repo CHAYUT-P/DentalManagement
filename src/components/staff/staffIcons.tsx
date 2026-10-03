@@ -345,3 +345,33 @@ export function IconCreditCard({ size = 18, className, color }: P) {
   );
 }
 
+
+export function IconChart({ size = 18, className }: P) {
+  return (
+    <Svg size={size} className={className}>
+      <path d="M3 3v18h18" />
+      <rect x="7" y="12" width="3" height="6" rx="1" />
+      <rect x="12" y="8" width="3" height="10" rx="1" />
+      <rect x="17" y="5" width="3" height="13" rx="1" />
+    </Svg>
+  );
+}
+
+export function IconBox({ size = 18, className }: P) {
+  return (
+    <Svg size={size} className={className}>
+      <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
+      <path d="m3 8 9 5 9-5" />
+      <path d="M12 13v8" />
+    </Svg>
+  );
+}
+
+export function IconChat({ size = 18, className }: P) {
+  return (
+    <Svg size={size} className={className}>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.3A8 8 0 1 1 21 12Z" />
+      <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" strokeWidth={2.4} />
+    </Svg>
+  );
+}

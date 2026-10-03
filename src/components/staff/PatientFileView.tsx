@@ -1279,12 +1279,15 @@ export function PatientFileButton({
   name,
   label = "แฟ้มคนไข้",
   className = "btn-secondary-staff",
+  children,
 }: {
   childId?: number | null;
   phone?: string;
   name?: string;
   label?: string;
   className?: string;
+  /** richer content for the button (e.g. a whole patient row) */
+  children?: React.ReactNode;
 }) {
   const { edition, showToast } = useStaff();
   const [open, setOpen] = useState<number | null>(null);
@@ -1305,7 +1308,7 @@ export function PatientFileButton({
   return (
     <>
       <button type="button" className={className} disabled={busy} onClick={() => void go()}>
-        {busy ? "กำลังเปิด…" : label}
+        {children ?? (busy ? "กำลังเปิด…" : label)}
       </button>
       {open
         ? createPortal(

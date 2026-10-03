@@ -1,6 +1,6 @@
 import React from "react";
 import type { StaffContextType } from "@/lib/staffStore";
-import { IconBuilding, IconCalendar, IconClock, IconDollar, IconFilter, IconList, IconSettings, IconSmartphone, IconUsers } from "./staffIcons";
+import { IconBox, IconBuilding, IconCalendar, IconChart, IconChat, IconClock, IconDollar, IconSettings, IconUsers } from "./staffIcons";
 
 import type { Perm } from "@/lib/roles";
 
@@ -11,6 +11,8 @@ export interface RailItem {
   badge?: string;
   /** whether this entry owns the current path (old routes fold into the new ones) */
   match: (pathname: string) => boolean;
+  /** the first back-office entry (full edition) — a divider is drawn above it */
+  divider?: boolean;
 }
 
 /**
@@ -49,15 +51,15 @@ export function railItems(
     {
       href: at("/chat"),
       label: "แชท LINE",
-      icon: IconSmartphone,
+      icon: IconChat,
       full: true,
       perm: "chat",
       badge: s.lineUnread > 0 ? String(s.lineUnread) : undefined,
       match: (p) => under(p, "/chat"),
     },
     { href: at("/cashier"), label: "การเงิน", icon: IconDollar, full: true, perm: "cashier", match: (p) => under(p, "/cashier") },
-    { href: at("/stock"), label: "คลัง & แลป", icon: IconList, full: true, perm: "stock", match: (p) => under(p, "/stock") },
-    { href: at("/reports"), label: "รายงาน", icon: IconFilter, full: true, perm: "reports", match: (p) => under(p, "/reports") },
+    { href: at("/stock"), label: "คลัง & แลป", icon: IconBox, full: true, perm: "stock", divider: true, match: (p) => under(p, "/stock") },
+    { href: at("/reports"), label: "รายงาน", icon: IconChart, full: true, perm: "reports", match: (p) => under(p, "/reports") },
     {
       href: at("/settings"),
       label: "ตั้งค่า",
@@ -66,7 +68,10 @@ export function railItems(
       match: (p) => under(p, "/settings", "/dentists", "/services", "/notifications"),
     },
   ];
-  return items.filter((i) => (s.edition === "full" || !i.full) && (!i.perm || allow(i.perm)));
+  const shown = items.filter((i) => (s.edition === "full" || !i.full) && (!i.perm || allow(i.perm)));
+  // in the full edition, a line separates daily work from the back office
+  const firstBack = shown.findIndex((i) => i.divider || (s.edition === "full" && i.href === at("/settings")));
+  return shown.map((i, n) => ({ ...i, divider: s.edition === "full" && n === firstBack && n > 0 }));
 }
 
 export function RailLogo() {
