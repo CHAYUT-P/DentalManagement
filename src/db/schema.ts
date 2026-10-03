@@ -988,3 +988,33 @@ export const timeClock = pgTable(
   },
   (t) => [index("time_clock_user_idx").on(t.userId), index("time_clock_date_idx").on(t.date)],
 );
+
+/* ────────────────────────────── LINE chat (full edition) ───────────────── */
+
+/** a LINE account that has written to the clinic's OA */
+export const lineContact = pgTable("line_contact", {
+  lineUserId: text("line_user_id").primaryKey(),
+  displayName: text("display_name").notNull().default(""),
+  pictureUrl: text("picture_url").notNull().default(""),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** every message in and out of the OA chat, as the app saw it */
+export const lineMessage = pgTable(
+  "line_message",
+  {
+    id: serial("id").primaryKey(),
+    lineUserId: text("line_user_id").notNull(),
+    /** "in" from the family, "out" from the clinic */
+    direction: text("direction").notNull(),
+    /** "text" | "sticker" | "image" | "other" */
+    kind: text("kind").notNull().default("text"),
+    text: text("text").notNull().default(""),
+    /** who at the clinic sent it (out) */
+    staffName: text("staff_name").notNull().default(""),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("line_message_user_idx").on(t.lineUserId, t.createdAt)],
+);

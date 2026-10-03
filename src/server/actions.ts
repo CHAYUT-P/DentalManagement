@@ -953,6 +953,28 @@ export async function staffRemoveLabOrder(id: number) {
   return removeLabOrder(id);
 }
 
+/* ═══════════════════════════ staff: LINE chat (full edition) ════════════ */
+
+export async function staffChats() {
+  await guard("chat");
+  const { listConversations } = await import("@/server/chat");
+  return listConversations();
+}
+
+export async function staffChatThread(lineUserId: string) {
+  await guard("chat");
+  const { listMessages } = await import("@/server/chat");
+  return listMessages(String(lineUserId).slice(0, 64));
+}
+
+export async function staffChatSend(lineUserId: string, text: string) {
+  await guard("chat");
+  const { currentUser } = await import("@/server/users");
+  const me = await currentUser();
+  const { sendMessage } = await import("@/server/chat");
+  return sendMessage(String(lineUserId).slice(0, 64), text, me?.name || "คลินิก");
+}
+
 /* ═══════════════════════════ staff: accounts (full edition) ═════════════ */
 
 export async function staffWhoAmI() {
@@ -1303,6 +1325,7 @@ export async function staffBootstrap() {
 
   const today = (await import("@/lib/dates")).todayISO();
 
+  const lineUnread = await (await import("@/server/chat")).unreadCount().catch(() => 0);
   const [appts, dentists, patients, waitlist, visitRecords, notifications, days, holidays, prices, chairs, treatments, dentistLeaves] =
     await Promise.all([
       listAppointmentsBetween("1970-01-01", "9999-12-31"),
@@ -1333,6 +1356,8 @@ export async function staffBootstrap() {
     treatments,
     dentistLeaves,
     settings: { chairs },
+    /** unanswered LINE messages — the full edition's แชท LINE badge */
+    lineUnread,
   };
 }
 

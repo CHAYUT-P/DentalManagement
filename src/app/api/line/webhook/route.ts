@@ -20,6 +20,14 @@ interface LineEvent {
   message?: { type: string; text?: string };
 }
 
+/** keep what families write, for the staff app's แชท LINE */
+async function keep(ev: LineEvent) {
+  const userId = ev.source?.userId;
+  if (!userId || ev.type !== "message" || !ev.message) return;
+  const { saveIncoming } = await import("@/server/chat");
+  await saveIncoming(userId, ev.message.type, ev.message.text ?? "").catch(() => {});
+}
+
 function validSignature(rawBody: string, signature: string | null): boolean {
   const secret = process.env.LINE_CHANNEL_SECRET;
   if (!secret || !signature) return false;
@@ -39,6 +47,7 @@ export async function POST(request: NextRequest) {
   const { events = [] } = JSON.parse(raw) as { events?: LineEvent[] };
 
   for (const ev of events) {
+    await keep(ev);
     if (ev.type === "follow" && ev.replyToken) {
       // replies are free (push messages are not) — greet every new friend
       await replyLineText(

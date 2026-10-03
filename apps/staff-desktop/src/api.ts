@@ -2,6 +2,7 @@ import type { IconKey } from "@/data/icons";
 import type { TreatmentInfo, TreatmentKey } from "@/lib/treatments";
 import type { ClinicDaySetting } from "@/lib/clinicSettings";
 import type { DfStatement, ReportData } from "@/server/reports";
+import type { ChatConversation, ChatMessage } from "@/server/chat";
 import type { AuditRow, ClockRow, Role, StaffUserInfo, WhoAmI } from "@/lib/roles";
 import type { ImportField } from "@/lib/dataio";
 import type { Consumable, Expense, LabOrder, MoveKind, StockItem, StockMove, Supplier } from "@/lib/stock";
@@ -133,6 +134,7 @@ export interface StaffBootstrap {
   servicePrices: Record<IconKey, number | null>;
   treatments: TreatmentInfo[];
   dentistLeaves: DentistLeave[];
+  lineUnread: number;
   settings: { chairs: number };
 }
 
@@ -259,6 +261,20 @@ export function staffImportPatients(rows: Partial<Record<ImportField, string>>[]
 
 export function staffExportBills(from: string, to: string) {
   return call<string>("exportBills", [from, to]);
+}
+
+/* ── LINE chat (full edition) ─────────────────────────────────────────── */
+
+export function staffChats() {
+  return call<ChatConversation[]>("chats", []);
+}
+
+export function staffChatThread(lineUserId: string) {
+  return call<ChatMessage[]>("chatThread", [lineUserId]);
+}
+
+export function staffChatSend(lineUserId: string, text: string) {
+  return call<"sent" | "not_configured" | "failed">("chatSend", [lineUserId, text]);
 }
 
 /* ── accounts (full edition) ──────────────────────────────────────────── */

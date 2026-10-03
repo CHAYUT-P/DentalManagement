@@ -1,6 +1,6 @@
 import React from "react";
 import type { StaffContextType } from "@/lib/staffStore";
-import { IconBuilding, IconCalendar, IconClock, IconDollar, IconFilter, IconList, IconSettings, IconUsers } from "./staffIcons";
+import { IconBuilding, IconCalendar, IconClock, IconDollar, IconFilter, IconList, IconSettings, IconSmartphone, IconUsers } from "./staffIcons";
 
 import type { Perm } from "@/lib/roles";
 
@@ -20,7 +20,7 @@ export interface RailItem {
  * roster / prices / notifications → ตั้งค่า.
  */
 export function railItems(
-  s: Pick<StaffContextType, "edition" | "today" | "appointments" | "waitlist">,
+  s: Pick<StaffContextType, "edition" | "today" | "appointments" | "waitlist" | "lineUnread">,
   prefix: string,
   /** the signed-in role's permissions (full edition) — the queue edition shows all */
   allow: (perm: Perm) => boolean = () => true,
@@ -46,6 +46,15 @@ export function railItems(
     { href: at("/schedule"), label: "ตารางนัด", icon: IconCalendar, match: (p) => under(p, "/schedule", "/appointments") },
     { href: at("/patients"), label: "คนไข้", icon: IconUsers, full: true, perm: "patients", match: (p) => under(p, "/patients") },
     { href: at("/rooms"), label: "ห้องตรวจ", icon: IconBuilding, full: true, perm: "rooms", match: (p) => under(p, "/rooms") },
+    {
+      href: at("/chat"),
+      label: "แชท LINE",
+      icon: IconSmartphone,
+      full: true,
+      perm: "chat",
+      badge: s.lineUnread > 0 ? String(s.lineUnread) : undefined,
+      match: (p) => under(p, "/chat"),
+    },
     { href: at("/cashier"), label: "การเงิน", icon: IconDollar, full: true, perm: "cashier", match: (p) => under(p, "/cashier") },
     { href: at("/stock"), label: "คลัง & แลป", icon: IconList, full: true, perm: "stock", match: (p) => under(p, "/stock") },
     { href: at("/reports"), label: "รายงาน", icon: IconFilter, full: true, perm: "reports", match: (p) => under(p, "/reports") },

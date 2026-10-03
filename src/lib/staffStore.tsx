@@ -148,6 +148,8 @@ export interface StaffContextType {
   createTreatment: (input: Parameters<typeof staffCreateTreatment>[0]) => void;
   /** dentists' leave (ลา) — those days have no bookable slots */
   dentistLeaves: DentistLeave[];
+  /** unanswered LINE messages (full edition's แชท LINE) */
+  lineUnread: number;
   addDentistLeave: (dentistSlug: string, start: string, end: string, note: string) => void;
   removeDentistLeave: (id: number) => void;
   /** is this dentist on leave on this date? */
@@ -188,6 +190,7 @@ function withDefaults(b: StaffBootstrap): StaffBootstrap {
     waitlist: b.waitlist ?? [],
     visitRecords: b.visitRecords ?? [],
     notifications: b.notifications ?? [],
+    lineUnread: b.lineUnread ?? 0,
   };
 }
 
@@ -766,6 +769,7 @@ export function StaffProvider({
       updateServicePrice,
       treatments: state.treatments,
       dentistLeaves: state.dentistLeaves,
+      lineUnread: state.lineUnread,
       addDentistLeave,
       removeDentistLeave,
       onLeave,

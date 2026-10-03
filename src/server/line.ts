@@ -70,9 +70,20 @@ export async function linkGuardianLine(guardianId: number, identity: LineIdentit
     .where(and(eq(guardian.id, guardianId), isNull(guardian.lineUserId)));
 }
 
-/** push a text message into a patient's LINE chat (counts toward quota) */
-export async function pushLineText(toUserId: string, text: string): Promise<boolean> {
-  return postLine(LINE_PUSH_URL, { to: toUserId, messages: [{ type: "text", text }] });
+/**
+ * push a text message into a patient's LINE chat (counts toward quota). What
+ * went out is kept with the conversation the staff app shows (แชท LINE).
+ */
+export async function pushLineText(toUserId: string, text: string, from = "ระบบอัตโนมัติ"): Promise<boolean> {
+  const ok = await postLine(LINE_PUSH_URL, { to: toUserId, messages: [{ type: "text", text }] });
+  if (ok) {
+    const { lineMessage } = await import("@/db/schema");
+    await db
+      .insert(lineMessage)
+      .values({ lineUserId: toUserId, direction: "out", text: text.slice(0, 4000), staffName: from.slice(0, 60) })
+      .catch(() => {});
+  }
+  return ok;
 }
 
 /** reply inside the webhook window — free, but the token dies in ~1 minute */

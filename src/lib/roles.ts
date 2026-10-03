@@ -14,7 +14,8 @@ export type Perm =
   | "reports"
   | "settings"
   | "finance_settings"
-  | "users";
+  | "users"
+  | "chat";
 
 export const ROLE_LABEL: Record<Role, string> = {
   owner: "เจ้าของ / ผู้จัดการ",
@@ -23,11 +24,11 @@ export const ROLE_LABEL: Record<Role, string> = {
   assistant: "ผู้ช่วยทันตแพทย์",
 };
 
-const ALL: Perm[] = ["queue", "schedule", "patients", "chart", "rooms", "cashier", "void", "stock", "reports", "settings", "finance_settings", "users"];
+const ALL: Perm[] = ["queue", "schedule", "patients", "chart", "rooms", "cashier", "void", "stock", "reports", "settings", "finance_settings", "users", "chat"];
 
 export const ROLE_PERMS: Record<Role, Perm[]> = {
   owner: ALL,
-  frontdesk: ["queue", "schedule", "patients", "cashier", "void", "stock", "settings"],
+  frontdesk: ["queue", "schedule", "patients", "cashier", "void", "stock", "settings", "chat"],
   dentist: ["queue", "schedule", "patients", "chart", "rooms"],
   assistant: ["queue", "schedule", "patients", "chart", "rooms", "stock"],
 };
@@ -45,6 +46,7 @@ export const PERM_LABEL: Record<Perm, string> = {
   settings: "ตั้งค่าคลินิก",
   finance_settings: "ตั้งค่าใบเสร็จ & DF",
   users: "ผู้ใช้ & สิทธิ์",
+  chat: "แชท LINE กับผู้ปกครอง",
 };
 
 export const can = (role: Role | null | undefined, perm: Perm) => !role || ROLE_PERMS[role]?.includes(perm) === true;
