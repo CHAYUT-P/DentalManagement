@@ -6340,3 +6340,13 @@ label.btn-primary-staff.disabled {
     min-height: 70vh;
   }
 }
+
+.pdpa-text {
+  margin: 0;
+  padding: 12px 16px 12px 34px;
+  border-radius: 12px;
+  background: var(--staff-surface-subtle);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--staff-ink-2);
+}

@@ -514,7 +514,7 @@ export async function saveDoc(input: {
   const { toId } = await dentistMaps();
   const values = {
     childId: input.childId,
-    kind: ["prescription", "certificate", "referral", "consent"].includes(input.kind) ? input.kind : "certificate",
+    kind: ["prescription", "certificate", "referral", "consent", "pdpa"].includes(input.kind) ? input.kind : "certificate",
     date: /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : todayISO(),
     dentistId: input.dentistSlug ? (toId.get(input.dentistSlug) ?? null) : null,
     // the form's own fields (a signature image makes it larger)

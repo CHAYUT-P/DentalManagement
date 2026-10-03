@@ -4,7 +4,7 @@ import React from "react";
 
 import { baht, lineNet, type BillingSettings } from "@/lib/billing";
 import { bahtText } from "@/lib/bahtText";
-import type { ClinicalDocRow, PatientFileData, PlanRow, RxLine } from "@/lib/clinical";
+import { PDPA_TEXT, type ClinicalDocRow, type PatientFileData, type PlanRow, type RxLine } from "@/lib/clinical";
 import { fmtLong } from "@/lib/dates";
 import { useT } from "@/i18n/lang";
 
@@ -170,6 +170,27 @@ export function ClinicalPrint({
           </p>
           {patient.allergies ? <p>แพ้ยา: {patient.allergies}</p> : null}
           {sign(d.dentistSlug)}
+        </>
+      );
+    } else if (d.kind === "pdpa") {
+      body = (
+        <>
+          <h2 className="ps-title">หนังสือให้ความยินยอมในการเก็บ ใช้ และเปิดเผยข้อมูลส่วนบุคคล</h2>
+          {who}
+          <p>วันที่ {day(d.date || today)}</p>
+          <ol className="ps-rx">
+            {PDPA_TEXT.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ol>
+          <p>ข้าพเจ้าได้อ่านและเข้าใจ และให้ความยินยอมตามข้างต้น</p>
+          <div className="ps-signature">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {s(data.signature) ? <img className="ps-sig-img" src={s(data.signature)} alt="" /> : null}
+            <span>ลงชื่อ ............................................</span>
+            <span>({s(data.guardianName) || patient.guardian.fullName || patient.guardian.name || "..........................................."})</span>
+            <span>ผู้รับบริการ / ผู้ปกครอง</span>
+          </div>
         </>
       );
     } else {

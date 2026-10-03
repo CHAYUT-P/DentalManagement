@@ -42,6 +42,7 @@ import {
   type PlanRow,
   type PlanStatus,
   type RxLine,
+  PDPA_TEXT,
 } from "@/lib/clinical";
 import { fmtLong } from "@/lib/dates";
 import { useStaff } from "@/lib/staffStore";
@@ -785,6 +786,7 @@ const DOC_LABEL: Record<DocKind, string> = {
   certificate: "ใบรับรองแพทย์",
   referral: "ใบส่งตัว",
   consent: "ใบยินยอมรับการรักษา",
+  pdpa: "ยินยอมเก็บข้อมูล (PDPA)",
 };
 
 function DocsTab({
@@ -929,6 +931,30 @@ function DocsTab({
             {field("to", "ส่งถึง (โรงพยาบาล / คลินิก / แพทย์)")}
             {field("reason", "เหตุผลที่ส่งต่อ", { area: true })}
             {field("findings", "ผลการตรวจ / การรักษาที่ทำแล้ว", { area: true })}
+          </>
+        ) : null}
+        {form.kind === "pdpa" ? (
+          <>
+            <ol className="pdpa-text">
+              {PDPA_TEXT.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ol>
+            {field("guardianName", "ชื่อผู้ให้ความยินยอม", { placeholder: file.guardian.fullName || file.guardian.name })}
+            <div className="form-group">
+              <label>ลายเซ็น</label>
+              {typeof form.data.signature === "string" && form.data.signature ? (
+                <div className="sig-saved">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={form.data.signature} alt="ลายเซ็น" />
+                  <button type="button" className="btn-secondary-staff" onClick={() => set("signature", "")}>
+                    เซ็นใหม่
+                  </button>
+                </div>
+              ) : (
+                <SignaturePad onChange={(png) => set("signature", png)} />
+              )}
+            </div>
           </>
         ) : null}
         {form.kind === "consent" ? (
