@@ -73,3 +73,26 @@ pnpm dev                 # → http://localhost:3000
 pnpm --filter staff-desktop dev    # Tauri window on http://localhost:3000/staff
 open queue/index.html              # or any static server; config.js points at :3000
 ```
+
+## Hosting on your own VPS (one command)
+
+Everything runs on one server with Docker: Postgres, the app, and Caddy
+(automatic HTTPS). Files live in `deploy/`.
+
+1. Rent an Ubuntu 24.04 VPS (1 GB RAM is enough; the script adds swap), note
+   its IP, make sure you can `ssh root@<ip>`.
+2. Point your domain's DNS **A record** at that IP (e.g. `booking.yourclinic.com`).
+3. On this Mac: `pnpm deploy:vps root@<ip>` — the first run creates
+   `deploy/.env.production`; fill it in (domain, a database password, STAFF_PIN,
+   CRON_SECRET, LINE keys, and `COPY_FROM_DATABASE_URL` = the Neon URL to bring
+   the current data across once). Run the same command again.
+4. It installs Docker, a swap file and a firewall, copies the old database,
+   builds and starts everything, applies schema changes, and sets the daily
+   LINE reminders (18:00 / 07:00) and a nightly database backup
+   (`/opt/dentakids/backups`, 14 days).
+5. Point LINE at the new address: LIFF endpoint `https://<domain>/` and webhook
+   `https://<domain>/api/line/webhook`. Rebuild the staff app with
+   `VITE_API_URL=https://<domain>`.
+
+Updating later is the same command — it sends the code on this Mac, rebuilds,
+and applies schema changes.

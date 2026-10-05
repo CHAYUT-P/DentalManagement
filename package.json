@@ -12,7 +12,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:test": "tsx --import ./scripts/shimServerOnly.ts scripts/dbTest.ts",
     "db:studio": "drizzle-kit studio",
-    "e2e:test": "tsx --import ./scripts/shimServerOnly.ts scripts/e2eTest.ts"
+    "e2e:test": "tsx --import ./scripts/shimServerOnly.ts scripts/e2eTest.ts",
+    "deploy:vps": "bash scripts/deploy-vps.sh"
   },
   "dependencies": {
     "@line/liff": "2.31.0",

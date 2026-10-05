@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Runs ON the VPS (scripts/deploy-vps.sh sends it). Safe to run again: every
+# step checks first, so the same command installs the first time and updates
+# after that.
+set -euo pipefail
+APP=/opt/dentakids
+cd "$APP"
+say() { printf '\n\033[1;35m▸ %s\033[0m\n' "$*"; }
+
+say "1/7  Docker"
+if ! command -v docker >/dev/null 2>&1; then
+  curl -fsSL https://get.docker.com | sh
+fi
+systemctl enable --now docker >/dev/null 2>&1 || true
+
+say "2/7  Memory (a 2 GB swap file lets a 1 GB server build the app)"
+if [ "$(swapon --show | wc -l)" -eq 0 ] && [ "$(free -m | awk '/Mem:/{print $2}')" -lt 3000 ]; then
+  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+say "3/7  Firewall (only SSH, HTTP, HTTPS open)"
+if command -v ufw >/dev/null 2>&1; then
+  ufw allow OpenSSH >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
+  ufw --force enable >/dev/null
+fi
+
+set -a; . ./.env.production; set +a
+DC="docker compose -f deploy/docker-compose.yml --env-file .env.production"
+
+say "4/7  Database"
+$DC up -d db
+# first deploy only: copy the current cloud database (e.g. Neon) across
+if [ -n "${COPY_FROM_DATABASE_URL:-}" ] && [ ! -f .db-copied ]; then
+  say "     copying data from the old database (one time)…"
+  docker run --rm postgres:17-alpine pg_dump --no-owner --no-acl "$COPY_FROM_DATABASE_URL" \
+    | $DC exec -T db psql -q -U dental -d dentalweb >/dev/null
+  touch .db-copied
+fi
+
+say "5/7  Building the app (a few minutes on a small server)"
+$DC build app migrate
+$DC run --rm migrate </dev/null
+
+say "6/7  Starting"
+$DC up -d app caddy
+$DC ps
+
+say "7/7  Reminders + nightly backup"
+mkdir -p backups
+cat > /etc/cron.d/dentakids <<CRON
+# LINE reminders — 18:00 and 07:00 Bangkok (the server clock is UTC); called
+# inside the app container, so HTTPS redirects never get in the way
+0 11 * * * root cd $APP && $DC exec -T app wget -qO- --header="Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:3000/api/cron/reminders?kind=day_before" >/dev/null 2>&1
+0 0 * * * root cd $APP && $DC exec -T app wget -qO- --header="Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:3000/api/cron/reminders?kind=morning" >/dev/null 2>&1
+# database backup at 03:00 Bangkok, keep 14 days
+0 20 * * * root cd $APP && $DC exec -T db pg_dump -U dental dentalweb | gzip > backups/db-\$(date +\%F).sql.gz && find backups -name 'db-*.sql.gz' -mtime +14 -delete
+CRON
+chmod 600 /etc/cron.d/dentakids
+
+say "Done"
+if [ -n "${DOMAIN:-}" ]; then
+  echo "  Website:  https://${DOMAIN}"
+  echo "  (the HTTPS certificate is issued on the first visit — give it a minute)"
+else
+  echo "  Website:  http://$(curl -fsS https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+fi
+docker image prune -f >/dev/null 2>&1 || true
