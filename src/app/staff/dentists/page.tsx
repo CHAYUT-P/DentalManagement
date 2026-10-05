@@ -3,10 +3,10 @@
 import React, { useState } from "react";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type EditableDentist } from "@/lib/staffStore";
-import { EditDentistModal } from "@/components/staff/EditDentistModal";
-import { DentistLeaveModal } from "@/components/staff/DentistLeaveModal";
-import { fmtHolidayRange } from "@/components/staff/RangeCalendar";
-import { IconCalendar, IconEdit, IconPlus } from "@/components/staff/staffIcons";
+import { EditDentistModal } from "@/components/staff/settings/EditDentistModal";
+import { DentistLeaveModal } from "@/components/staff/settings/DentistLeaveModal";
+import { fmtHolidayRange } from "@/components/staff/schedule/RangeCalendar";
+import { IconCalendar, IconEdit, IconPlus } from "@/components/staff/shell/staffIcons";
 
 /** Sunday-first, like a wall calendar — `shift.weekday` 0 = Sun … 6 = Sat */
 const WEEK = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];

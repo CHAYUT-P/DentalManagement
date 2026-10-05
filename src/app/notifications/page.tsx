@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
-import { NoticesPage } from "@/components/NoticesPage";
+import { NoticesPage } from "@/components/patient/NoticesPage";
 import { todayISO } from "@/lib/dates";
 
 export const metadata: Metadata = {

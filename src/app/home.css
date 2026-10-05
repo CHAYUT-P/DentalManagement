@@ -1,7 +1,7 @@
 /* ==========================================================================
    Home page layout. The solid-colour (no-gradient) look is the base design
    for the whole app, so it lives in globals.css rather than in a skin class;
-   the parked gradient variant is in backup/styles/gradient-skin.css.
+   the parked gradient variant is in docs/archive/old-designs/gradient-skin.css.
    ========================================================================== */
 
 .home .hero { min-height: clamp(176px, 25vh, 228px); padding: 20px 20px 14px; }

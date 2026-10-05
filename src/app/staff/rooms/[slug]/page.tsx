@@ -1,4 +1,4 @@
-import { RoomRoute } from "@/components/staff/RoomRoute";
+import { RoomRoute } from "@/components/staff/rooms/RoomRoute";
 
 /**
  * One dentist's room — the page a treatment-room PC stays on all day.

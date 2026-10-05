@@ -5,7 +5,7 @@ import { services } from "@/data/services";
 import { nowMinutes, addDays, todayISO } from "@/lib/dates";
 import { toUIDentists } from "@/lib/convert";
 import { listActiveDentists, listClinicDays, listHolidays, listTreatmentCatalog, slotsForDate, slotLoadForDates, getChairs } from "@/server/queries";
-import { BookingFlow } from "@/components/BookingFlow";
+import { BookingFlow } from "@/components/patient/BookingFlow";
 import { TreatmentsProvider } from "@/lib/treatmentsContext";
 
 export const metadata: Metadata = {

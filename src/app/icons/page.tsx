@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { IconsPage } from "@/components/IconsPage";
+import { IconsPage } from "@/components/patient/IconsPage";
 import "./icons.css";
 
 export const metadata: Metadata = {

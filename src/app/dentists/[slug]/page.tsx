@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { DentistDetail } from "@/components/DentistDetail";
+import { DentistDetail } from "@/components/patient/DentistDetail";
 import { toUIDentist } from "@/lib/convert";
 import { listActiveDentists } from "@/server/queries";
 

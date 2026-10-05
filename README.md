@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Denta Kids
 
-## Getting Started
+Booking website (opened from the clinic's LINE OA), its backend, and the staff
+desktop app for **Denta Kids** pediatric dental clinic.
 
-First, run the development server:
+## Where things are
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+src/                     the website + backend (Next.js 16)
+  app/                   pages and API routes — patient site, /staff console, /api/*
+  components/
+    patient/             patient website screens (booking, my bookings, clinic…)
+    shared/              icons and the mascot, used by both sites
+    staff/               staff console, by area:
+      shell/             menu, top bar, sign-in gates, icons
+      schedule/          ตารางนัด, booking dialogs, calendars
+      patients/          patient file, dental chart, paperwork, recalls
+      rooms/             ห้องตรวจ (exam room screen)
+      billing/           การเงิน — bills, receipts, PromptPay, day close
+      stock/ reports/ chat/ settings/
+  server/                database access and server actions (billing, clinical, stock, …)
+  lib/                   shared logic and types used by both client and server
+  db/                    database schema (Drizzle) and client
+  data/  i18n/           built-in content and Thai/English text
+apps/
+  staff-desktop/         staff app for clinic PCs (Tauri) — queue and full editions
+  queue-site/            waiting-room queue screen (plain static site)
+deploy/                  run everything on your own VPS (Docker + HTTPS)
+scripts/                 seed data, tests, deploy-to-VPS
+docs/                    PROJECT notes, DEPLOYMENT guide, diagrams, review, archive
+public/                  static files served as-is
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Everyday commands
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose up -d          # local database
+pnpm dev                      # website + backend on http://localhost:3000
+pnpm db:push                  # apply schema changes to the database in .env
+pnpm e2e:test                 # booking flow end to end
+pnpm --dir apps/staff-desktop dev:app:full   # staff app (full edition) against :3000
+pnpm deploy:vps root@<ip>     # deploy / update the VPS (see docs/DEPLOYMENT.md)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+More detail: [docs/PROJECT.md](docs/PROJECT.md) (how the system works) and
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (hosting).

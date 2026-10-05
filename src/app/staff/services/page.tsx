@@ -5,9 +5,9 @@ import { useStaff } from "@/lib/staffStore";
 import { iconGroups } from "@/data/icons";
 import { useT } from "@/i18n/lang";
 import type { TreatmentInfo } from "@/lib/treatments";
-import { ServiceIcon } from "@/components/serviceIcons";
-import { TreatmentModal } from "@/components/staff/TreatmentModal";
-import { IconCheck, IconEdit, IconPlus, IconSearch } from "@/components/staff/staffIcons";
+import { ServiceIcon } from "@/components/shared/serviceIcons";
+import { TreatmentModal } from "@/components/staff/settings/TreatmentModal";
+import { IconCheck, IconEdit, IconPlus, IconSearch } from "@/components/staff/shell/staffIcons";
 
 type Show = "all" | "on" | "off";
 

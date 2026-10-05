@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 
-import { DeviceGate } from "@/components/staff/DeviceGate";
-import { StaffLoginGate } from "@/components/staff/StaffLoginGate";
-import { StaffSidebar } from "@/components/staff/StaffSidebar";
-import { StaffTopbar } from "@/components/staff/StaffTopbar";
+import { DeviceGate } from "@/components/staff/shell/DeviceGate";
+import { StaffLoginGate } from "@/components/staff/shell/StaffLoginGate";
+import { StaffSidebar } from "@/components/staff/shell/StaffSidebar";
+import { StaffTopbar } from "@/components/staff/shell/StaffTopbar";
 import { staffBootstrap } from "@/server/actions";
 import { isStaffAuthed } from "@/server/staffAuth";
 import { StaffUserGate } from "@/lib/staffUser";

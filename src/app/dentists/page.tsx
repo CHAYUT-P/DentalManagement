@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { DentistsPage } from "@/components/DentistsPage";
+import { DentistsPage } from "@/components/patient/DentistsPage";
 import { toUIDentists } from "@/lib/convert";
 import { listActiveDentists } from "@/server/queries";
 

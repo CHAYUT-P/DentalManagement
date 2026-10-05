@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { ServicesPage } from "@/components/ServicesPage";
+import { ServicesPage } from "@/components/patient/ServicesPage";
 import { listTreatmentCatalog } from "@/server/queries";
 
 export const metadata: Metadata = {

@@ -242,7 +242,7 @@ async function seedClinicInfo() {
   /**
    * The clinic's real contact row. The address/phone here are the old demo
    * placeholders — the owner will paste the verified Chon Buri details from
-   * the Google Maps listing (see PROJECT.md § Backend). onConflictDoNothing
+   * the Google Maps listing (see docs/PROJECT.md § Backend). onConflictDoNothing
    * means staff edits are never overwritten by a re-seed.
    */
   await db

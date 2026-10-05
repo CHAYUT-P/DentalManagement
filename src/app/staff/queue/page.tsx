@@ -5,12 +5,12 @@ import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type StaffAppointment, type WaitlistEntry } from "@/lib/staffStore";
 import { useT } from "@/i18n/lang";
 import { fmtLong } from "@/lib/dates";
-import { AppointmentDetailModal } from "@/components/staff/AppointmentDetailModal";
+import { AppointmentDetailModal } from "@/components/staff/schedule/AppointmentDetailModal";
 import { staffCashierDay } from "@/server/actions";
 import type { CashierDay } from "@/lib/billing";
 import { goStaff } from "@/lib/staffNav";
 import { useStaffUser } from "@/lib/staffUser";
-import { IconCheck, IconPhone, IconWalkIn } from "@/components/staff/staffIcons";
+import { IconCheck, IconPhone, IconWalkIn } from "@/components/staff/shell/staffIcons";
 
 /**
  * วันนี้ — today's queue in two groups. ยังไม่มา: bookings not here yet, by

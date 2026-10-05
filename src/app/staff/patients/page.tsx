@@ -7,7 +7,7 @@ import { useT } from "@/i18n/lang";
 import { fmtLong } from "@/lib/dates";
 import { COVERAGE_LABEL, asCoverage } from "@/lib/billing";
 import { initial } from "@/lib/roles";
-import { BookingModal } from "@/components/staff/BookingModal";
+import { BookingModal } from "@/components/staff/schedule/BookingModal";
 import {
   PatientForm,
   ageOf,
@@ -15,18 +15,18 @@ import {
   formFromRecord,
   toPatientPayload,
   type PatientFormState,
-} from "@/components/staff/PatientForm";
-import { EditionNotice } from "@/components/staff/DeviceGate";
+} from "@/components/staff/patients/PatientForm";
+import { EditionNotice } from "@/components/staff/shell/DeviceGate";
 import { NoAccess, useStaffUser } from "@/lib/staffUser";
-import { PatientFileButton } from "@/components/staff/PatientFileView";
-import { RecallList } from "@/components/staff/RecallList";
+import { PatientFileButton } from "@/components/staff/patients/PatientFileView";
+import { RecallList } from "@/components/staff/patients/RecallList";
 import {
   IconSearch,
   IconPlus,
   IconCalendar,
   IconX,
   IconEdit,
-} from "@/components/staff/staffIcons";
+} from "@/components/staff/shell/staffIcons";
 
 function StaffPatientsPageInner() {
   const { today, patients, createPatient, updatePatient, appointments, showToast } = useStaff();

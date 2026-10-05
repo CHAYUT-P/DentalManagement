@@ -10,7 +10,7 @@ import {
   IconClock,
   IconSmartphone,
   IconWalkIn,
-} from "@/components/staff/staffIcons";
+} from "@/components/staff/shell/staffIcons";
 
 export default function StaffNotificationsPage() {
   const { notifications, markAllNotificationsRead, simulateOnlineBooking } = useStaff();

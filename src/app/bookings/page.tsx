@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
-import { BookingsPage } from "@/components/BookingsPage";
+import { BookingsPage } from "@/components/patient/BookingsPage";
 import { todayISO } from "@/lib/dates";
 import { TreatmentsProvider } from "@/lib/treatmentsContext";
 import { listTreatmentCatalog } from "@/server/queries";

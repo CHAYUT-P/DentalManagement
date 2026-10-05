@@ -5,7 +5,7 @@ import { useTreatments } from "@/lib/treatmentsContext";
 import { useStaff, type EditableDentist, type StaffAppointment } from "@/lib/staffStore";
 import { canTreat } from "@/lib/convert";
 import { addDays } from "@/lib/dates";
-import { AppointmentDetailModal } from "@/components/staff/AppointmentDetailModal";
+import { AppointmentDetailModal } from "@/components/staff/schedule/AppointmentDetailModal";
 import {
   IconSearch,
   IconCheck,
@@ -15,7 +15,7 @@ import {
   IconEdit,
   IconSmartphone,
   IconWalkIn,
-} from "@/components/staff/staffIcons";
+} from "@/components/staff/shell/staffIcons";
 
 type RangeFilter = "today" | "upcoming" | "past" | "all";
 

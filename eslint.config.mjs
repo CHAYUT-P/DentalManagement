@@ -13,7 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     // parked design references, not part of the app
-    "backup/**",
+    "docs/archive/**",
     // Tauri Rust build output
     "**/src-tauri/target/**",
     // desktop app frontend build output

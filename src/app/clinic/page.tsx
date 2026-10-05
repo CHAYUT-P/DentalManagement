@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
-import { ClinicPage } from "@/components/ClinicPage";
+import { ClinicPage } from "@/components/patient/ClinicPage";
 import { todayISO } from "@/lib/dates";
 import { getClinicInfo, listClinicDays } from "@/server/queries";
 

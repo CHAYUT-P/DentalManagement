@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 
 import { useStaff } from "@/lib/staffStore";
 import { useStaffUser } from "@/lib/staffUser";
-import { railItems, RailLogo } from "@/components/staff/staffRail";
+import { railItems, RailLogo } from "@/components/staff/shell/staffRail";
 
 /**
  * The web console's menu rail, ported: next/link + usePathname become NavLink +

@@ -1,4 +1,4 @@
-import { HomePage } from "@/components/HomePage";
+import { HomePage } from "@/components/patient/HomePage";
 import { toUIDentists } from "@/lib/convert";
 import { weekday, todayISO } from "@/lib/dates";
 import { getClinicInfo, listActiveDentists, listClinicDays, listTreatmentCatalog } from "@/server/queries";
