@@ -96,3 +96,19 @@ Everything runs on one server with Docker: Postgres, the app, and Caddy
 
 Updating later is the same command — it sends the code on this Mac, rebuilds,
 and applies schema changes.
+
+### Trying it for free first
+
+- **Server:** Oracle Cloud "Always Free" (Singapore region), an Ampere ARM VM with
+  Ubuntu. Before deploying, add ingress rules for TCP 80 and 443 in the VCN's
+  security list. The script opens Oracle's own iptables rules itself. Deploy with
+  `pnpm deploy:vps ubuntu@<ip>`; non-root logins use sudo automatically.
+- **Address:** there is no need to buy a domain to try it. Set
+  `DOMAIN=<ip-with-dashes>.sslip.io` (e.g. `140-245-12-34.sslip.io`) and Caddy
+  still gets a real HTTPS certificate.
+- The trial copies the data from Neon once (`COPY_FROM_DATABASE_URL`) and does
+  not touch the live Vercel site. LINE keeps pointing at Vercel until you change
+  the LIFF endpoint and webhook URL.
+- **For real use, buy a domain** (e.g. `dentakids.co.th` or `.com`, about
+  300–1,000 ฿/yr). Point an "A" record at the server's IP, set `DOMAIN=` to it,
+  and run the deploy command again.

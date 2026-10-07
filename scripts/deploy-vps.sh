@@ -18,8 +18,13 @@ if grep -qE '^(POSTGRES_PASSWORD=change-me|STAFF_PIN=$|CRON_SECRET=change-me)' "
   echo "ยังกรอก $ENVFILE ไม่ครบ (POSTGRES_PASSWORD / STAFF_PIN / CRON_SECRET)"; exit 1
 fi
 
+# root (DigitalOcean) runs commands directly; other logins (Oracle's "ubuntu")
+# use sudo, and own the app folder so the code can be copied in
+SUDO=""
+[ "${HOST%@*}" = "root" ] || SUDO="sudo"
+
 echo "▸ เชื่อมต่อ $HOST …"
-ssh -o ConnectTimeout=10 "$HOST" 'mkdir -p /opt/dentakids && (command -v rsync >/dev/null || (apt-get update -qq && apt-get install -y -qq rsync))'
+ssh -o ConnectTimeout=10 "$HOST" "$SUDO mkdir -p /opt/dentakids && $SUDO chown \$(id -u):\$(id -g) /opt/dentakids && (command -v rsync >/dev/null || ($SUDO apt-get update -qq && $SUDO apt-get install -y -qq rsync))"
 
 echo "▸ ส่งโค้ดขึ้นเซิร์ฟเวอร์ …"
 rsync -az --delete \
@@ -32,4 +37,4 @@ scp -q "$ENVFILE" "$HOST":/opt/dentakids/.env.production
 ssh "$HOST" 'chmod 600 /opt/dentakids/.env.production'
 
 echo "▸ ติดตั้ง / อัปเดตบนเซิร์ฟเวอร์ …"
-ssh "$HOST" 'bash /opt/dentakids/deploy/server-setup.sh'
+ssh "$HOST" "$SUDO bash /opt/dentakids/deploy/server-setup.sh"

@@ -20,7 +20,15 @@ if [ "$(swapon --show | wc -l)" -eq 0 ] && [ "$(free -m | awk '/Mem:/{print $2}'
 fi
 
 say "3/7  Firewall (only SSH, HTTP, HTTPS open)"
-if command -v ufw >/dev/null 2>&1; then
+if iptables -S INPUT 2>/dev/null | grep -q -- "-j REJECT"; then
+  # Oracle Cloud images ship iptables rules that reject everything but SSH —
+  # let web traffic in ahead of the reject (also open 80/443 in the VCN
+  # "security list" in the Oracle console)
+  for port in 80 443; do
+    iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null || iptables -I INPUT 5 -p tcp --dport "$port" -j ACCEPT
+  done
+  command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+elif command -v ufw >/dev/null 2>&1; then
   ufw allow OpenSSH >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
   ufw --force enable >/dev/null
 fi
