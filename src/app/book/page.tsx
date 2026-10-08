@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { services } from "@/data/services";
 import { nowMinutes, addDays, todayISO } from "@/lib/dates";
 import { toUIDentists } from "@/lib/convert";
-import { listActiveDentists, listClinicDays, listHolidays, listTreatmentCatalog, slotsForDate, slotLoadForDates, getChairs } from "@/server/queries";
+import { getChairs, getClinicInfo, listActiveDentists, listClinicDays, listHolidays, listTreatmentCatalog, slotLoadForDates, slotsForDate } from "@/server/queries";
 import { BookingFlow } from "@/components/patient/BookingFlow";
 import { TreatmentsProvider } from "@/lib/treatmentsContext";
 
@@ -36,10 +36,11 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
   const rawR = typeof q.r === "string" && /^[A-Za-z0-9-]{4,20}$/.test(q.r) ? q.r : undefined;
 
   const today = todayISO();
-  const [dentistRows, clinicDays, holidays] = await Promise.all([
+  const [dentistRows, clinicDays, holidays, info] = await Promise.all([
     listActiveDentists(),
     listClinicDays(),
     listHolidays(),
+    getClinicInfo(),
   ]);
 
   // slot occupancy for every day the calendar can show
@@ -81,6 +82,7 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
       preTreatment={preTreatment}
       preDentist={rawD && dentistRows.some((d) => d.slug === rawD) ? rawD : undefined}
       rescheduleRef={rawR}
+      address={{ th: info?.addressTh ?? "", en: info?.addressEn || info?.addressTh || "" }}
     />
     </TreatmentsProvider>
   );

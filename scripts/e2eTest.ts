@@ -6,6 +6,13 @@
 import "dotenv/config";
 
 async function main() {
+  // the families here have no real LINE login: with LINE switched off the
+  // patient actions take the token as a stand-in account (dev only), and no
+  // message is pushed to anyone
+  delete process.env.LINE_LOGIN_CHANNEL_ID;
+  delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  const FAMILY = "e2e-family";
+
   const actions = await import("../src/server/actions");
   const queries = await import("../src/server/queries");
   const { todayISO, addDays, weekdayIndex } = await import("../src/lib/dates");
@@ -33,17 +40,20 @@ async function main() {
     // the patient site sends only the name to give at the desk + a phone
     childName: "น้องเทสเตอร์",
     phone: "0912345678",
+    lineIdToken: FAMILY,
   });
   ok(`booking confirmed with ref ${result.ref}`, result.ok && !!result.ref, JSON.stringify(result));
   if (!result.ok) process.exit(1);
 
   console.log("\n— 2. Booking visible in the system (pooled) —");
-  const mine = await actions.myBookings("0912345678");
+  const mine = (await actions.myBookingsByLine(FAMILY)) ?? [];
   ok(
-    "patient /bookings finds it by phone",
+    "patient /bookings finds it by the LINE account",
     mine.some((m) => m.ref === result.ref),
     `got ${mine.map((m) => m.ref).join(",") || "none"}`,
   );
+  const stranger = (await actions.myBookingsByLine("someone-else")) ?? [];
+  ok("another account does not see it", !stranger.some((m) => m.ref === result.ref));
   const staffList = await queries.listAppointmentsBetween(today, addDays(today, 30));
   const onStaff = staffList.find(a => a.ref === result.ref);
   ok("staff list has it pooled (no dentist yet)", !!onStaff && onStaff.dentistId === null);
@@ -109,9 +119,14 @@ async function main() {
   await actions.staffUpdatePrice("fluoride", 600); // restore
 
   console.log("\n— 8. Patient cancels —");
-  await actions.cancelBooking(result.ref!, "0912345678");
-  const after = await actions.myBookings("0912345678");
-  ok("booking now cancelled", after[0]?.status === "cancelled");
+  const hijack = await actions.cancelBooking(result.ref!, "someone-else");
+  ok("another account cannot cancel it", !hijack.ok);
+  const cancelled = await actions.cancelBooking(result.ref!, FAMILY);
+  ok("the family cancels it", cancelled.ok);
+  const after = (await actions.myBookingsByLine(FAMILY)) ?? [];
+  ok("booking now cancelled", after.find((m) => m.ref === result.ref)?.status === "cancelled");
+  const again = await actions.cancelBooking(result.ref!, FAMILY);
+  ok("a cancelled booking can't be cancelled twice", !again.ok);
   const freed = (await queries.slotsForDate(date)).find(s => s.dentistSlug === dentistSlug && s.time === time);
   ok("slot freed for others", freed?.taken === false);
   const cancelNotifs = await queries.listNotifications();

@@ -8,7 +8,6 @@ import type { ClinicInfoDTO } from "@/server/queries";
 import { useT } from "@/i18n/lang";
 import { ArrowRight, Building, Calendar, Doc, Sparks } from "@/components/shared/icons";
 import { Mascot } from "@/components/shared/Mascot";
-import { Toaster } from "@/components/patient/mock";
 import {
   DentistStrip,
   Header,
@@ -94,7 +93,6 @@ export function HomePage({
           <Ribbon msg={t.ribbon} />
         </div>
       </main>
-      <Toaster />
     </div>
   );
 }

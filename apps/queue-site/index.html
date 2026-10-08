@@ -40,7 +40,7 @@
           type="text"
           inputmode="text"
           autocomplete="off"
-          placeholder="รหัสนัด DK-0000 หรือเบอร์โทร"
+          placeholder="รหัสจอง เช่น DK-482193"
         />
         <button type="submit">เช็คคิว</button>
       </form>
@@ -48,10 +48,8 @@
 
       <!-- day + doctor pickers -->
       <div class="q-controls">
-        <label class="q-ctl">
-          <span>วันที่</span>
-          <input type="date" id="day" />
-        </label>
+        <!-- today only: the server never shows other days -->
+        <input type="date" id="day" hidden />
         <label class="q-ctl">
           <span>คุณหมอ</span>
           <select id="doc">

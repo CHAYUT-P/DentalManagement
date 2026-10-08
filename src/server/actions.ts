@@ -16,7 +16,6 @@ import {
   createAppointment,
   createDentist,
   deleteAppointment,
-  findFamilyByPhone,
   listAppointmentsBetween,
   markNotificationsRead,
   priceMap,
@@ -38,7 +37,7 @@ import {
   type NewDentistInput,
 } from "@/server/queries";
 import type { WaitlistDTO } from "@/server/queries";
-import { todayISO } from "@/lib/dates";
+import { thaiDate, todayISO } from "@/lib/dates";
 import type { Perm } from "@/lib/roles";
 import type { VisitRecordInput } from "@/lib/staffTypes";
 
@@ -153,7 +152,7 @@ export interface BookResult {
   /** set when ok — the created appointment, for the confirmation slip */
   ref?: string;
   /** set when !ok — the reason to show the parent */
-  error?: "slot_taken" | "invalid";
+  error?: "slot_taken" | "invalid" | "line";
 }
 
 /**
@@ -262,7 +261,7 @@ export async function bookAppointment(input: {
 }): Promise<BookResult> {
   // minimal validation — never trust the client, even ours
   if (await limited("book", 20, 600)) return { ok: false, error: "invalid" };
-  const name = input.childName?.trim() ?? "";
+  const name = typeof input.childName === "string" ? input.childName.trim().slice(0, 60) : "";
   if (!input.date || !input.time || !input.treatmentKey || !input.phone || !name) {
     return { ok: false, error: "invalid" };
   }
@@ -282,11 +281,12 @@ export async function bookAppointment(input: {
     await releaseHold(input.holdToken);
   }
 
-  // verify LINE identity up front — the booking is stamped with the account
-  // (that is how "my bookings" finds it inside LINE) and it gets the push
-  // confirmation after
-  const { verifyLineIdToken } = await import("@/server/line");
-  const identity = input.lineIdToken ? await verifyLineIdToken(input.lineIdToken) : null;
+  // verify the LINE account up front — the booking is stamped with it (that is
+  // how "my bookings" finds it, and the only way to cancel or move it later)
+  // and it gets the push confirmation after. With LINE login configured a
+  // booking without a verified account is refused.
+  const identity = await patientIdentity(input.lineIdToken);
+  if (!identity && process.env.LINE_LOGIN_CHANNEL_ID) return { ok: false, error: "line" };
 
   const verdict = await slotVerdict(input.date, input.time, input.treatmentKey, dentistId);
   if (verdict !== "ok") {
@@ -327,7 +327,7 @@ export async function bookAppointment(input: {
     const { pushLineText } = await import("@/server/line");
     await pushLineText(
       identity.userId,
-      `จองคิวสำเร็จ ✓\nรหัสจอง: ${created.ref}\nวันที่ ${input.date} เวลา ${input.time}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
+      `จองคิวสำเร็จ ✓\nนัดของ ${name}\n${thaiDate(input.date)} เวลา ${input.time} น.\nรหัสจอง: ${created.ref}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
     );
   }
 
@@ -360,62 +360,89 @@ export async function assignPoolDentist(
   return { ok: true };
 }
 
-/** the patient-site "my bookings" list — everything under one phone number */
-export async function myBookings(phone: string) {
-  if (await limited("lookup", 40, 600)) return [];
-  return listAppointmentsBetween("1970-01-01", "9999-12-31").then((all) =>
-    all
-      .filter((a) => a.phone.replace(/\D/g, "") === phone.replace(/\D/g, ""))
-      .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1)),
-  );
+/**
+ * Who is on the patient site. Families sign in with LINE (the site runs as a
+ * LIFF app inside the clinic's LINE OA), so "my bookings", cancel, postpone
+ * and messages all hang off the verified LINE account — never a phone number,
+ * which anyone could type. Only when LINE login isn't configured at all (local
+ * dev and test scripts) does the token double as a stand-in identity.
+ */
+async function patientIdentity(lineIdToken: string | undefined) {
+  if (!lineIdToken) return null;
+  if (!process.env.LINE_LOGIN_CHANNEL_ID) {
+    return process.env.NODE_ENV === "production"
+      ? null
+      : { userId: `dev:${lineIdToken.slice(0, 40)}`, displayName: "dev" };
+  }
+  const { verifyLineIdToken } = await import("@/server/line");
+  return verifyLineIdToken(lineIdToken);
 }
 
-/**
- * The LINE path for the same page — the LIFF ID token is verified server-side
- * and every booking that account made comes back. null = token rejected or
- * LINE not configured (caller falls back to the phone view); [] = verified but
- * nothing booked from this account yet.
- */
+/** the patient-site "my bookings" list — everything this LINE account booked.
+ *  null = the token was not accepted (the page asks to sign in again) */
 export async function myBookingsByLine(lineIdToken: string) {
   if (await limited("lookup", 40, 600)) return null;
-  const { verifyLineIdToken } = await import("@/server/line");
-  const { listAppointmentsForLine } = await import("@/server/queries");
-  const identity = await verifyLineIdToken(lineIdToken);
+  const identity = await patientIdentity(lineIdToken);
   if (!identity) return null;
-  return listAppointmentsForLine(identity.userId);
-}
-
-/** the booking flow's returning-family lookup (read-only action) */
-export async function familyByPhone(phone: string) {
-  if (await limited("lookup", 40, 600)) return [];
-  // a lookup only means something once the phone looks complete; the caller
-  // clears its own state otherwise
-  if (phone.replace(/\D/g, "").length < 9) return [];
-  const fams = await findFamilyByPhone(phone);
-  return fams.map((f) => ({
-    name: f.name,
-    children: f.children.map((c) => ({ id: c.id, name: c.name })),
+  const { listAppointmentsForLine } = await import("@/server/queries");
+  const rows = await listAppointmentsForLine(identity.userId);
+  // only what the family needs — staff notes, prices and the like stay inside
+  return rows.map((a) => ({
+    ref: a.ref,
+    date: a.date,
+    time: a.time,
+    treatmentKey: a.treatmentKey,
+    dentistSlug: a.dentistSlug,
+    status: a.status,
+    childName: a.childName,
   }));
 }
 
+/** what the clinic has sent this LINE account — the bell page on the site */
+export async function myMessagesByLine(lineIdToken: string) {
+  if (await limited("lookup", 40, 600)) return null;
+  const identity = await patientIdentity(lineIdToken);
+  if (!identity) return null;
+  const { lineMessage } = await import("@/db/schema");
+  const { and, desc, eq } = await import("drizzle-orm");
+  const rows = await db
+    .select({ id: lineMessage.id, text: lineMessage.text, at: lineMessage.createdAt })
+    .from(lineMessage)
+    .where(and(eq(lineMessage.lineUserId, identity.userId), eq(lineMessage.direction, "out")))
+    .orderBy(desc(lineMessage.createdAt))
+    .limit(50);
+  return rows.map((r) => ({ id: r.id, text: r.text, at: r.at.toISOString() }));
+}
+
 /**
- * The patient cancelled their own booking. The ref alone is guessable
- * (DK-XXXX is ~9k values), so the caller must also know the booking's phone —
- * the page only learns the ref after a verified LINE view or a phone match.
+ * The booking this LINE account may still change: its own, confirmed (not yet
+ * checked in), and not in the past. null otherwise.
  */
-export async function cancelBooking(ref: string, phone: string) {
-  if (await limited("cancel", 10, 600)) return;
-  if (!ref || !phone) return;
-  const rows = await listAppointmentsBetween("1970-01-01", "9999-12-31");
-  const target = rows.find((a) => a.ref === ref);
-  if (!target) return;
-  if (target.phone.replace(/\D/g, "") !== phone.replace(/\D/g, "")) return;
+async function ownUpcomingBooking(ref: string, lineIdToken: string) {
+  if (!ref || !lineIdToken) return null;
+  const identity = await patientIdentity(lineIdToken);
+  if (!identity) return null;
+  const { listAppointmentsForLine } = await import("@/server/queries");
+  const target = (await listAppointmentsForLine(identity.userId)).find((a) => a.ref === ref);
+  if (!target || target.status !== "confirmed") return null;
+  const { minutesOf, nowMinutes } = await import("@/lib/dates");
+  const today = todayISO();
+  if (target.date < today || (target.date === today && minutesOf(target.time) < nowMinutes())) return null;
+  return target;
+}
+
+/** The patient cancelled their own booking (signed in with LINE). */
+export async function cancelBooking(ref: string, lineIdToken: string): Promise<{ ok: boolean }> {
+  if (await limited("cancel", 10, 600)) return { ok: false };
+  const target = await ownUpcomingBooking(ref, lineIdToken);
+  if (!target) return { ok: false };
   await updateAppointment(target.id, { status: "cancelled" });
   // a freed chair can home a pooled booking still waiting at that slot
   const { settlePool } = await import("@/server/queries");
   await settlePool(target.date, target.time);
   await dbInsertCancellationNotice(target.ref, target.childName, target.date, target.time);
   revalidateAll();
+  return { ok: true };
 }
 
 /**
@@ -427,23 +454,20 @@ export async function cancelBooking(ref: string, phone: string) {
  */
 export async function rescheduleBooking(input: {
   ref: string;
-  phone: string;
+  /** the LIFF ID token — only the LINE account that booked may move it */
+  lineIdToken: string;
   date: string;
   time: string;
   /** token from holdSlot — the new slot's reservation being confirmed */
   holdToken?: string;
 }): Promise<BookResult> {
   if (await limited("reschedule", 10, 600)) return { ok: false, error: "invalid" };
-  if (!input.ref || !input.phone || !input.date || !input.time) return { ok: false, error: "invalid" };
+  if (!input.ref || !input.date || !input.time) return { ok: false, error: "invalid" };
 
-  const rows = await listAppointmentsBetween("1970-01-01", "9999-12-31");
-  const target = rows.find((a) => a.ref === input.ref);
+  // only this account's booking, still waiting to happen — not one already
+  // checked in, finished, cancelled or in the past
+  const target = await ownUpcomingBooking(input.ref, input.lineIdToken);
   if (!target) return { ok: false, error: "invalid" };
-  if (target.phone.replace(/\D/g, "") !== input.phone.replace(/\D/g, "")) return { ok: false, error: "invalid" };
-  // only a booking still waiting to happen can move — not one already checked
-  // in, finished, cancelled or in the past
-  const { todayISO } = await import("@/lib/dates");
-  if (target.status !== "confirmed" || target.date < todayISO()) return { ok: false, error: "invalid" };
   if (target.date === input.date && target.time === input.time) return { ok: true, ref: target.ref };
 
   if (input.holdToken) {
@@ -486,7 +510,7 @@ export async function rescheduleBooking(input: {
     if (to) {
       await pushLineText(
         to,
-        `เลื่อนนัดสำเร็จ ✓\nรหัสจอง: ${target.ref}\nนัดใหม่ วันที่ ${input.date} เวลา ${input.time}\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
+        `เลื่อนนัดสำเร็จ ✓\nรหัสจอง: ${target.ref}\nนัดใหม่ ${thaiDate(input.date)} เวลา ${input.time} น.\nขอบคุณที่ใช้บริการ DentaKids ค่ะ`,
       );
     }
   }

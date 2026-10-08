@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { BookingsPage } from "@/components/patient/BookingsPage";
 import { todayISO } from "@/lib/dates";
 import { TreatmentsProvider } from "@/lib/treatmentsContext";
-import { listTreatmentCatalog } from "@/server/queries";
+import { getClinicInfo, listDentists, listTreatmentCatalog } from "@/server/queries";
 
 export const metadata: Metadata = {
   title: "Denta Kids · ประวัติการจอง",
@@ -12,18 +12,26 @@ export const metadata: Metadata = {
 };
 
 /**
- * Identity arrives on the client, not here — inside LIFF the verified LINE
- * userId picks the guardian's bookings; anywhere else the visitor types the
- * booking phone. No rows are preloaded: with nobody identified, the page has
- * nothing of anybody's to show.
+ * Identity arrives on the client, not here — the family's LINE sign-in picks
+ * their bookings. No rows are preloaded: with nobody signed in, the page has
+ * nothing of anybody's to show. What is loaded here is the clinic's own data
+ * the rows are drawn with: treatment names, dentist names, the address.
  */
 export default async function Page() {
   await connection();
-  // every treatment, hidden ones too — an old booking still shows its name
-  const catalog = await listTreatmentCatalog();
+  // every treatment and dentist, hidden/retired ones too — an old booking
+  // still shows its name
+  const [catalog, dentists, info] = await Promise.all([listTreatmentCatalog(), listDentists(), getClinicInfo()]);
+  const dentistNames = Object.fromEntries(
+    dentists.map((d) => [d.slug, { th: d.text.th.name, en: d.text.en.name || d.text.th.name }]),
+  );
   return (
     <TreatmentsProvider list={catalog}>
-      <BookingsPage today={todayISO()} />
+      <BookingsPage
+        today={todayISO()}
+        dentistNames={dentistNames}
+        address={{ th: info?.addressTh ?? "", en: info?.addressEn || info?.addressTh || "" }}
+      />
     </TreatmentsProvider>
   );
 }

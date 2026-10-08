@@ -40,16 +40,21 @@ export async function verifyLineIdToken(idToken: string): Promise<LineIdentity |
   const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
   if (!channelId || !idToken) return null;
 
-  const res = await fetch(LINE_VERIFY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ id_token: idToken, client_id: channelId }),
-  });
-  if (!res.ok) return null;
-
-  const data = (await res.json()) as { sub?: string; name?: string };
-  if (!data.sub) return null;
-  return { userId: data.sub, displayName: data.name ?? "" };
+  try {
+    const res = await fetch(LINE_VERIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ id_token: idToken, client_id: channelId }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { sub?: string; name?: string };
+    if (!data.sub) return null;
+    return { userId: data.sub, displayName: data.name ?? "" };
+  } catch {
+    // LINE unreachable or slow — same as "not verified"; callers ask to retry
+    return null;
+  }
 }
 
 /**
@@ -94,10 +99,16 @@ export async function replyLineText(replyToken: string, text: string): Promise<b
 async function postLine(url: string, body: unknown): Promise<boolean> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!token) return false;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-  return res.ok;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    // a message that can't go out never fails the booking or the batch it is in
+    return false;
+  }
 }

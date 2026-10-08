@@ -1,59 +1,49 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { dentistBySlug } from "@/data/dentists";
 import type { TreatmentKey } from "@/lib/treatments";
 import { useTreatments } from "@/lib/treatmentsContext";
 import { useLang } from "@/i18n/lang";
 import { fmtShort } from "@/lib/dates";
-import { cancelBooking, myBookings, myBookingsByLine } from "@/server/actions";
+import { useLine } from "@/lib/useLine";
+import { cancelBooking, myBookingsByLine } from "@/server/actions";
 import { RESCHEDULE_KEY, type RescheduleHandoff } from "@/components/patient/BookingFlow";
 import { Check, Cross } from "@/components/shared/icons";
-import { EmptySlip, Eyebrow, Screen, Slip } from "@/components/patient/screen";
+import { EmptySlip, Eyebrow, LineSignIn, Screen, Slip } from "@/components/patient/screen";
 import { BookingsSkeleton } from "@/components/patient/PageLoading";
 import { ServiceIcon } from "@/components/shared/serviceIcons";
 
 /**
- * The patient's appointments: the next one as the slip itself, then the history
+ * The family's appointments: the next one as the slip itself, then the history
  * as ledger rows.
  *
- * Identity has exactly two doors — inside LINE the verified userId picks the
- * guardian's bookings; outside LINE the visitor types the booking phone. There
- * is no third view: without one of those the page shows the phone gate, never
- * somebody else's rows.
+ * Identity is the LINE account and nothing else — opened from the clinic's
+ * LINE OA the family is already signed in; in a normal browser they sign in
+ * with LINE first. A phone number is never enough to see anybody's bookings.
  *
- * Cancel marks the appointment cancelled in the DB (staff see it immediately).
- * Postpone hands the booking to the flow at `/book?r=` — same row, same ref,
- * new date/time — so the family never ends up holding two bookings.
+ * Cancel asks once more, then marks the appointment cancelled in the DB (staff
+ * see it immediately). Postpone hands the booking to the flow at `/book?r=` —
+ * same row, same ref, new date/time — so the family never holds two bookings.
  */
 
-export interface BookingView {
-  ref: string;
-  date: string;
-  time: string;
-  treatmentKey: TreatmentKey;
-  dentistSlug: string | null;
-  status: "confirmed" | "arrived" | "in_chair" | "completed" | "cancelled" | "no_show";
-  childName: string;
-  /** the booking's contact phone — cancelBooking requires it alongside the ref */
-  phone: string;
-}
+type Row = NonNullable<Awaited<ReturnType<typeof myBookingsByLine>>>[number];
+type Names = Record<string, { th: string; en: string }>;
 
-function PastRow({ a }: { a: BookingView }) {
+function PastRow({ a, names }: { a: Row; names: Names }) {
   const { t, lang } = useLang();
   const tr = useTreatments();
-  const d = a.dentistSlug ? dentistBySlug(a.dentistSlug) : undefined;
+  const dentist = a.dentistSlug ? names[a.dentistSlug]?.[lang] : undefined;
   return (
     <div className={`histRow ${a.status}`}>
-      <span className={`disc t-${tr.tint(a.treatmentKey)}`}>
-        <ServiceIcon k={tr.icon(a.treatmentKey)} size={25} />
+      <span className={`disc t-${tr.tint(a.treatmentKey as TreatmentKey)}`}>
+        <ServiceIcon k={tr.icon(a.treatmentKey as TreatmentKey)} size={25} />
       </span>
       <span className="hText">
-        <span className="hn">{tr.name(a.treatmentKey, lang)}</span>
+        <span className="hn">{tr.name(a.treatmentKey as TreatmentKey, lang)}</span>
         <span className="hm">
-          {fmtShort(t, a.date)} · {a.time} · {d ? d.text[lang].name : t.booking.anyone}
+          {fmtShort(t, a.date)} · {a.time} · {dentist || t.booking.anyone}
         </span>
       </span>
       <span className="hSide">
@@ -65,144 +55,103 @@ function PastRow({ a }: { a: BookingView }) {
               ? t.bookingsPage.noshow
               : t.bookingsPage.cancelled}
         </span>
-        {a.status === "cancelled" ? null : (
-          <a
-            href={`/book?t=${a.treatmentKey}${a.dentistSlug ? `&d=${a.dentistSlug}` : ""}`}
-            className="againBtn"
-          >
-            {t.bookingsPage.bookAgain}
-          </a>
-        )}
+        <a
+          href={`/book?t=${a.treatmentKey}${a.dentistSlug ? `&d=${a.dentistSlug}` : ""}`}
+          className="againBtn"
+        >
+          {t.bookingsPage.bookAgain}
+        </a>
       </span>
     </div>
   );
 }
 
-function toView(a: Awaited<ReturnType<typeof myBookings>>[number]): BookingView {
-  return {
-    ref: a.ref,
-    date: a.date,
-    time: a.time,
-    treatmentKey: a.treatmentKey,
-    dentistSlug: a.dentistSlug || null,
-    status: a.status,
-    childName: a.childName,
-    phone: a.phone,
-  };
-}
+export function BookingsPage({
+  today,
+  dentistNames,
+  address,
+}: {
+  today: string;
+  dentistNames: Names;
+  address: { th: string; en: string };
+}) {
+  const { t, lang } = useLang();
+  const line = useLine();
+  const router = useRouter();
 
-export function BookingsPage({ today }: { today: string }) {
-  const { t } = useLang();
-  const [pending, start] = useTransition();
-
-  /* inside LINE the signed ID token names the account — the verified userId
-     picks the guardian's bookings and the profile names the header. Outside
-     LINE the phone gate below is the only way in. While LIFF is still
-     resolving a skeleton holds the space so nothing unverified renders. */
-  const [lineRows, setLineRows] = useState<BookingView[] | null>(null);
-  const [lineName, setLineName] = useState<string | null>(null);
-  // no LIFF configured → nothing to wait for; the env var is build-time inlined
-  const [linePending, setLinePending] = useState(() => !!process.env.NEXT_PUBLIC_LIFF_ID);
+  /** null = still loading (or the token was refused — `failed` says which) */
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (!liffId) return;
+    if (line.status !== "in") return;
     let cancelled = false;
-    // outside LINE liff.init() has been seen to never settle — give up after a
-    // few seconds so the phone gate appears instead of an endless skeleton
-    const giveUp = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("liff timeout")), 4000));
-    import("@line/liff")
-      .then(async ({ default: liff }) => {
-        await Promise.race([liff.init({ liffId }), giveUp]);
-        if (!liff.isLoggedIn()) return;
-        const token = liff.getIDToken();
-        const [profile, rows] = await Promise.all([
-          liff.getProfile().catch(() => null),
-          token ? myBookingsByLine(token) : null,
-        ]);
-        if (cancelled || !rows) return;
-        setLineRows(rows.map(toView));
-        if (profile) setLineName(profile.displayName);
+    myBookingsByLine(line.token)
+      .then((r) => {
+        if (cancelled) return;
+        if (r) setRows(r);
+        else setFailed(true);
       })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLinePending(false);
+      .catch(() => {
+        if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [line.status, line.token]);
 
-  /* outside LINE: the phone gate — type the booking phone, get the rows */
-  const [phoneRows, setPhoneRows] = useState<BookingView[] | null>(null);
-  const [phoneInput, setPhoneInput] = useState("");
-  const [phoneErr, setPhoneErr] = useState(false);
-  const [phoneBusy, setPhoneBusy] = useState(false);
-
-  function lookupPhone() {
-    const digits = phoneInput.replace(/\D/g, "");
-    if (digits.length < 9) {
-      setPhoneErr(true);
-      return;
-    }
-    setPhoneBusy(true);
-    myBookings(phoneInput)
-      .then((rows) => {
-        setPhoneRows(rows.map(toView));
-        if (rows.length === 0) setPhoneErr(true);
-      })
-      .finally(() => setPhoneBusy(false));
-  }
-
-  const shown = lineRows ?? phoneRows;
+  /** the ref whose "cancel?" question is open, and the one being cancelled */
+  const [asking, setAsking] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
 
   // the next visit: a live booking from today onwards — confirmed, checked in,
   // or in the chair right now all still belong on the slip
-  const live = (s: BookingView["status"]) =>
-    s === "confirmed" || s === "arrived" || s === "in_chair";
-  const rows = shown ?? [];
-  const upcoming = rows
+  const live = (s: Row["status"]) => s === "confirmed" || s === "arrived" || s === "in_chair";
+  const all = rows ?? [];
+  const upcoming = all
     .filter((b) => live(b.status) && b.date >= today)
     .sort((a, b) => (a.date + a.time < b.date + b.time ? -1 : 1));
-  const history = rows
+  const history = all
     .filter((b) => !live(b.status) || b.date < today)
     .sort((a, b) => (a.date + a.time > b.date + b.time ? -1 : 1));
 
-  const router = useRouter();
-  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
-  const cancelling = cancelTarget !== null && pending;
-
-  /** the phone proves ownership, so it rides in sessionStorage, not the URL */
-  function doPostpone(a: BookingView) {
-    const handoff: RescheduleHandoff = {
-      ref: a.ref,
-      phone: a.phone,
-      date: a.date,
-      time: a.time,
-      childName: a.childName,
-    };
+  /** the old slot rides in sessionStorage only for the banner on /book */
+  function doPostpone(a: Row) {
+    const handoff: RescheduleHandoff = { ref: a.ref, date: a.date, time: a.time, childName: a.childName };
     try {
       sessionStorage.setItem(RESCHEDULE_KEY, JSON.stringify(handoff));
     } catch {
-      // storage blocked — the flow asks for the phone instead
+      // storage blocked — the flow just shows the ref without the old time
     }
     const q = new URLSearchParams({ r: a.ref, t: a.treatmentKey });
     if (a.dentistSlug) q.set("d", a.dentistSlug);
     router.push(`/book?${q.toString()}`);
   }
 
-  function doCancel(a: BookingView) {
-    setCancelTarget(a.ref);
-    start(async () => {
-      await cancelBooking(a.ref, a.phone);
-      if (lineRows) setLineRows(lineRows.filter((r) => r.ref !== a.ref));
-      if (phoneRows) setPhoneRows(phoneRows.filter((r) => r.ref !== a.ref));
-      setCancelTarget(null);
-    });
+  async function doCancel(a: Row) {
+    if (line.status !== "in") return;
+    setCancelling(a.ref);
+    setCancelErr(null);
+    const r = await cancelBooking(a.ref, line.token).catch(() => ({ ok: false }));
+    setCancelling(null);
+    setAsking(null);
+    if (r.ok) {
+      setRows((prev) => (prev ?? []).map((x) => (x.ref === a.ref ? { ...x, status: "cancelled" as const } : x)));
+    } else {
+      setCancelErr(a.ref);
+    }
   }
 
-  if (linePending) {
-    // same shapes the route shell used — the topbar is real now, so the swap
-    // from loading.tsx to here is only the chrome appearing, not a relayout
+  if (line.status === "out" || failed) {
+    return (
+      <Screen title={t.nav.bookings} back="/">
+        {failed ? <p className="err">{t.line.failed}</p> : null}
+        <LineSignIn onLogin={line.login} />
+      </Screen>
+    );
+  }
+
+  if (rows === null) {
     return (
       <Screen title={t.nav.bookings} back="/">
         <BookingsSkeleton />
@@ -210,42 +159,9 @@ export function BookingsPage({ today }: { today: string }) {
     );
   }
 
-  /* no verified identity and no phone entered — the gate is the whole view */
-  if (shown === null) {
-    return (
-      <Screen title={t.nav.bookings} back="/">
-        <Eyebrow>{t.bookingsPage.lookupSub}</Eyebrow>
-        <div className="pick">
-          <label className="fld">
-            <span className="fk">{t.booking.contactTel}</span>
-            <input
-              className="fi"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder={t.booking.contactTelPh}
-              value={phoneInput}
-              onChange={(e) => {
-                setPhoneInput(e.target.value);
-                setPhoneErr(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") lookupPhone();
-              }}
-            />
-          </label>
-          {phoneErr ? <p className="err">{t.bookingsPage.notFound}</p> : null}
-          <button type="button" className="cta" disabled={phoneBusy} onClick={lookupPhone}>
-            {phoneBusy ? "…" : t.bookingsPage.lookupBtn}
-          </button>
-        </div>
-      </Screen>
-    );
-  }
-
   return (
     <Screen title={t.nav.bookings} back="/">
-      {lineName ? <p className="hint" style={{ padding: "0 4px 8px" }}>LINE · {lineName}</p> : null}
+      {line.name ? <p className="hint" style={{ padding: "0 4px 8px" }}>LINE · {line.name}</p> : null}
       <Eyebrow>{t.bookingsPage.upcoming}</Eyebrow>
       {upcoming.length > 0 ? (
         upcoming.map((a) => (
@@ -255,14 +171,33 @@ export function BookingsPage({ today }: { today: string }) {
                 ref: a.ref,
                 dateISO: a.date,
                 time: a.time,
-                treatment: a.treatmentKey,
+                treatment: a.treatmentKey as TreatmentKey,
                 dentist: a.dentistSlug,
                 status: "confirmed",
               }}
               patient={a.childName}
+              dentistName={a.dentistSlug ? dentistNames[a.dentistSlug]?.[lang] : undefined}
+              address={address[lang]}
             />
             {/* only a booking nobody has checked in yet can move or be cancelled */}
-            {a.status === "confirmed" ? (
+            {a.status !== "confirmed" ? null : asking === a.ref ? (
+              <div className="cancelAsk">
+                <span className="caQ">{t.bookingsPage.confirmCancel}</span>
+                <div className="twoBtn" style={{ marginTop: 0 }}>
+                  <button type="button" className="softBtn" disabled={cancelling === a.ref} onClick={() => setAsking(null)}>
+                    {t.bookingsPage.keepIt}
+                  </button>
+                  <button
+                    type="button"
+                    className="softBtn solid"
+                    disabled={cancelling === a.ref}
+                    onClick={() => void doCancel(a)}
+                  >
+                    {cancelling === a.ref ? "…" : t.bookingsPage.yesCancel}
+                  </button>
+                </div>
+              </div>
+            ) : (
               <div className="twoBtn">
                 <button type="button" className="softBtn" onClick={() => doPostpone(a)}>
                   {t.bookingsPage.reschedule}
@@ -270,13 +205,16 @@ export function BookingsPage({ today }: { today: string }) {
                 <button
                   type="button"
                   className="softBtn danger"
-                  disabled={cancelling && cancelTarget === a.ref}
-                  onClick={() => doCancel(a)}
+                  onClick={() => {
+                    setCancelErr(null);
+                    setAsking(a.ref);
+                  }}
                 >
-                  {cancelling && cancelTarget === a.ref ? "…" : t.bookingsPage.cancelBooking}
+                  {t.bookingsPage.cancelBooking}
                 </button>
               </div>
-            ) : null}
+            )}
+            {cancelErr === a.ref ? <p className="err">{t.bookingsPage.cancelFailed}</p> : null}
           </div>
         ))
       ) : (
@@ -286,9 +224,9 @@ export function BookingsPage({ today }: { today: string }) {
       <Eyebrow>{t.bookingsPage.past}</Eyebrow>
       <div className="hist">
         {history.map((a) => (
-          <PastRow key={a.ref} a={a} />
+          <PastRow key={a.ref} a={a} names={dentistNames} />
         ))}
-        {history.length === 0 ? <p className="hint" style={{ padding: 12 }}>{t.notices.empty}</p> : null}
+        {history.length === 0 ? <p className="hint" style={{ padding: 12 }}>{t.bookingsPage.noPast}</p> : null}
       </div>
     </Screen>
   );

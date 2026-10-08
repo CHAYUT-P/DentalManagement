@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
 
 import { NoticesPage } from "@/components/patient/NoticesPage";
-import { todayISO } from "@/lib/dates";
 
 export const metadata: Metadata = {
   title: "Denta Kids · การแจ้งเตือน",
-  description: "ข่าวสารและการแจ้งเตือนนัดหมายจากคลินิก",
+  description: "ข้อความที่คลินิกส่งถึงคุณทาง LINE",
 };
 
-export default async function Page() {
-  await connection();
-  return <NoticesPage today={todayISO()} />;
+/** the family's messages load on the client, after their LINE sign-in */
+export default function Page() {
+  return <NoticesPage />;
 }

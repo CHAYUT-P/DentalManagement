@@ -4,12 +4,10 @@ import Link from "next/link";
 
 import type { TreatmentKey } from "@/lib/treatments";
 import { useTreatments } from "@/lib/treatmentsContext";
-import { dentistBySlug } from "@/data/dentists";
 import { useLang, useT } from "@/i18n/lang";
 import { dayOfMonth, fmtLong, monthKey, weekday } from "@/lib/dates";
 import { Check, ChevronLeft, Cross } from "@/components/shared/icons";
 import { LangSwitch } from "@/components/patient/parts";
-import { Toaster } from "@/components/patient/mock";
 
 /**
  * Chrome shared by every page that is not the home screen: the same phone-width
@@ -54,7 +52,6 @@ export function Screen({
         <div className="body">{children}</div>
         {foot}
       </main>
-      <Toaster />
     </div>
   );
 }
@@ -117,10 +114,21 @@ export type SlipData = {
  * notch punched out of each side, the details as a ledger below it, and the
  * booking reference in the inked rose stamp.
  */
-export function Slip({ appt, patient }: { appt: SlipData; patient: string }) {
+export function Slip({
+  appt,
+  patient,
+  dentistName,
+  address,
+}: {
+  appt: SlipData;
+  patient: string;
+  /** the dentist's name from the clinic's roster; absent = "any dentist" */
+  dentistName?: string;
+  /** the clinic's address from clinic_info; the row hides without one */
+  address?: string;
+}) {
   const { t, lang } = useLang();
   const tr = useTreatments();
-  const d = appt.dentist ? dentistBySlug(appt.dentist) : undefined;
   const state =
     appt.status === "confirmed"
       ? { cls: "ok", label: t.slip.confirmed }
@@ -155,9 +163,9 @@ export function Slip({ appt, patient }: { appt: SlipData; patient: string }) {
       <Ledger>
         <Row k={t.slip.patient} v={<span className="child">{patient}</span>} />
         <Row k={t.slip.treatment} v={tr.name(appt.treatment, lang)} />
-        <Row k={t.slip.dentist} v={d ? d.text[lang].name : t.booking.anyone} />
+        <Row k={t.slip.dentist} v={dentistName || t.booking.anyone} />
         <Row k={t.slip.when} v={`${fmtLong(t, appt.dateISO, lang)} · ${appt.time}`} />
-        <Row k={t.slip.where} v={t.clinic.address} />
+        {address ? <Row k={t.slip.where} v={address} /> : null}
       </Ledger>
 
       <div className="slipFoot">
@@ -191,5 +199,19 @@ export function EmptySlip() {
         <Cta href="/book">{t.book}</Cta>
       </div>
     </article>
+  );
+}
+
+/** sign in with LINE — shown in place of anything personal until signed in */
+export function LineSignIn({ onLogin }: { onLogin: () => void }) {
+  const t = useT();
+  return (
+    <div className="pick lineGate">
+      <span className="lgTitle">{t.line.title}</span>
+      <p className="hint">{t.line.sub}</p>
+      <button type="button" className="cta" onClick={onLogin}>
+        {t.line.btn}
+      </button>
+    </div>
   );
 }

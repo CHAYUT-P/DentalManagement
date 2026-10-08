@@ -271,6 +271,34 @@
   margin-top: -4px;
 }
 
+/* "cancel this appointment?" — asked in place, under the slip */
+.cancelAsk {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid rgba(200, 120, 160, 0.4);
+}
+.cancelAsk .caQ { font-size: 12.5px; color: var(--ink); text-align: center; }
+.softBtn.solid { background: #c75f8a; border-color: #c75f8a; color: #fff; }
+
+/* sign in with LINE — the gate in front of anything personal */
+.lineGate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 18px 18px;
+  text-align: center;
+}
+.lineGate .lgTitle { font-family: var(--font-display-stack); font-size: 15px; color: var(--brand); }
+.lineGate .hint { margin: 0; }
+.lineGate .cta { width: 100%; background: #06c755; }
+.lineGate .cta:active { background: #05a948; }
+
 /* one upcoming booking: its slip with the postpone / cancel pair under it */
 .upNext {
   display: flex;

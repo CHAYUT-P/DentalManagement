@@ -6,7 +6,10 @@
 
 .home .hero { min-height: clamp(176px, 25vh, 228px); padding: 20px 20px 14px; }
 .home .hero .txt { padding-left: 66px; max-width: 252px; }
-.home .hero .sub { margin-top: 5px; }
+/* the subtitle stops short of the calendar tile on narrow phones — measured
+   against the banner itself (container units), not the screen */
+.home .hero { container-type: inline-size; }
+.home .hero .sub { margin-top: 5px; max-width: calc(100cqw - 170px); }
 .home .hero .cal { position: absolute; right: 40px; top: 54px; }
 .home .hero .pet { position: absolute; left: 1px; bottom: 0; }
 .home .hero .heroArrow { position: absolute; right: 20px; bottom: 15px; }

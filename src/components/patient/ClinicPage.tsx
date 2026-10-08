@@ -3,26 +3,15 @@
 import type { ClinicDayDTO, ClinicInfoDTO } from "@/server/queries";
 import { useLang } from "@/i18n/lang";
 import { weekday } from "@/lib/dates";
-import { Ball, Car, Card, Family, LineBubble, MapPlan, Phone, Pin, Shield, Wifi } from "@/components/shared/icons";
+import { LineBubble, MapPlan, Phone, Pin } from "@/components/shared/icons";
 import { Eyebrow, Ledger, Panel, Screen } from "@/components/patient/screen";
 
 /**
  * The clinic itself: what it is, when it opens, how to reach it, and where it is.
  * Hours come from the clinic_day table and contact details from clinic_info —
- * the same rows the staff settings page edits. Only the descriptive copy
- * (about, payment) stays in the dictionary.
+ * the same rows the staff settings page edits; a blank field hides its row
+ * rather than showing a made-up value. Only the "about" copy is fixed text.
  */
-
-const FACILITY_ICON: Record<string, React.ReactNode> = {
-  parking: <Car />,
-  wifi: <Wifi />,
-  cards: <Card />,
-  play: <Ball />,
-  sterile: <Shield />,
-  family: <Family />,
-};
-
-const FACILITIES = ["parking", "play", "wifi", "family", "sterile", "cards"] as const;
 
 export function ClinicPage({
   today,
@@ -39,9 +28,9 @@ export function ClinicPage({
   const ordered = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) =>
     days.find((row) => row.day === d),
   );
-  const address = (lang === "th" ? info?.addressTh : info?.addressEn) || t.clinic.address;
+  const address = (lang === "th" ? info?.addressTh : info?.addressEn) || "";
   const landmark = (lang === "th" ? info?.landmarkTh : info?.landmarkEn) || "";
-  const phone = info?.phoneDisplay || t.clinic.phone;
+  const phone = info?.phoneDisplay || "";
   const phoneLink = info?.phone || info?.phoneDisplay || "tel:";
   const lineId = info?.lineId ?? "";
   const lineUrl = info?.lineUrl || "#";
@@ -74,26 +63,30 @@ export function ClinicPage({
 
       <Eyebrow>{t.clinicPage.contactEyebrow}</Eyebrow>
       <div className="contact">
-        <a href={`tel:${phoneLink}`} className="contactRow">
-          <span className="cIcon rose">
-            <Phone size={18} />
-          </span>
-          <span className="cText">
-            <span className="cn">{t.clinicPage.call}</span>
-            <span className="cm">{phone}</span>
-          </span>
-        </a>
-        <a href={lineUrl} target="_blank" rel="noreferrer" className="contactRow">
-          <span className="cIcon green">
-            <LineBubble size={18} />
-          </span>
-          <span className="cText">
-            <span className="cn">{t.clinicPage.lineOA}</span>
-            <span className="cm">
-              {lineId} · {t.clinicPage.lineSub}
+        {phone ? (
+          <a href={`tel:${phoneLink}`} className="contactRow">
+            <span className="cIcon rose">
+              <Phone size={18} />
             </span>
-          </span>
-        </a>
+            <span className="cText">
+              <span className="cn">{t.clinicPage.call}</span>
+              <span className="cm">{phone}</span>
+            </span>
+          </a>
+        ) : null}
+        {lineId ? (
+          <a href={lineUrl} target="_blank" rel="noreferrer" className="contactRow">
+            <span className="cIcon green">
+              <LineBubble size={18} />
+            </span>
+            <span className="cText">
+              <span className="cn">{t.clinicPage.lineOA}</span>
+              <span className="cm">
+                {lineId} · {t.clinicPage.lineSub}
+              </span>
+            </span>
+          </a>
+        ) : null}
       </div>
 
       <Eyebrow>{t.clinicPage.addressEyebrow}</Eyebrow>
@@ -121,20 +114,6 @@ export function ClinicPage({
         </div>
       </div>
 
-      <Eyebrow>{t.clinicPage.facilitiesEyebrow}</Eyebrow>
-      <div className="facs">
-        {FACILITIES.map((f) => (
-          <span key={f} className="fac">
-            <span className="fIcon">{FACILITY_ICON[f]}</span>
-            {t.facility[f]}
-          </span>
-        ))}
-      </div>
-
-      <Eyebrow>{t.clinicPage.payEyebrow}</Eyebrow>
-      <Panel>
-        <p className="prose">{t.clinicPage.pay}</p>
-      </Panel>
     </Screen>
   );
 }

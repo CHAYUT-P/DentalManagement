@@ -256,8 +256,8 @@ async function main() {
     lookedUp.found && lookedUp.state === "waiting" && (lookedUp.position ?? 0) >= 1,
     JSON.stringify(lookedUp),
   );
-  const lookedUpByPhone = await queueStatus({ date: today, phone: "0990000021" });
-  check("queue lookup by phone finds the same booking", lookedUpByPhone.ref === qAppt!.ref);
+  const lookedUpElsewhere = await queueStatus({ date: addDays(today, 1), ref: qAppt!.ref });
+  check("queue lookup only finds a booking on its own day", !lookedUpElsewhere.found);
   await updateAppointment(qAppt!.id, { status: "in_chair" });
   board = await queueDay(today);
   check(

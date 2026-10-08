@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
 
 import type { Dentist } from "@/data/dentists";
 import { iconGroups, type IconKey } from "@/data/icons";
 import type { TreatmentKey } from "@/lib/treatments";
 import { useTreatments } from "@/lib/treatmentsContext";
-import { patient } from "@/data/appointments";
 import { useLang, useT } from "@/i18n/lang";
 import {
   addDays,
@@ -22,20 +21,23 @@ import {
   yearOf,
 } from "@/lib/dates";
 import { dentistsForUI } from "@/lib/convert";
+import { useLine } from "@/lib/useLine";
 import { bookAppointment, holdSlot, releaseSlotHold, rescheduleBooking } from "@/server/actions";
 import type { SlotRow } from "@/server/queries";
 import { Check, Chevron, ChevronLeft } from "@/components/shared/icons";
 import { Mascot } from "@/components/shared/Mascot";
 import { DentistAvatar } from "@/components/patient/portrait";
-import { Cta, Eyebrow, Ghost, Screen, Slip } from "@/components/patient/screen";
+import { Cta, Eyebrow, Ghost, LineSignIn, Screen, Slip } from "@/components/patient/screen";
 import { ServiceIcon } from "@/components/shared/serviceIcons";
 
 /**
  * Treatment → dentist → day and time → name + phone → booked.
  *
  * The family gives only a name to say at the desk (a nickname is enough) and a
- * phone number — no guardian/child details. Inside LINE the booking is also
- * stamped with the LINE account, which is how "my bookings" finds it there.
+ * phone number — no guardian/child details; staff match bookings to patient
+ * records themselves. The family is signed in with LINE (the site is the
+ * clinic OA's LIFF app), and the booking is stamped with that account: it is
+ * how "my bookings" finds it, and the only way to move or cancel it later.
  *
  * Everything the flow shows is decided by the database: the dentist roster, the
  * weekly open days, holidays and — the part that makes it real — which slots
@@ -57,17 +59,35 @@ const WINDOW_DAYS = 14;
 const LEAD = 60;
 
 /**
- * What "เลื่อนนัด" on /bookings hands to this flow. It travels in
- * sessionStorage, never the URL: the phone is the proof `rescheduleBooking`
- * checks, and the old date/time/child are only for the banner and the slip.
+ * What "เลื่อนนัด" on /bookings hands to this flow: the old date/time/child,
+ * only for the banner and the slip. The proof `rescheduleBooking` checks is
+ * the LINE sign-in, not anything in here.
  */
 export const RESCHEDULE_KEY = "dk:reschedule";
 export interface RescheduleHandoff {
   ref: string;
-  phone: string;
   date: string;
   time: string;
   childName: string;
+}
+
+/** the name + phone this family booked with last time, on this device */
+const CONTACT_KEY = "dk:contact";
+function readContact(): { name: string; tel: string } {
+  try {
+    const raw = typeof window === "undefined" ? null : localStorage.getItem(CONTACT_KEY);
+    const v = raw ? (JSON.parse(raw) as { name?: unknown; tel?: unknown }) : null;
+    return { name: typeof v?.name === "string" ? v.name : "", tel: typeof v?.tel === "string" ? v.tel : "" };
+  } catch {
+    return { name: "", tel: "" };
+  }
+}
+function saveContact(name: string, tel: string) {
+  try {
+    localStorage.setItem(CONTACT_KEY, JSON.stringify({ name, tel }));
+  } catch {
+    // storage blocked — they just type it again next time
+  }
 }
 
 const noSubscribe = () => () => {};
@@ -113,6 +133,8 @@ export interface BookingFlowProps {
   preDentist?: string;
   /** `?r=` — move this existing booking instead of making a new one */
   rescheduleRef?: string;
+  /** the clinic's address from clinic_info, for the slip */
+  address: { th: string; en: string };
 }
 
 /* ═══════════════════════════ small shared rows ═══════════════════════════ */
@@ -337,7 +359,6 @@ export function BookingFlow(props: BookingFlowProps) {
       return null;
     }
   }, [resched, handoffRaw, props.rescheduleRef]);
-  const [reschedTel, setReschedTel] = useState("");
   /** the child on the moved booking — kept here because the handoff is
    *  cleared from storage the moment the move succeeds */
   const [movedChild, setMovedChild] = useState<string | null>(null);
@@ -352,34 +373,18 @@ export function BookingFlow(props: BookingFlowProps) {
   const [time, setTime] = useState<string | null>(null);
   /** token for the picked slot's temporary reservation (hold-then-confirm) */
   const [holdToken, setHoldToken] = useState<string | null>(null);
-  /** LINE-signed ID token — only present when the page runs inside LIFF */
-  const [lineIdToken, setLineIdToken] = useState<string | null>(null);
+  /** the family's LINE sign-in — the booking is stamped with this account */
+  const line = useLine();
 
-  const [bookName, setBookName] = useState("");
-  const [contactTel, setContactTel] = useState("");
+  // filled in from the last booking on this device; never shown before step 4,
+  // so the server render never differs from the first client render
+  const [bookName, setBookName] = useState(() => readContact().name);
+  const [contactTel, setContactTel] = useState(() => readContact().tel);
   const [contactErr, setContactErr] = useState<string | null>(null);
 
   const [pending, startBooking] = useTransition();
   const [bookErr, setBookErr] = useState<string | null>(null);
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null);
-
-  /* inside LINE the LIFF context is already logged in — grab the signed ID
-     token so the server can learn who booked; a normal browser visit just
-     skips this and books by phone number as before */
-  useEffect(() => {
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-    if (!liffId) return;
-    let cancelled = false;
-    import("@line/liff")
-      .then(async ({ default: liff }) => {
-        await liff.init({ liffId });
-        if (!cancelled && liff.isLoggedIn()) setLineIdToken(liff.getIDToken());
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const chosen = dentist ? dentists.find((d) => d.slug === dentist) : undefined;
   const roster = treatment ? dentistsForUI(dentists, treatment) : dentists;
@@ -499,30 +504,31 @@ export function BookingFlow(props: BookingFlowProps) {
         childName: bookName.trim(),
         phone: contactTel,
         holdToken: holdToken ?? undefined,
-        lineIdToken: lineIdToken ?? undefined,
+        lineIdToken: line.token ?? undefined,
       });
       if (result.ok && result.ref) {
         setHoldToken(null);
+        saveContact(bookName.trim(), contactTel);
         setConfirmedRef(result.ref);
       } else {
-        setBookErr(result.error === "slot_taken" ? t.booking.slotTaken : t.booking.bookError);
+        setBookErr(
+          result.error === "slot_taken" ? t.booking.slotTaken
+          : result.error === "line" ? t.booking.errLine
+          : t.booking.bookError,
+        );
       }
     });
   }
 
   /** postpone mode's final write — moves the existing row, keeps its ref */
   function confirmReschedule() {
-    if (!props.rescheduleRef || !date || !time) return;
-    const phone = handoff?.phone ?? reschedTel;
-    if (!/^[0-9]{9,10}$/.test(phone.replace(/\D/g, ""))) {
-      setBookErr(t.booking.reschedPhone);
-      return;
-    }
+    if (!props.rescheduleRef || !date || !time || !line.token) return;
+    const lineIdToken = line.token;
     setBookErr(null);
     startBooking(async () => {
       const result = await rescheduleBooking({
         ref: props.rescheduleRef!,
-        phone,
+        lineIdToken,
         date,
         time,
         holdToken: holdToken ?? undefined,
@@ -566,7 +572,9 @@ export function BookingFlow(props: BookingFlowProps) {
               dentist: dentist ?? null,
               status: "confirmed",
             }}
-            patient={(resched ? movedChild : bookName.trim()) || patient[lang]}
+            patient={(resched ? movedChild : bookName.trim()) || "–"}
+            dentistName={chosen?.text[lang].name}
+            address={props.address[lang]}
           />
 
           <div className="doneLinks">
@@ -574,6 +582,8 @@ export function BookingFlow(props: BookingFlowProps) {
             <Ghost href="/">{t.booking.backHome}</Ghost>
           </div>
         </div>
+      ) : line.status === "out" ? (
+        <LineSignIn onLogin={line.login} />
       ) : (
         <>
           {resched ? (
@@ -720,25 +730,6 @@ export function BookingFlow(props: BookingFlowProps) {
                 </>
               ) : null}
 
-              {resched && !handoff ? (
-                <div className="pick">
-                  <label className="fld">
-                    <span className="fk">{t.booking.reschedPhone}</span>
-                    <input
-                      className="fi"
-                      type="tel"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      placeholder={t.booking.contactTelPh}
-                      value={reschedTel}
-                      onChange={(e) => {
-                        setReschedTel(e.target.value);
-                        setBookErr(null);
-                      }}
-                    />
-                  </label>
-                </div>
-              ) : null}
               {resched && bookErr ? <p className="err">{bookErr}</p> : null}
 
               <div className="stickyBar">
@@ -750,7 +741,12 @@ export function BookingFlow(props: BookingFlowProps) {
                   </span>
                 </div>
                 {resched ? (
-                  <button type="button" className="cta" disabled={!date || !time || pending} onClick={confirmReschedule}>
+                  <button
+                    type="button"
+                    className="cta"
+                    disabled={!date || !time || pending || line.status !== "in"}
+                    onClick={confirmReschedule}
+                  >
                     {pending ? t.booking.bookingNow : t.booking.reschedConfirm}
                   </button>
                 ) : (
@@ -811,7 +807,7 @@ export function BookingFlow(props: BookingFlowProps) {
                 <button type="button" className="ghostBtn" onClick={() => setStep(3)}>
                   {t.booking.backToTime}
                 </button>
-                <button type="button" className="cta" onClick={confirmBooking} disabled={pending}>
+                <button type="button" className="cta" onClick={confirmBooking} disabled={pending || line.status !== "in"}>
                   {pending ? t.booking.bookingNow : t.booking.confirmBooking}
                 </button>
               </div>

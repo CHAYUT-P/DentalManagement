@@ -845,15 +845,20 @@ export interface CreateAppointmentInput {
   register?: boolean;
 }
 
-/** make a booking reference: DK- plus four digits, retrying on collision */
+/**
+ * make a booking reference: DK- plus six digits, retrying on collision. Refs
+ * are never reused (cancelled ones included), so four digits would run out
+ * after a few thousand bookings; six leaves room for decades and makes a ref
+ * impractical to guess. Older four-digit refs stay valid.
+ */
 async function nextRef(): Promise<string> {
-  for (let i = 0; i < 10; i++) {
-    const ref = `DK-${Math.floor(1000 + Math.random() * 9000)}`;
-    const hit = await db.select({ id: appointment.id }).from(appointment).where(eq(appointment.ref, ref));
-    if (hit.length === 0) return ref;
+  for (let digits = 6; ; digits++) {
+    for (let i = 0; i < 10; i++) {
+      const ref = `DK-${Math.floor(10 ** (digits - 1) + Math.random() * 9 * 10 ** (digits - 1))}`;
+      const hit = await db.select({ id: appointment.id }).from(appointment).where(eq(appointment.ref, ref));
+      if (hit.length === 0) return ref;
+    }
   }
-  // vanishingly unlikely; fall back to a timestamp-suffixed ref
-  return `DK-${Date.now() % 10000}`;
 }
 
 /**
@@ -1565,36 +1570,28 @@ export interface QueueLookupDTO {
 }
 
 /**
- * "Where am I in the queue?" — by booking ref or guardian phone, today's
- * appointments only. Positions count the merged waiting list above.
+ * "Where am I in the queue?" — by booking ref, on one day (the public route
+ * only ever asks about today). Positions count the merged waiting list above.
+ * No phone lookup: a phone number is not proof of anything.
  */
-export async function queueStatus(input: {
-  date: string;
-  ref?: string;
-  phone?: string;
-}): Promise<QueueLookupDTO> {
-  const digits = (input.phone ?? "").replace(/\D/g, "");
+export async function queueStatus(input: { date: string; ref?: string }): Promise<QueueLookupDTO> {
   const ref = (input.ref ?? "").trim().toUpperCase();
-  if (!ref && digits.length < 9) return { found: false };
+  if (!ref) return { found: false };
 
   if (ref.startsWith("W-")) {
-    const id = Number(ref.slice(2));
-    const [w] = Number.isFinite(id)
-      ? await db.select().from(waitlistEntry).where(eq(waitlistEntry.id, id))
-      : [];
+    // walk-ins only exist on the day's board — never look one up by bare id
+    const day = await queueDay(input.date);
+    const w = [...day.waiting, ...day.serving, ...day.done].find((x) => x.ref === ref);
     if (!w) return { found: false };
-    const base = { found: true as const, ref, name: w.childName };
-    if (w.status === "done") return { ...base, state: "done" };
-    if (w.status === "in_chair") return { ...base, state: "serving" };
-    const { waiting } = await queueDay(input.date);
-    const position = waiting.findIndex((x) => x.ref === ref) + 1;
+    const base = { found: true as const, ref, name: w.name };
+    if (w.state === "done") return { ...base, state: "done" };
+    if (w.state === "serving") return { ...base, state: "serving" };
+    const position = day.waiting.findIndex((x) => x.ref === ref) + 1;
     return { ...base, state: "waiting", position, ahead: Math.max(0, position - 1) };
   }
 
   const rows = await db.select().from(appointment).where(eq(appointment.date, input.date));
-  const target = rows.find(
-    (a) => (ref && a.ref.toUpperCase() === ref) || (digits.length >= 9 && a.phone === digits),
-  );
+  const target = rows.find((a) => a.ref.toUpperCase() === ref);
   if (!target) return { found: false };
 
   const base = { found: true as const, ref: target.ref, name: target.childName, time: target.time };

@@ -3,7 +3,7 @@ import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { appointment, guardian, messageLog } from "@/db/schema";
-import { addDays, todayISO } from "@/lib/dates";
+import { addDays, thaiDate, todayISO } from "@/lib/dates";
 import { pushLineText } from "@/server/line";
 
 /**
@@ -30,7 +30,7 @@ const KINDS: Record<string, Kind> = {
 
 function text(kind: Kind, a: { ref: string; childName: string; date: string; time: string }) {
   return kind === "reminder_day_before"
-    ? `เตือนนัดหมายค่ะ 🦷\nพรุ่งนี้ (${a.date}) เวลา ${a.time} มีนัดของ ${a.childName} นะคะ\nแจ้งชื่อนี้ที่เคาน์เตอร์เมื่อมาถึงได้เลย\nรหัสจอง: ${a.ref}`
+    ? `เตือนนัดหมายค่ะ 🦷\nพรุ่งนี้ ${thaiDate(a.date)} เวลา ${a.time} มีนัดของ ${a.childName} นะคะ\nแจ้งชื่อนี้ที่เคาน์เตอร์เมื่อมาถึงได้เลย\nรหัสจอง: ${a.ref}`
     : `วันนี้มีนัดนะคะ ⏰\nนัดของ ${a.childName} เวลา ${a.time} — แวะมาสักเล็กน้อยก่อนเวลาได้เลยค่ะ\nรหัสจอง: ${a.ref}`;
 }
 

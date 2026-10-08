@@ -147,3 +147,12 @@ export function fmtRelative(t: Dict, todayISO: string, iso: string): string {
   if (n === 1) return t.common.tomorrow;
   return fmtShort(t, iso);
 }
+
+const TH_WEEKDAY = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+const TH_MONTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+/** "วันศุกร์ที่ 16 ต.ค. 2569" — for LINE messages, which have no Dict at hand */
+export function thaiDate(iso: string): string {
+  const d = at(iso);
+  return `วัน${TH_WEEKDAY[d.getUTCDay()]}ที่ ${d.getUTCDate()} ${TH_MONTH[d.getUTCMonth()]} ${d.getUTCFullYear() + 543}`;
+}

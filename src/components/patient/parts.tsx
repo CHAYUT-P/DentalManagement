@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useTreatments } from "@/lib/treatmentsContext";
 
-import { dentists as fallbackDentists } from "@/data/dentists";
 import type { Dentist } from "@/data/dentists";
 import type { Service } from "@/data/services";
 import type { ClinicInfoDTO } from "@/server/queries";
@@ -113,9 +112,10 @@ export function InfoRow({
     ? todayRow.isOpen
       ? `${todayRow.start} - ${todayRow.end}`
       : t.common.closed
-    : t.clinic.hoursTime;
-  const phone = info?.phoneDisplay || t.clinic.phone;
-  const address = (lang === "th" ? info?.addressTh : info?.addressEn) || t.clinic.address;
+    : "–";
+  // straight from clinic_info — a blank field shows a dash, never a made-up value
+  const phone = info?.phoneDisplay || "–";
+  const address = (lang === "th" ? info?.addressTh : info?.addressEn) || "–";
 
   return (
     <Link href="/clinic" className="info">
@@ -156,14 +156,13 @@ export function Ribbon({ msg, face = true }: { msg: string; face?: boolean }) {
 /**
  * The dentists on the home page: a swipeable row of faces, because parents pick
  * the dentist their child already knows. Tapping one opens the full profile.
- * The roster arrives as a prop (the DB decides who is active) with a static
- * fallback for any caller that does not pass one.
+ * The roster arrives as a prop — the DB decides who is active.
  */
-export function DentistStrip({ list }: { list?: Dentist[] }) {
+export function DentistStrip({ list }: { list: Dentist[] }) {
   const { t, lang } = useLang();
   return (
     <div className="docStrip">
-      {(list ?? fallbackDentists).map((d) => {
+      {list.map((d) => {
         const x = d.text[lang];
         return (
           <Link key={d.slug} href={`/dentists/${d.slug}`} className="docMini">

@@ -164,18 +164,12 @@
     fetchBoard();
   });
 
-  /* "check my queue" — booking ref (DK-/W-) or guardian phone, on the picked day */
+  /* "check my queue" — booking ref (DK-/W-), today only */
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var v = input.value.trim();
     if (!v) return;
-    var isPhone = /^0?[0-9 -]{9,}$/.test(v);
-    var url =
-      API +
-      "/api/queue?date=" +
-      encodeURIComponent(state.day) +
-      (isPhone ? "&phone=" : "&ref=") +
-      encodeURIComponent(v);
+    var url = API + "/api/queue?ref=" + encodeURIComponent(v);
 
     fetch(url)
       .then(function (r) {
@@ -185,7 +179,7 @@
         elMine.hidden = false;
         if (!d.found) {
           elMine.className = "q-mine";
-          elMine.innerHTML = "ไม่พบคิววันที่เลือกสำหรับ <strong>" + esc(v) + "</strong> — ถ้าจองวันอื่นไว้ ลองเปลี่ยนวันที่ด้านล่าง";
+          elMine.innerHTML = "ไม่พบคิววันนี้สำหรับรหัส <strong>" + esc(v) + "</strong> — ตรวจรหัสจองในข้อความ LINE อีกครั้ง";
           return;
         }
         var msg;
